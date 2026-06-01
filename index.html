@@ -150,8 +150,14 @@
       const saveLotsToStorage = (newLots) => { setLots(newLots); localStorage.setItem('cy_lots', JSON.stringify(newLots)); };
       const saveInvoicesToStorage = (newInvoices) => { setInvoices(newInvoices); localStorage.setItem('cy_invoices', JSON.stringify(newInvoices)); };
       const saveGoodsToStorage = (newGoods) => { setGoods(newGoods); localStorage.setItem('cy_goods', JSON.stringify(newGoods)); };
-      const saveDictA12ToStorage = (newDict) => { setDictA12(newDict); localStorage.setItem('cy_dict_a12', JSON.stringify(newDict)); };
-      const saveDictE21ToStorage = (newDict) => { setDictE21(newDict); localStorage.setItem('cy_dict_e21', JSON.stringify(newDict)); };
+      const saveDictA12ToStorage = (newDict) => { 
+        try { setDictA12(newDict); localStorage.setItem('cy_dict_a12', JSON.stringify(newDict)); } 
+        catch(err) { setDictA12(newDict); if(err.name==='QuotaExceededError') showNotification("Bộ nhớ cục bộ đã đầy! Không thể lưu thêm. Hãy xóa bớt dữ liệu.", "error"); }
+      };
+      const saveDictE21ToStorage = (newDict) => { 
+        try { setDictE21(newDict); localStorage.setItem('cy_dict_e21', JSON.stringify(newDict)); } 
+        catch(err) { setDictE21(newDict); if(err.name==='QuotaExceededError') showNotification("Bộ nhớ cục bộ đã đầy! Không thể lưu thêm. Hãy xóa bớt dữ liệu.", "error"); }
+      };
 
       // Quản lý trạng thái dòng click
       const [selectedLotNo, setSelectedLotNo] = useState(null);
@@ -165,6 +171,8 @@
       // Từ khóa tìm kiếm trong danh mục gốc
       const [dbSearchQuery, setDbSearchQuery] = useState('');
       const [dbSelectedTab, setDbSelectedTab] = useState('A12');
+      const [dbCurrentPage, setDbCurrentPage] = useState(1);
+      const DB_PAGE_SIZE = 50;
 
       const [homeSearchQuery, setHomeSearchQuery] = useState('');
 
@@ -523,7 +531,11 @@
             showNotification(`Import Excel thành công! Đã cập nhật ${importedItems.length} mặt hàng vào Danh mục ${dbSelectedTab}.`);
           } catch (err) {
             console.error(err);
-            showNotification("Đọc Excel thất bại! Vui lòng kiểm tra lại cấu trúc file.", "error");
+            if (err.name === 'QuotaExceededError' || (err.message && err.message.toLowerCase().includes('quota'))) {
+              showNotification("Bộ nhớ cục bộ đã đầy! Hãy xóa bớt dữ liệu cũ hoặc dùng trình duyệt khác.", "error");
+            } else {
+              showNotification("Đọc Excel thất bại! Vui lòng kiểm tra lại cấu trúc file.", "error");
+            }
           }
         };
         reader.readAsArrayBuffer(file);
@@ -641,6 +653,13 @@
         const q = dbSearchQuery.toLowerCase();
         return dict.filter(item => item.goods_no.toLowerCase().includes(q) || item.hs_code.toLowerCase().includes(q) || item.goods_name_local.toLowerCase().includes(q) || item.goods_name_en.toLowerCase().includes(q));
       };
+
+      const filteredDbDict = getFilteredDbDictionary();
+      const dbTotalPages = Math.max(1, Math.ceil(filteredDbDict.length / DB_PAGE_SIZE));
+      const dbSafePage = Math.min(dbCurrentPage, dbTotalPages);
+      const dbPagedDict = filteredDbDict.slice((dbSafePage - 1) * DB_PAGE_SIZE, dbSafePage * DB_PAGE_SIZE);
+      const handleDbTabChange = (tab) => { setDbSelectedTab(tab); setDbCurrentPage(1); setDbSearchQuery(''); };
+      const handleDbSearch = (q) => { setDbSearchQuery(q); setDbCurrentPage(1); };
 
       return (
         <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
@@ -815,8 +834,8 @@
                         </label>
 
                         <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-850">
-                          <button onClick={() => setDbSelectedTab('A12')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${dbSelectedTab === 'A12' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>Mẫu A12</button>
-                          <button onClick={() => setDbSelectedTab('E21')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${dbSelectedTab === 'E21' ? 'bg-emerald-600 text-white' : 'text-slate-400'}`}>Mẫu E21</button>
+                          <button onClick={() => handleDbTabChange('A12')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${dbSelectedTab === 'A12' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>Mẫu A12 ({dictA12.length})</button>
+                          <button onClick={() => handleDbTabChange('E21')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${dbSelectedTab === 'E21' ? 'bg-emerald-600 text-white' : 'text-slate-400'}`}>Mẫu E21 ({dictE21.length})</button>
                         </div>
                       </div>
                     </div>
@@ -826,13 +845,20 @@
                         type="text" 
                         placeholder="Tìm kiếm nhanh trong danh mục..." 
                         value={dbSearchQuery}
-                        onChange={(e) => setDbSearchQuery(e.target.value)}
+                        onChange={(e) => handleDbSearch(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 px-4 text-xs text-white"
                       />
+                      {dbSearchQuery && (
+                        <button onClick={() => handleDbSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs">✕ Xóa</button>
+                      )}
                     </div>
 
                     {/* BẢNG HIỂN THỊ DANH MỤC TỪ ĐIỂN */}
                     <div className="overflow-x-auto border border-slate-850 rounded-xl">
+                      <div className="px-4 py-2 bg-slate-950 border-b border-slate-850 flex justify-between items-center text-[11px] text-slate-400">
+                        <span>Hiển thị <strong className="text-white">{dbPagedDict.length}</strong> / <strong className="text-amber-400">{filteredDbDict.length}</strong> sản phẩm {dbSearchQuery && `(lọc từ ${(dbSelectedTab === 'A12' ? dictA12 : dictE21).length})`}</span>
+                        <span>Trang <strong className="text-white">{dbSafePage}</strong> / {dbTotalPages}</span>
+                      </div>
                       <table className="w-full text-left text-xs border-collapse">
                         <thead>
                           <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-850">
@@ -846,9 +872,9 @@
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-850">
-                          {getFilteredDbDictionary().map((item, index) => (
+                          {dbPagedDict.map((item, index) => (
                             <tr key={item.goods_no + index} className="hover:bg-slate-850/30 text-slate-300">
-                              <td className="p-3 text-center text-slate-500 font-mono">{index + 1}</td>
+                              <td className="p-3 text-center text-slate-500 font-mono">{(dbSafePage - 1) * DB_PAGE_SIZE + index + 1}</td>
                               <td className="p-3 font-mono font-bold text-amber-400">{item.goods_no}</td>
                               <td className="p-3 text-center font-mono text-white bg-slate-950/40 font-bold">{item.hs_code}</td>
                               <td className="p-3 text-slate-100 font-medium">{item.goods_name_en}</td>
@@ -860,12 +886,34 @@
                               </td>
                             </tr>
                           ))}
-                          {getFilteredDbDictionary().length === 0 && (
+                          {dbPagedDict.length === 0 && (
                             <tr><td colSpan="7" className="p-8 text-center text-slate-500">Chưa có sản phẩm nào trong từ điển. Hãy nhấn thêm hoặc upload file Excel của bạn.</td></tr>
                           )}
                         </tbody>
                       </table>
                     </div>
+
+                    {/* PHÂN TRANG */}
+                    {dbTotalPages > 1 && (
+                      <div className="flex justify-center items-center gap-2 pt-2">
+                        <button onClick={() => setDbCurrentPage(1)} disabled={dbSafePage === 1} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40 hover:bg-slate-700">«</button>
+                        <button onClick={() => setDbCurrentPage(p => Math.max(1, p - 1))} disabled={dbSafePage === 1} className="px-3 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40 hover:bg-slate-700">‹ Trước</button>
+                        {Array.from({ length: dbTotalPages }, (_, i) => i + 1)
+                          .filter(p => p === 1 || p === dbTotalPages || Math.abs(p - dbSafePage) <= 2)
+                          .reduce((acc, p, idx, arr) => {
+                            if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                            acc.push(p);
+                            return acc;
+                          }, [])
+                          .map((p, i) => p === '...'
+                            ? <span key={`ellipsis-${i}`} className="text-slate-500 text-xs px-1">…</span>
+                            : <button key={p} onClick={() => setDbCurrentPage(p)} className={`px-3 py-1 rounded text-xs font-bold ${p === dbSafePage ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>{p}</button>
+                          )
+                        }
+                        <button onClick={() => setDbCurrentPage(p => Math.min(dbTotalPages, p + 1))} disabled={dbSafePage === dbTotalPages} className="px-3 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40 hover:bg-slate-700">Tiếp ›</button>
+                        <button onClick={() => setDbCurrentPage(dbTotalPages)} disabled={dbSafePage === dbTotalPages} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40 hover:bg-slate-700">»</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
