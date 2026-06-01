@@ -71,62 +71,85 @@
   <!-- Vùng React App Mount -->
   <div id="root"></div>
 
-  <!-- IndexedDB Storage Layer - thay thế localStorage, không giới hạn dung lượng -->
+  <!-- Google Sheets API Layer -->
   <script>
-    const CY_DB_NAME = 'ChangYangIMS';
+    // =====================================================================
+    // CHANG YANG IMS - GOOGLE SHEETS STORAGE LAYER
+    // Dữ liệu lưu trên Google Sheets qua Apps Script Web App
+    // IndexedDB được dùng làm cache offline tạm thời
+    // =====================================================================
+
+    const CY_DB_NAME = 'ChangYangIMS_v2';
     const CY_DB_VERSION = 1;
     const CY_STORE = 'keyvalue';
-
     let _cyDb = null;
 
+    // --- IndexedDB (cache offline) ---
     function cyOpenDB() {
       if (_cyDb) return Promise.resolve(_cyDb);
       return new Promise((resolve, reject) => {
         const req = indexedDB.open(CY_DB_NAME, CY_DB_VERSION);
-        req.onupgradeneeded = (e) => {
-          e.target.result.createObjectStore(CY_STORE);
-        };
-        req.onsuccess = (e) => { _cyDb = e.target.result; resolve(_cyDb); };
-        req.onerror = (e) => reject(e.target.error);
+        req.onupgradeneeded = e => e.target.result.createObjectStore(CY_STORE);
+        req.onsuccess = e => { _cyDb = e.target.result; resolve(_cyDb); };
+        req.onerror = e => reject(e.target.error);
       });
     }
-
-    window.cyGet = async function(key) {
+    window.cyLocalGet = async (key) => {
       const db = await cyOpenDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(CY_STORE, 'readonly');
-        const req = tx.objectStore(CY_STORE).get(key);
-        req.onsuccess = () => resolve(req.result ?? null);
-        req.onerror = () => reject(req.error);
+      return new Promise((res, rej) => {
+        const req = db.transaction(CY_STORE,'readonly').objectStore(CY_STORE).get(key);
+        req.onsuccess = () => res(req.result ?? null);
+        req.onerror = () => rej(req.error);
       });
     };
-
-    window.cySet = async function(key, value) {
+    window.cyLocalSet = async (key, value) => {
       const db = await cyOpenDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(CY_STORE, 'readwrite');
+      return new Promise((res, rej) => {
+        const tx = db.transaction(CY_STORE,'readwrite');
         tx.objectStore(CY_STORE).put(value, key);
-        tx.oncomplete = () => resolve(true);
-        tx.onerror = () => reject(tx.error);
+        tx.oncomplete = () => res(true);
+        tx.onerror = () => rej(tx.error);
       });
     };
 
-    // Migration: chuyển dữ liệu cũ từ localStorage sang IndexedDB (chạy 1 lần)
-    window.cyMigrateFromLocalStorage = async function() {
-      const keys = ['cy_lots','cy_invoices','cy_goods','cy_dict_a12','cy_dict_e21'];
-      for (const k of keys) {
-        const raw = localStorage.getItem(k);
-        if (raw) {
-          try {
-            const existing = await window.cyGet(k);
-            if (!existing) {
-              await window.cySet(k, JSON.parse(raw));
-              console.log('[Migration] Chuyển', k, 'từ localStorage sang IndexedDB thành công.');
-            }
-            localStorage.removeItem(k); // dọn sạch sau khi migrate
-          } catch(e) { console.warn('[Migration] Lỗi key', k, e); }
-        }
+    // --- Google Sheets API (qua Apps Script Web App) ---
+    window.CY_API_URL = localStorage.getItem('cy_api_url') || '';
+
+    window.cyApiCall = async (action, payload = {}) => {
+      const url = window.CY_API_URL;
+      if (!url) throw new Error('NO_API_URL');
+      const body = JSON.stringify({ action, ...payload });
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' }, // Apps Script yêu cầu text/plain để tránh CORS preflight
+        body
+      });
+      if (!res.ok) throw new Error('HTTP_' + res.status);
+      const json = await res.json();
+      if (json.status !== 'ok') throw new Error(json.message || 'API_ERROR');
+      return json.data;
+    };
+
+    // Đọc toàn bộ 1 sheet
+    window.cySheetGet = async (sheet) => {
+      const data = await window.cyApiCall('getSheet', { sheet });
+      await window.cyLocalSet('cy_' + sheet, data); // cache offline
+      return data;
+    };
+
+    // Ghi đè toàn bộ 1 sheet
+    window.cySheetSet = async (sheet, data) => {
+      await window.cyLocalSet('cy_' + sheet, data); // lưu cache ngay
+      await window.cyApiCall('setSheet', { sheet, data }); // ghi lên Sheets
+    };
+
+    // Đọc tất cả sheets cùng lúc
+    window.cyLoadAll = async () => {
+      const data = await window.cyApiCall('getAll');
+      for (const [k, v] of Object.entries(data)) {
+        await window.cyLocalSet('cy_' + k, v);
       }
+      return data;
     };
   </script>
 
@@ -189,40 +212,95 @@
       const [dictA12, setDictA12] = useState([]);
       const [dictE21, setDictE21] = useState([]);
 
-      // State loading
+      // State loading & connection
       const [dbReady, setDbReady] = useState(false);
+      const [apiUrl, setApiUrl] = useState(localStorage.getItem('cy_api_url') || '');
+      const [apiUrlInput, setApiUrlInput] = useState(localStorage.getItem('cy_api_url') || '');
+      const [syncStatus, setSyncStatus] = useState('idle'); // idle | syncing | ok | error
+      const [showApiSetup, setShowApiSetup] = useState(!localStorage.getItem('cy_api_url'));
 
-      // Đọc dữ liệu ra khi khởi tạo ứng dụng (IndexedDB)
+      const isConnected = !!apiUrl;
+
+      // Helper: lưu state + đẩy lên Sheets (hoặc chỉ cache nếu chưa kết nối)
+      const persist = async (sheet, data, stateSetter) => {
+        stateSetter(data);
+        if (!isConnected) { await window.cyLocalSet('cy_' + sheet, data); return; }
+        setSyncStatus('syncing');
+        try {
+          await window.cySheetSet(sheet, data);
+          setSyncStatus('ok');
+          setTimeout(() => setSyncStatus('idle'), 2000);
+        } catch(err) {
+          console.error('Sync error:', err);
+          setSyncStatus('error');
+          showNotification('⚠️ Lưu lên Google Sheets thất bại! Dữ liệu đã lưu tạm offline.', 'error');
+        }
+      };
+
+      // Khởi tạo: load từ Google Sheets, fallback sang cache offline
       useEffect(() => {
         async function initData() {
-          // Migrate dữ liệu cũ từ localStorage (nếu có) sang IndexedDB
-          await window.cyMigrateFromLocalStorage();
+          if (!window.CY_API_URL) {
+            // Chưa có API URL → đọc từ cache offline
+            const [l, i, g, a12, e21] = await Promise.all([
+              window.cyLocalGet('cy_lots'), window.cyLocalGet('cy_invoices'),
+              window.cyLocalGet('cy_goods'), window.cyLocalGet('cy_dict_a12'), window.cyLocalGet('cy_dict_e21')
+            ]);
+            setLots(l || SAMPLE_LOTS);
+            setInvoices(i || SAMPLE_INVOICES);
+            setGoods(g || SAMPLE_GOODS);
+            setDictA12(a12 || INITIAL_DICTIONARY_A12);
+            setDictE21(e21 || INITIAL_DICTIONARY_E21);
+            setDbReady(true);
+            return;
+          }
 
-          const [storedLots, storedInvoices, storedGoods, storedDictA12, storedDictE21] = await Promise.all([
-            window.cyGet('cy_lots'),
-            window.cyGet('cy_invoices'),
-            window.cyGet('cy_goods'),
-            window.cyGet('cy_dict_a12'),
-            window.cyGet('cy_dict_e21'),
-          ]);
-
-          if (storedLots) setLots(storedLots); else { setLots(SAMPLE_LOTS); await window.cySet('cy_lots', SAMPLE_LOTS); }
-          if (storedInvoices) setInvoices(storedInvoices); else { setInvoices(SAMPLE_INVOICES); await window.cySet('cy_invoices', SAMPLE_INVOICES); }
-          if (storedGoods) setGoods(storedGoods); else { setGoods(SAMPLE_GOODS); await window.cySet('cy_goods', SAMPLE_GOODS); }
-          if (storedDictA12) setDictA12(storedDictA12); else { setDictA12(INITIAL_DICTIONARY_A12); await window.cySet('cy_dict_a12', INITIAL_DICTIONARY_A12); }
-          if (storedDictE21) setDictE21(storedDictE21); else { setDictE21(INITIAL_DICTIONARY_E21); await window.cySet('cy_dict_e21', INITIAL_DICTIONARY_E21); }
-
+          setSyncStatus('syncing');
+          try {
+            const all = await window.cyLoadAll();
+            setLots(all.lots?.length ? all.lots : SAMPLE_LOTS);
+            setInvoices(all.invoices?.length ? all.invoices : SAMPLE_INVOICES);
+            setGoods(all.goods?.length ? all.goods : SAMPLE_GOODS);
+            setDictA12(all.dict_a12?.length ? all.dict_a12 : INITIAL_DICTIONARY_A12);
+            setDictE21(all.dict_e21?.length ? all.dict_e21 : INITIAL_DICTIONARY_E21);
+            setSyncStatus('ok');
+            setTimeout(() => setSyncStatus('idle'), 2000);
+          } catch(err) {
+            console.error('Init load error:', err);
+            setSyncStatus('error');
+            // Fallback: đọc từ cache offline
+            const [l, i, g, a12, e21] = await Promise.all([
+              window.cyLocalGet('cy_lots'), window.cyLocalGet('cy_invoices'),
+              window.cyLocalGet('cy_goods'), window.cyLocalGet('cy_dict_a12'), window.cyLocalGet('cy_dict_e21')
+            ]);
+            setLots(l || SAMPLE_LOTS);
+            setInvoices(i || SAMPLE_INVOICES);
+            setGoods(g || SAMPLE_GOODS);
+            setDictA12(a12 || INITIAL_DICTIONARY_A12);
+            setDictE21(e21 || INITIAL_DICTIONARY_E21);
+            showNotification('Không kết nối được Google Sheets. Đang dùng dữ liệu offline.', 'error');
+          }
           setDbReady(true);
         }
-        initData().catch(err => { console.error('IndexedDB init error:', err); setDbReady(true); });
-      }, []);
+        initData();
+      }, [apiUrl]);
 
-      // Lưu các thay đổi vào IndexedDB
-      const saveLotsToStorage = (newLots) => { setLots(newLots); window.cySet('cy_lots', newLots); };
-      const saveInvoicesToStorage = (newInvoices) => { setInvoices(newInvoices); window.cySet('cy_invoices', newInvoices); };
-      const saveGoodsToStorage = (newGoods) => { setGoods(newGoods); window.cySet('cy_goods', newGoods); };
-      const saveDictA12ToStorage = (newDict) => { setDictA12(newDict); window.cySet('cy_dict_a12', newDict).catch(() => showNotification("Lỗi lưu dữ liệu vào IndexedDB!", "error")); };
-      const saveDictE21ToStorage = (newDict) => { setDictE21(newDict); window.cySet('cy_dict_e21', newDict).catch(() => showNotification("Lỗi lưu dữ liệu vào IndexedDB!", "error")); };
+      const handleSaveApiUrl = () => {
+        const url = apiUrlInput.trim();
+        if (!url) return;
+        localStorage.setItem('cy_api_url', url);
+        window.CY_API_URL = url;
+        setApiUrl(url);
+        setShowApiSetup(false);
+        setDbReady(false); // trigger reload
+      };
+
+      // Lưu các thay đổi lên Google Sheets
+      const saveLotsToStorage     = (d) => persist('lots',    d, setLots);
+      const saveInvoicesToStorage  = (d) => persist('invoices', d, setInvoices);
+      const saveGoodsToStorage     = (d) => persist('goods',   d, setGoods);
+      const saveDictA12ToStorage   = (d) => persist('dict_a12', d, setDictA12);
+      const saveDictE21ToStorage   = (d) => persist('dict_e21', d, setDictE21);
 
       // Quản lý trạng thái dòng click
       const [selectedLotNo, setSelectedLotNo] = useState(null);
@@ -238,6 +316,7 @@
       const [dbSelectedTab, setDbSelectedTab] = useState('A12');
       const [dbCurrentPage, setDbCurrentPage] = useState(1);
       const DB_PAGE_SIZE = 50;
+      const [selectedDictItems, setSelectedDictItems] = useState(new Set()); // multi-select cho xóa hàng loạt
 
       const [homeSearchQuery, setHomeSearchQuery] = useState('');
 
@@ -749,33 +828,129 @@
         }
       };
 
-      // Lọc từ điển gốc để hiển thị
+      // Lọc từ điển gốc để hiển thị — chỉ trả dữ liệu khi có query
       const getFilteredDbDictionary = () => {
+        if (!dbSearchQuery.trim()) return []; // ẩn khi chưa search
         const dict = dbSelectedTab === 'E21' ? dictE21 : dictA12;
-        if (!dbSearchQuery.trim()) return dict;
         const q = dbSearchQuery.toLowerCase();
-        return dict.filter(item => item.goods_no.toLowerCase().includes(q) || item.hs_code.toLowerCase().includes(q) || item.goods_name_local.toLowerCase().includes(q) || item.goods_name_en.toLowerCase().includes(q));
+        return dict.filter(item =>
+          item.goods_no.toLowerCase().includes(q) ||
+          item.hs_code.toLowerCase().includes(q) ||
+          item.goods_name_local.toLowerCase().includes(q) ||
+          item.goods_name_en.toLowerCase().includes(q)
+        );
       };
 
       const filteredDbDict = getFilteredDbDictionary();
       const dbTotalPages = Math.max(1, Math.ceil(filteredDbDict.length / DB_PAGE_SIZE));
       const dbSafePage = Math.min(dbCurrentPage, dbTotalPages);
       const dbPagedDict = filteredDbDict.slice((dbSafePage - 1) * DB_PAGE_SIZE, dbSafePage * DB_PAGE_SIZE);
-      const handleDbTabChange = (tab) => { setDbSelectedTab(tab); setDbCurrentPage(1); setDbSearchQuery(''); };
-      const handleDbSearch = (q) => { setDbSearchQuery(q); setDbCurrentPage(1); };
+      const handleDbTabChange = (tab) => { setDbSelectedTab(tab); setDbCurrentPage(1); setDbSearchQuery(''); setSelectedDictItems(new Set()); };
+      const handleDbSearch = (q) => { setDbSearchQuery(q); setDbCurrentPage(1); setSelectedDictItems(new Set()); };
 
-      // Màn hình chờ IndexedDB khởi tạo
+      // Toggle chọn 1 dòng
+      const toggleDictSelect = (goodsNo) => {
+        setSelectedDictItems(prev => {
+          const next = new Set(prev);
+          next.has(goodsNo) ? next.delete(goodsNo) : next.add(goodsNo);
+          return next;
+        });
+      };
+      // Chọn/bỏ tất cả dòng đang hiển thị
+      const toggleSelectAll = () => {
+        if (selectedDictItems.size === dbPagedDict.length && dbPagedDict.length > 0) {
+          setSelectedDictItems(new Set());
+        } else {
+          setSelectedDictItems(new Set(dbPagedDict.map(i => i.goods_no)));
+        }
+      };
+      // Xóa hàng loạt các dòng đã chọn
+      const handleBulkDelete = () => {
+        if (selectedDictItems.size === 0) return;
+        setConfirmState({
+          isOpen: true,
+          title: `Xóa ${selectedDictItems.size} sản phẩm`,
+          message: `Bạn có chắc muốn xóa ${selectedDictItems.size} sản phẩm đã chọn khỏi danh mục ${dbSelectedTab}? Thao tác này không thể hoàn tác.`,
+          onConfirm: () => {
+            const targetDict = dbSelectedTab === 'A12' ? dictA12 : dictE21;
+            const updatedDict = targetDict.filter(i => !selectedDictItems.has(i.goods_no));
+            if (dbSelectedTab === 'A12') saveDictA12ToStorage(updatedDict); else saveDictE21ToStorage(updatedDict);
+            setSelectedDictItems(new Set());
+            setConfirmState(prev => ({ ...prev, isOpen: false }));
+            showNotification(`Đã xóa ${selectedDictItems.size} sản phẩm khỏi danh mục ${dbSelectedTab}.`);
+          }
+        });
+      };
+
+      // Màn hình chờ khởi tạo
       if (!dbReady) {
         return (
           <div className="flex h-screen bg-slate-950 items-center justify-center flex-col gap-4">
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-slate-400 text-sm font-mono">Đang khởi tạo cơ sở dữ liệu IndexedDB...</p>
+            <p className="text-slate-400 text-sm font-mono">
+              {isConnected ? 'Đang tải dữ liệu từ Google Sheets...' : 'Đang khởi tạo...'}
+            </p>
           </div>
         );
       }
 
       return (
         <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
+
+          {/* --- MODAL CẤU HÌNH GOOGLE SHEETS API --- */}
+          {showApiSetup && (
+            <div className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full p-8 shadow-2xl space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="text-4xl">🔗</div>
+                  <h2 className="text-lg font-black text-white">Kết Nối Google Sheets</h2>
+                  <p className="text-slate-400 text-xs leading-relaxed">Dán URL Apps Script Web App của bạn vào đây. Dữ liệu sẽ được lưu trực tiếp lên Google Sheets — không giới hạn dung lượng.</p>
+                </div>
+
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2 text-xs text-slate-400 leading-relaxed">
+                  <p className="font-bold text-slate-300 uppercase tracking-wider text-[10px]">📋 Hướng dẫn lấy URL (làm 1 lần duy nhất):</p>
+                  <ol className="list-decimal list-inside space-y-1.5">
+                    <li>Mở <strong className="text-white">Google Sheets</strong> → tạo file mới, đặt tên <code className="bg-slate-800 px-1 rounded">ChangYang IMS</code></li>
+                    <li>Vào menu <strong className="text-white">Extensions → Apps Script</strong></li>
+                    <li>Xóa code cũ, dán toàn bộ code từ file <code className="bg-slate-800 px-1 rounded">Code.gs</code> đi kèm</li>
+                    <li>Nhấn <strong className="text-white">Deploy → New Deployment</strong></li>
+                    <li>Chọn type: <strong className="text-white">Web App</strong> → Execute as: <strong className="text-white">Me</strong> → Who has access: <strong className="text-white">Anyone</strong></li>
+                    <li>Nhấn <strong className="text-white">Deploy</strong> → Copy URL → dán vào ô bên dưới</li>
+                  </ol>
+                </div>
+
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    placeholder="https://script.google.com/macros/s/AKfy.../exec"
+                    value={apiUrlInput}
+                    onChange={e => setApiUrlInput(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleSaveApiUrl}
+                      disabled={!apiUrlInput.trim()}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-lg text-xs"
+                    >
+                      ✅ Kết nối & Tải dữ liệu
+                    </button>
+                    {isConnected && (
+                      <button onClick={() => setShowApiSetup(false)} className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">
+                        Hủy
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {!isConnected && (
+                  <button onClick={() => setShowApiSetup(false)} className="w-full text-center text-slate-600 hover:text-slate-400 text-xs underline">
+                    Bỏ qua, dùng tạm offline (dữ liệu lưu trên trình duyệt này)
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
           
           {/* --- NOTIFICATION TOAST --- */}
           {notification && (
@@ -875,8 +1050,26 @@
                 {activeMenu === 'E010' && '📥 HỒ SƠ QUẢN LÝ LÔ HÀNG (E010)'}
                 {activeMenu === 'NO_ATC' && '⏳ THEO DÕI XE CHỜ NHẬP KHO'}
               </h2>
-              <div className="text-[11px] bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-850 text-emerald-400 font-mono font-bold">
-                ● LƯU TRỮ INDEXEDDB (KHÔNG GIỚI HẠN)
+              <div className="flex items-center gap-2">
+                {isConnected ? (
+                  <div className={`text-[11px] px-3 py-1.5 rounded-lg border font-mono font-bold flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity
+                    ${syncStatus === 'syncing' ? 'bg-amber-950 border-amber-800 text-amber-400' :
+                      syncStatus === 'error'   ? 'bg-rose-950 border-rose-800 text-rose-400' :
+                      syncStatus === 'ok'      ? 'bg-emerald-950 border-emerald-800 text-emerald-400' :
+                      'bg-slate-950 border-slate-850 text-emerald-400'}`}
+                    onClick={() => setShowApiSetup(true)} title="Nhấn để đổi cấu hình API">
+                    {syncStatus === 'syncing' ? <span className="animate-spin">⟳</span> :
+                     syncStatus === 'error'   ? '⚠' : '●'}
+                    {syncStatus === 'syncing' ? 'Đang đồng bộ...' :
+                     syncStatus === 'error'   ? 'Lỗi đồng bộ' :
+                     syncStatus === 'ok'      ? 'Đã lưu ✓' : 'GOOGLE SHEETS'}
+                  </div>
+                ) : (
+                  <div className="text-[11px] bg-amber-950 border border-amber-800 px-3 py-1.5 rounded-lg text-amber-400 font-mono font-bold flex items-center gap-2 cursor-pointer hover:opacity-80"
+                    onClick={() => setShowApiSetup(true)}>
+                    ⚠ OFFLINE — Nhấn để kết nối Sheets
+                  </div>
+                )}
               </div>
             </header>
 
@@ -927,105 +1120,163 @@
 
               {/* --- DATABASE_VIEW WITH CRUD AND EXCEL IMPORT --- */}
               {activeMenu === 'DATABASE_VIEW' && (
-                <div className="space-y-6 max-w-6xl mx-auto">
+                <div className="space-y-4 max-w-6xl mx-auto">
                   <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 shadow">
+
+                    {/* HEADER + NÚT THAO TÁC */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-4">
                       <div>
                         <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">📂 Từ Điển Danh Mục Gốc Hàng Hóa</h3>
-                        <p className="text-xs text-slate-500 mt-1">Nơi bạn quản lý dữ liệu đối chiếu tự động. Hệ thống hỗ trợ thêm, sửa, xóa trực tiếp và import tệp Excel.</p>
+                        <p className="text-xs text-slate-500 mt-1">Tìm kiếm để hiển thị dữ liệu. Hỗ trợ thêm, sửa, xóa đơn lẻ và xóa hàng loạt.</p>
                       </div>
-
-                      {/* KHAI BÁO CÁC NÚT THAO TÁC TRỰC DIỆN */}
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 items-center">
                         <button onClick={handleOpenAddDict} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1">
                           ➕ Thêm sản phẩm
                         </button>
-                        
                         <label className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1 cursor-pointer">
-                          📥 Import Tệp Excel
+                          📥 Import Excel
                           <input type="file" accept=".xlsx, .xls, .csv" onChange={handleExcelImport} className="hidden" />
                         </label>
-
-                        <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-850">
-                          <button onClick={() => handleDbTabChange('A12')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${dbSelectedTab === 'A12' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>Mẫu A12 ({dictA12.length})</button>
-                          <button onClick={() => handleDbTabChange('E21')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${dbSelectedTab === 'E21' ? 'bg-emerald-600 text-white' : 'text-slate-400'}`}>Mẫu E21 ({dictE21.length})</button>
+                        <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
+                          <button onClick={() => handleDbTabChange('A12')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${dbSelectedTab === 'A12' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>A12 ({dictA12.length})</button>
+                          <button onClick={() => handleDbTabChange('E21')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${dbSelectedTab === 'E21' ? 'bg-emerald-600 text-white' : 'text-slate-400'}`}>E21 ({dictE21.length})</button>
                         </div>
                       </div>
                     </div>
 
+                    {/* Ô TÌM KIẾM */}
                     <div className="relative">
-                      <input 
-                        type="text" 
-                        placeholder="Tìm kiếm nhanh trong danh mục..." 
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
+                      <input
+                        type="text"
+                        placeholder={`Nhập mã hàng, HS Code, tên sản phẩm... để tìm trong ${dbSelectedTab === 'A12' ? dictA12.length : dictE21.length} mục`}
                         value={dbSearchQuery}
                         onChange={(e) => handleDbSearch(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 px-4 text-xs text-white"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pl-9 pr-10 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors"
+                        autoFocus
                       />
                       {dbSearchQuery && (
-                        <button onClick={() => handleDbSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs">✕ Xóa</button>
+                        <button onClick={() => handleDbSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs bg-slate-800 rounded px-1.5 py-0.5">✕</button>
                       )}
                     </div>
 
-                    {/* BẢNG HIỂN THỊ DANH MỤC TỪ ĐIỂN */}
-                    <div className="overflow-x-auto border border-slate-850 rounded-xl">
-                      <div className="px-4 py-2 bg-slate-950 border-b border-slate-850 flex justify-between items-center text-[11px] text-slate-400">
-                        <span>Hiển thị <strong className="text-white">{dbPagedDict.length}</strong> / <strong className="text-amber-400">{filteredDbDict.length}</strong> sản phẩm {dbSearchQuery && `(lọc từ ${(dbSelectedTab === 'A12' ? dictA12 : dictE21).length})`}</span>
-                        <span>Trang <strong className="text-white">{dbSafePage}</strong> / {dbTotalPages}</span>
+                    {/* TRẠNG THÁI CHƯA SEARCH */}
+                    {!dbSearchQuery.trim() && (
+                      <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+                        <div className="text-5xl opacity-20">🔍</div>
+                        <p className="text-slate-400 text-sm font-semibold">Nhập từ khóa để tìm kiếm sản phẩm</p>
+                        <p className="text-slate-600 text-xs">Tìm theo mã hàng, HS Code, tên tiếng Anh hoặc tên tiếng Việt</p>
+                        <div className="flex gap-4 mt-2 text-[11px] text-slate-500">
+                          <span>📦 A12: <strong className="text-slate-300">{dictA12.length}</strong> sản phẩm</span>
+                          <span>📦 E21: <strong className="text-slate-300">{dictE21.length}</strong> sản phẩm</span>
+                        </div>
                       </div>
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-850">
-                            <th className="p-3 w-16 text-center">STT</th>
-                            <th className="p-3">Mã Hàng (Goods No)</th>
-                            <th className="p-3 text-center">HS Code</th>
-                            <th className="p-3">Tên Tiếng Anh</th>
-                            <th className="p-3">Tên Tiếng Việt</th>
-                            <th className="p-3 text-center">Đơn vị</th>
-                            <th className="p-3 text-center w-28">Thao tác</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-850">
-                          {dbPagedDict.map((item, index) => (
-                            <tr key={item.goods_no + index} className="hover:bg-slate-850/30 text-slate-300">
-                              <td className="p-3 text-center text-slate-500 font-mono">{(dbSafePage - 1) * DB_PAGE_SIZE + index + 1}</td>
-                              <td className="p-3 font-mono font-bold text-amber-400">{item.goods_no}</td>
-                              <td className="p-3 text-center font-mono text-white bg-slate-950/40 font-bold">{item.hs_code}</td>
-                              <td className="p-3 text-slate-100 font-medium">{item.goods_name_en}</td>
-                              <td className="p-3 text-slate-400 italic leading-relaxed">{item.goods_name_local}</td>
-                              <td className="p-3 text-center font-bold text-sky-400">{item.goods_unit_en} / {item.goods_unit_local}</td>
-                              <td className="p-3 text-center space-x-2">
-                                <button onClick={(e) => handleOpenEditDict(item, e)} className="text-blue-400 hover:underline">Sửa</button>
-                                <button onClick={(e) => handleDeleteDictConfirm(item, e)} className="text-rose-500 hover:underline">Xóa</button>
-                              </td>
-                            </tr>
-                          ))}
-                          {dbPagedDict.length === 0 && (
-                            <tr><td colSpan="7" className="p-8 text-center text-slate-500">Chưa có sản phẩm nào trong từ điển. Hãy nhấn thêm hoặc upload file Excel của bạn.</td></tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                    )}
 
-                    {/* PHÂN TRANG */}
-                    {dbTotalPages > 1 && (
-                      <div className="flex justify-center items-center gap-2 pt-2">
-                        <button onClick={() => setDbCurrentPage(1)} disabled={dbSafePage === 1} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40 hover:bg-slate-700">«</button>
-                        <button onClick={() => setDbCurrentPage(p => Math.max(1, p - 1))} disabled={dbSafePage === 1} className="px-3 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40 hover:bg-slate-700">‹ Trước</button>
-                        {Array.from({ length: dbTotalPages }, (_, i) => i + 1)
-                          .filter(p => p === 1 || p === dbTotalPages || Math.abs(p - dbSafePage) <= 2)
-                          .reduce((acc, p, idx, arr) => {
-                            if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
-                            acc.push(p);
-                            return acc;
-                          }, [])
-                          .map((p, i) => p === '...'
-                            ? <span key={`ellipsis-${i}`} className="text-slate-500 text-xs px-1">…</span>
-                            : <button key={p} onClick={() => setDbCurrentPage(p)} className={`px-3 py-1 rounded text-xs font-bold ${p === dbSafePage ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>{p}</button>
-                          )
-                        }
-                        <button onClick={() => setDbCurrentPage(p => Math.min(dbTotalPages, p + 1))} disabled={dbSafePage === dbTotalPages} className="px-3 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40 hover:bg-slate-700">Tiếp ›</button>
-                        <button onClick={() => setDbCurrentPage(dbTotalPages)} disabled={dbSafePage === dbTotalPages} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40 hover:bg-slate-700">»</button>
-                      </div>
+                    {/* KẾT QUẢ TÌM KIẾM */}
+                    {dbSearchQuery.trim() && (
+                      <>
+                        {/* Thanh action khi có chọn */}
+                        <div className="flex items-center justify-between">
+                          <div className="text-[11px] text-slate-400">
+                            Tìm thấy <strong className="text-white">{filteredDbDict.length}</strong> sản phẩm
+                            {selectedDictItems.size > 0 && (
+                              <span className="ml-2 text-amber-400 font-bold">— Đã chọn {selectedDictItems.size} dòng</span>
+                            )}
+                          </div>
+                          {selectedDictItems.size > 0 && (
+                            <button
+                              onClick={handleBulkDelete}
+                              className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors"
+                            >
+                              🗑 Xóa {selectedDictItems.size} dòng đã chọn
+                            </button>
+                          )}
+                        </div>
+
+                        {/* BẢNG KẾT QUẢ */}
+                        <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                                <th className="p-3 w-10 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={dbPagedDict.length > 0 && selectedDictItems.size === dbPagedDict.length}
+                                    onChange={toggleSelectAll}
+                                    className="accent-rose-500 cursor-pointer w-3.5 h-3.5"
+                                    title="Chọn/bỏ tất cả trang này"
+                                  />
+                                </th>
+                                <th className="p-3 w-12 text-center">STT</th>
+                                <th className="p-3">Mã Hàng</th>
+                                <th className="p-3 text-center">HS Code</th>
+                                <th className="p-3">Tên Tiếng Anh</th>
+                                <th className="p-3">Tên Tiếng Việt</th>
+                                <th className="p-3 text-center">Đơn vị</th>
+                                <th className="p-3 text-center w-24">Thao tác</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-850">
+                              {dbPagedDict.map((item, index) => {
+                                const isChecked = selectedDictItems.has(item.goods_no);
+                                return (
+                                  <tr
+                                    key={item.goods_no + index}
+                                    onClick={() => toggleDictSelect(item.goods_no)}
+                                    className={`cursor-pointer transition-colors ${isChecked ? 'bg-rose-950/20 border-l-2 border-rose-600' : 'hover:bg-slate-850/30'} text-slate-300`}
+                                  >
+                                    <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => toggleDictSelect(item.goods_no)}
+                                        className="accent-rose-500 cursor-pointer w-3.5 h-3.5"
+                                      />
+                                    </td>
+                                    <td className="p-3 text-center text-slate-500 font-mono">{(dbSafePage - 1) * DB_PAGE_SIZE + index + 1}</td>
+                                    <td className="p-3 font-mono font-bold text-amber-400">{item.goods_no}</td>
+                                    <td className="p-3 text-center font-mono text-white font-bold">{item.hs_code}</td>
+                                    <td className="p-3 text-slate-100 font-medium">{item.goods_name_en}</td>
+                                    <td className="p-3 text-slate-400 italic leading-relaxed">{item.goods_name_local}</td>
+                                    <td className="p-3 text-center font-bold text-sky-400">{item.goods_unit_en} / {item.goods_unit_local}</td>
+                                    <td className="p-3 text-center space-x-2" onClick={e => e.stopPropagation()}>
+                                      <button onClick={(e) => handleOpenEditDict(item, e)} className="text-blue-400 hover:underline">Sửa</button>
+                                      <button onClick={(e) => handleDeleteDictConfirm(item, e)} className="text-rose-500 hover:underline">Xóa</button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              {filteredDbDict.length === 0 && (
+                                <tr>
+                                  <td colSpan="8" className="p-10 text-center text-slate-500">
+                                    <div className="text-3xl mb-2 opacity-30">😶</div>
+                                    Không tìm thấy sản phẩm nào khớp với <strong className="text-slate-400">"{dbSearchQuery}"</strong>
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* PHÂN TRANG */}
+                        {dbTotalPages > 1 && (
+                          <div className="flex justify-center items-center gap-2 pt-1">
+                            <button onClick={() => setDbCurrentPage(1)} disabled={dbSafePage === 1} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40 hover:bg-slate-700">«</button>
+                            <button onClick={() => setDbCurrentPage(p => Math.max(1, p - 1))} disabled={dbSafePage === 1} className="px-3 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40 hover:bg-slate-700">‹ Trước</button>
+                            {Array.from({ length: dbTotalPages }, (_, i) => i + 1)
+                              .filter(p => p === 1 || p === dbTotalPages || Math.abs(p - dbSafePage) <= 2)
+                              .reduce((acc, p, idx, arr) => { if (idx > 0 && p - arr[idx-1] > 1) acc.push('...'); acc.push(p); return acc; }, [])
+                              .map((p, i) => p === '...'
+                                ? <span key={`e${i}`} className="text-slate-500 text-xs px-1">…</span>
+                                : <button key={p} onClick={() => setDbCurrentPage(p)} className={`px-3 py-1 rounded text-xs font-bold ${p === dbSafePage ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>{p}</button>
+                              )
+                            }
+                            <button onClick={() => setDbCurrentPage(p => Math.min(dbTotalPages, p + 1))} disabled={dbSafePage === dbTotalPages} className="px-3 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40 hover:bg-slate-700">Tiếp ›</button>
+                            <button onClick={() => setDbCurrentPage(dbTotalPages)} disabled={dbSafePage === dbTotalPages} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40 hover:bg-slate-700">»</button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
