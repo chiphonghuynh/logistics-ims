@@ -71,6 +71,65 @@
   <!-- Vùng React App Mount -->
   <div id="root"></div>
 
+  <!-- IndexedDB Storage Layer - thay thế localStorage, không giới hạn dung lượng -->
+  <script>
+    const CY_DB_NAME = 'ChangYangIMS';
+    const CY_DB_VERSION = 1;
+    const CY_STORE = 'keyvalue';
+
+    let _cyDb = null;
+
+    function cyOpenDB() {
+      if (_cyDb) return Promise.resolve(_cyDb);
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(CY_DB_NAME, CY_DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          e.target.result.createObjectStore(CY_STORE);
+        };
+        req.onsuccess = (e) => { _cyDb = e.target.result; resolve(_cyDb); };
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    window.cyGet = async function(key) {
+      const db = await cyOpenDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(CY_STORE, 'readonly');
+        const req = tx.objectStore(CY_STORE).get(key);
+        req.onsuccess = () => resolve(req.result ?? null);
+        req.onerror = () => reject(req.error);
+      });
+    };
+
+    window.cySet = async function(key, value) {
+      const db = await cyOpenDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(CY_STORE, 'readwrite');
+        tx.objectStore(CY_STORE).put(value, key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+      });
+    };
+
+    // Migration: chuyển dữ liệu cũ từ localStorage sang IndexedDB (chạy 1 lần)
+    window.cyMigrateFromLocalStorage = async function() {
+      const keys = ['cy_lots','cy_invoices','cy_goods','cy_dict_a12','cy_dict_e21'];
+      for (const k of keys) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          try {
+            const existing = await window.cyGet(k);
+            if (!existing) {
+              await window.cySet(k, JSON.parse(raw));
+              console.log('[Migration] Chuyển', k, 'từ localStorage sang IndexedDB thành công.');
+            }
+            localStorage.removeItem(k); // dọn sạch sau khi migrate
+          } catch(e) { console.warn('[Migration] Lỗi key', k, e); }
+        }
+      }
+    };
+  </script>
+
   <!-- React Code bằng Babel -->
   <script type="text/babel">
     const { useState, useEffect } = React;
@@ -130,34 +189,40 @@
       const [dictA12, setDictA12] = useState([]);
       const [dictE21, setDictE21] = useState([]);
 
-      // Đọc dữ liệu ra khi khởi tạo ứng dụng
-      useEffect(() => {
-        const storedLots = localStorage.getItem('cy_lots');
-        const storedInvoices = localStorage.getItem('cy_invoices');
-        const storedGoods = localStorage.getItem('cy_goods');
-        const storedDictA12 = localStorage.getItem('cy_dict_a12');
-        const storedDictE21 = localStorage.getItem('cy_dict_e21');
+      // State loading
+      const [dbReady, setDbReady] = useState(false);
 
-        if (storedLots) setLots(JSON.parse(storedLots)); else { setLots(SAMPLE_LOTS); localStorage.setItem('cy_lots', JSON.stringify(SAMPLE_LOTS)); }
-        if (storedInvoices) setInvoices(JSON.parse(storedInvoices)); else { setInvoices(SAMPLE_INVOICES); localStorage.setItem('cy_invoices', JSON.stringify(SAMPLE_INVOICES)); }
-        if (storedGoods) setGoods(JSON.parse(storedGoods)); else { setGoods(SAMPLE_GOODS); localStorage.setItem('cy_goods', JSON.stringify(SAMPLE_GOODS)); }
-        
-        if (storedDictA12) setDictA12(JSON.parse(storedDictA12)); else { setDictA12(INITIAL_DICTIONARY_A12); localStorage.setItem('cy_dict_a12', JSON.stringify(INITIAL_DICTIONARY_A12)); }
-        if (storedDictE21) setDictE21(JSON.parse(storedDictE21)); else { setDictE21(INITIAL_DICTIONARY_E21); localStorage.setItem('cy_dict_e21', JSON.stringify(INITIAL_DICTIONARY_E21)); }
+      // Đọc dữ liệu ra khi khởi tạo ứng dụng (IndexedDB)
+      useEffect(() => {
+        async function initData() {
+          // Migrate dữ liệu cũ từ localStorage (nếu có) sang IndexedDB
+          await window.cyMigrateFromLocalStorage();
+
+          const [storedLots, storedInvoices, storedGoods, storedDictA12, storedDictE21] = await Promise.all([
+            window.cyGet('cy_lots'),
+            window.cyGet('cy_invoices'),
+            window.cyGet('cy_goods'),
+            window.cyGet('cy_dict_a12'),
+            window.cyGet('cy_dict_e21'),
+          ]);
+
+          if (storedLots) setLots(storedLots); else { setLots(SAMPLE_LOTS); await window.cySet('cy_lots', SAMPLE_LOTS); }
+          if (storedInvoices) setInvoices(storedInvoices); else { setInvoices(SAMPLE_INVOICES); await window.cySet('cy_invoices', SAMPLE_INVOICES); }
+          if (storedGoods) setGoods(storedGoods); else { setGoods(SAMPLE_GOODS); await window.cySet('cy_goods', SAMPLE_GOODS); }
+          if (storedDictA12) setDictA12(storedDictA12); else { setDictA12(INITIAL_DICTIONARY_A12); await window.cySet('cy_dict_a12', INITIAL_DICTIONARY_A12); }
+          if (storedDictE21) setDictE21(storedDictE21); else { setDictE21(INITIAL_DICTIONARY_E21); await window.cySet('cy_dict_e21', INITIAL_DICTIONARY_E21); }
+
+          setDbReady(true);
+        }
+        initData().catch(err => { console.error('IndexedDB init error:', err); setDbReady(true); });
       }, []);
 
-      // Lưu các thay đổi vào bộ nhớ cục bộ
-      const saveLotsToStorage = (newLots) => { setLots(newLots); localStorage.setItem('cy_lots', JSON.stringify(newLots)); };
-      const saveInvoicesToStorage = (newInvoices) => { setInvoices(newInvoices); localStorage.setItem('cy_invoices', JSON.stringify(newInvoices)); };
-      const saveGoodsToStorage = (newGoods) => { setGoods(newGoods); localStorage.setItem('cy_goods', JSON.stringify(newGoods)); };
-      const saveDictA12ToStorage = (newDict) => { 
-        try { setDictA12(newDict); localStorage.setItem('cy_dict_a12', JSON.stringify(newDict)); } 
-        catch(err) { setDictA12(newDict); if(err.name==='QuotaExceededError') showNotification("Bộ nhớ cục bộ đã đầy! Không thể lưu thêm. Hãy xóa bớt dữ liệu.", "error"); }
-      };
-      const saveDictE21ToStorage = (newDict) => { 
-        try { setDictE21(newDict); localStorage.setItem('cy_dict_e21', JSON.stringify(newDict)); } 
-        catch(err) { setDictE21(newDict); if(err.name==='QuotaExceededError') showNotification("Bộ nhớ cục bộ đã đầy! Không thể lưu thêm. Hãy xóa bớt dữ liệu.", "error"); }
-      };
+      // Lưu các thay đổi vào IndexedDB
+      const saveLotsToStorage = (newLots) => { setLots(newLots); window.cySet('cy_lots', newLots); };
+      const saveInvoicesToStorage = (newInvoices) => { setInvoices(newInvoices); window.cySet('cy_invoices', newInvoices); };
+      const saveGoodsToStorage = (newGoods) => { setGoods(newGoods); window.cySet('cy_goods', newGoods); };
+      const saveDictA12ToStorage = (newDict) => { setDictA12(newDict); window.cySet('cy_dict_a12', newDict).catch(() => showNotification("Lỗi lưu dữ liệu vào IndexedDB!", "error")); };
+      const saveDictE21ToStorage = (newDict) => { setDictE21(newDict); window.cySet('cy_dict_e21', newDict).catch(() => showNotification("Lỗi lưu dữ liệu vào IndexedDB!", "error")); };
 
       // Quản lý trạng thái dòng click
       const [selectedLotNo, setSelectedLotNo] = useState(null);
@@ -699,6 +764,16 @@
       const handleDbTabChange = (tab) => { setDbSelectedTab(tab); setDbCurrentPage(1); setDbSearchQuery(''); };
       const handleDbSearch = (q) => { setDbSearchQuery(q); setDbCurrentPage(1); };
 
+      // Màn hình chờ IndexedDB khởi tạo
+      if (!dbReady) {
+        return (
+          <div className="flex h-screen bg-slate-950 items-center justify-center flex-col gap-4">
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-slate-400 text-sm font-mono">Đang khởi tạo cơ sở dữ liệu IndexedDB...</p>
+          </div>
+        );
+      }
+
       return (
         <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
           
@@ -801,7 +876,7 @@
                 {activeMenu === 'NO_ATC' && '⏳ THEO DÕI XE CHỜ NHẬP KHO'}
               </h2>
               <div className="text-[11px] bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-850 text-emerald-400 font-mono font-bold">
-                ● LƯU TRỮ CÁ NHÂN OFFLINE (LOCALSTORAGE)
+                ● LƯU TRỮ INDEXEDDB (KHÔNG GIỚI HẠN)
               </div>
             </header>
 
