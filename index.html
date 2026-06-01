@@ -830,16 +830,26 @@
 
       // Lọc từ điển gốc để hiển thị — chỉ trả dữ liệu khi có query
       const getFilteredDbDictionary = () => {
-        if (!dbSearchQuery.trim()) return []; // ẩn khi chưa search
-        const dict = dbSelectedTab === 'E21' ? dictE21 : dictA12;
-        const q = dbSearchQuery.toLowerCase();
-        return dict.filter(item =>
-          item.goods_no.toLowerCase().includes(q) ||
-          item.hs_code.toLowerCase().includes(q) ||
-          item.goods_name_local.toLowerCase().includes(q) ||
-          item.goods_name_en.toLowerCase().includes(q)
-        );
-      };
+  if (!dbSearchQuery.trim()) return []; // ẩn khi chưa search
+
+  const dict = dbSelectedTab === 'E21' ? dictE21 : dictA12;
+  const q = dbSearchQuery.toLowerCase();
+
+  return dict.filter(item => {
+    // Ép tất cả các trường về chuỗi (String) một cách an toàn trước khi toLowerCase()
+    const goodsNo = String(item?.goods_no || '').toLowerCase();
+    const hsCode = String(item?.hs_code || '').toLowerCase();
+    const nameLocal = String(item?.goods_name_local || '').toLowerCase();
+    const nameEn = String(item?.goods_name_en || '').toLowerCase();
+
+    return (
+      goodsNo.includes(q) ||
+      hsCode.includes(q) ||
+      nameLocal.includes(q) ||
+      nameEn.includes(q)
+    );
+  });
+};
 
       const filteredDbDict = getFilteredDbDictionary();
       const dbTotalPages = Math.max(1, Math.ceil(filteredDbDict.length / DB_PAGE_SIZE));
