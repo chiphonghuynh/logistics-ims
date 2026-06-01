@@ -482,29 +482,66 @@
               return showNotification("Tệp Excel trống rỗng hoặc không có dữ liệu!", "error");
             }
 
-            // Tiền xử lý dòng tiêu đề (loại bỏ dấu tiếng Việt, viết thường, loại bỏ khoảng trắng)
-            const headers = rawJson[0].map(h => h ? h.toString().toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '') : '');
-            
-            // Tìm kiếm chỉ số của các cột dựa trên các từ khóa tương đương
-            const idxGoodsNo = headers.findIndex(h => h.includes('mahang') || h.includes('goodsno') || h.includes('itemcode') || h.includes('masanpham') || h.includes('code'));
-            const idxHsCode = headers.findIndex(h => h.includes('mahs') || h.includes('hscode') || h.includes('hs'));
-            const idxNameEn = headers.findIndex(h => h.includes('tienganh') || h.includes('english') || h.includes('desc') || h.includes('tenhangen'));
-            const idxNameLocal = headers.findIndex(h => h.includes('tiengviet') || h.includes('vietnamese') || h.includes('goc') || h.includes('local') || h.includes('mota') || h.includes('tenhangviet'));
+            // Tiền xử lý dòng tiêu đề (loại bỏ dấu tiếng Việt, viết thường, loại bỏ khoảng trắng VÀ ký tự đặc biệt)
+            const headers = rawJson[0].map(h => h
+              ? h.toString().toLowerCase().trim()
+                  .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // bỏ dấu tiếng Việt
+                  .replace(/[^a-z0-9]/g, '')                        // bỏ tất cả ký tự không phải chữ/số (kể cả ngoặc, gạch ngang...)
+              : '');
 
-            if (idxGoodsNo === -1 || idxHsCode === -1 || idxNameEn === -1) {
-              return showNotification("File Excel thiếu cột bắt buộc! Cần có: Mã Hàng, Mã HS, Tên Tiếng Anh.", "error");
+            // Debug: log headers ra console để kiểm tra nếu cần
+            console.log('[Import] Headers sau normalize:', headers);
+
+            // Tìm kiếm chỉ số cột - ưu tiên keyword cụ thể hơn để tránh nhầm
+            // idxGoodsNo: Mã Hàng / Goods No / Item Code / Mã Sản Phẩm
+            const idxGoodsNo = headers.findIndex(h =>
+              h === 'mahang' || h === 'goodsno' || h === 'itemcode' || h === 'masanpham' ||
+              h.startsWith('mahang') || h.includes('goodsno') || h.includes('itemcode') || h.includes('masanpham')
+            );
+            // idxHsCode: HS Code / Mã HS — dùng keyword dài hơn để không nhầm
+            const idxHsCode = headers.findIndex(h =>
+              h === 'hscode' || h === 'mahs' || h === 'hs' ||
+              h.includes('hscode') || h.includes('mahs') || h.startsWith('hscode')
+            );
+            // idxNameEn: Tên Tiếng Anh / English Name / Description
+            const idxNameEn = headers.findIndex(h =>
+              h.includes('tientienganh') || h.includes('tentienganh') || h.includes('tienganh') ||
+              h.includes('english') || h.includes('nameen') || h.includes('tenhangen') ||
+              h.includes('descen') || (h.includes('ten') && h.includes('anh'))
+            );
+            // idxNameLocal: Tên Tiếng Việt / Vietnamese Name
+            const idxNameLocal = headers.findIndex(h =>
+              h.includes('tientingviet') || h.includes('tentingviet') || h.includes('tiengviet') ||
+              h.includes('vietnamese') || h.includes('namevn') || h.includes('tenhangviet') ||
+              h.includes('mota') || (h.includes('ten') && h.includes('viet'))
+            );
+
+            // Nếu không tìm được, thử fallback theo vị trí cột (A=0, B=1, C=2, D=3)
+            const finalGoodsNo  = idxGoodsNo  !== -1 ? idxGoodsNo  : 0;
+            const finalHsCode   = idxHsCode   !== -1 ? idxHsCode   : 1;
+            const finalNameEn   = idxNameEn   !== -1 ? idxNameEn   : 2;
+            const finalNameLocal= idxNameLocal !== -1 ? idxNameLocal: 3;
+
+            // Chỉ báo lỗi nếu cả tự động lẫn fallback đều không có dữ liệu
+            const missingCols = [];
+            if (idxGoodsNo === -1)  missingCols.push('Mã Hàng (cột A)');
+            if (idxHsCode === -1)   missingCols.push('HS Code (cột B)');
+            if (idxNameEn === -1)   missingCols.push('Tên Tiếng Anh (cột C)');
+            if (missingCols.length === 3) {
+              // Hoàn toàn không nhận diện được → báo lỗi kèm hướng dẫn
+              return showNotification(`Không nhận diện được cột! Hệ thống đang dùng vị trí cột mặc định A/B/C/D. Vui lòng đảm bảo header dòng 1 không bị trống.`, "error");
             }
 
             const importedItems = [];
             for (let i = 1; i < rawJson.length; i++) {
               const row = rawJson[i];
-              if (!row || !row[idxGoodsNo]) continue;
+              if (!row || !row[finalGoodsNo]) continue;
 
               importedItems.push({
-                goods_no: row[idxGoodsNo].toString().trim(),
-                hs_code: row[idxHsCode] ? row[idxHsCode].toString().trim() : '00000000',
-                goods_name_en: row[idxNameEn] ? row[idxNameEn].toString().trim() : 'No Description',
-                goods_name_local: row[idxNameLocal] ? row[idxNameLocal].toString().trim() : 'Chưa có mô tả tiếng Việt',
+                goods_no: row[finalGoodsNo].toString().trim(),
+                hs_code: row[finalHsCode] ? row[finalHsCode].toString().trim() : '00000000',
+                goods_name_en: row[finalNameEn] ? row[finalNameEn].toString().trim() : 'No Description',
+                goods_name_local: row[finalNameLocal] ? row[finalNameLocal].toString().trim() : 'Chưa có mô tả tiếng Việt',
                 goods_unit_en: 'PCS',
                 goods_unit_local: 'Cái'
               });
@@ -528,7 +565,8 @@
             });
 
             if (dbSelectedTab === 'A12') saveDictA12ToStorage(updatedDict); else saveDictE21ToStorage(updatedDict);
-            showNotification(`Import Excel thành công! Đã cập nhật ${importedItems.length} mặt hàng vào Danh mục ${dbSelectedTab}.`);
+            const detected = `Cột phát hiện: A=${finalGoodsNo}, B=${finalHsCode}, C=${finalNameEn}, D=${finalNameLocal}`;
+            showNotification(`Import thành công! Đã cập nhật ${importedItems.length} mặt hàng vào Danh mục ${dbSelectedTab}.`);
           } catch (err) {
             console.error(err);
             if (err.name === 'QuotaExceededError' || (err.message && err.message.toLowerCase().includes('quota'))) {
