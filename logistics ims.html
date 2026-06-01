@@ -1,0 +1,1771 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hệ Thống Logistics Chang Yang</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              955: '#0B0F19',
+              855: '#1E293B',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel CDN for compiling JSX in browser -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-955 text-slate-100 antialiased">
+  <div id="root"></div>
+
+  <!-- React Code with Live In-Browser Transpilation and Dual-Backend Database -->
+  <script type="text/babel" data-type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+    const { useState, useEffect } = React;
+
+    // --- CẤU HÌNH FIREBASE THỰC TẾ (TÙY CHỌN) ---
+    // Điền thông tin cấu hình Firebase thực tế của bạn dưới đây để đồng bộ đám mây.
+    // Nếu giữ nguyên mặc định, ứng dụng sẽ tự lưu trữ trực tiếp trên LocalStorage của riêng bạn!
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY_HERE",
+      authDomain: "YOUR_PROJECT_ID_HERE.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID_HERE",
+      storageBucket: "YOUR_PROJECT_ID_HERE.appspot.com",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID_HERE",
+      appId: "YOUR_APP_ID_HERE"
+    };
+
+    // Kiểm tra xem cấu hình Firebase đã được điền hợp lệ chưa
+    const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
+
+    let app, auth, db;
+    const appId = 'import-export-logistic-app';
+
+    if (isFirebaseConfigured) {
+      try {
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+      } catch (err) {
+        console.error("Lỗi khởi tạo Firebase:", err);
+      }
+    }
+
+    // Mock dữ liệu ban đầu chuẩn Chang Yang
+    const INITIAL_LOTS = [
+      {
+        lot_no: "CH1KD-26",
+        stt: 1,
+        lot_date: "2026-05-10",
+        get_docs_date: "2026-05-08",
+        factory_no: "18A, B0M1", 
+        bill_no: "MBL-CY-77281",
+        bill_date: "2026-05-02",
+        pol: "KAOHSIUNG PORT",
+        pod: "CAT LAI PORT",
+        bill_term: "Freight Prepaid",
+        is_cont: true,
+        cont_no: "TGBU-9928172",
+        seal_no: "SL-88192",
+        cont_type: "40HC",
+        pkg_qty: 150,
+        gw: 14200,
+        cbm: 68,
+        eta: "2026-05-15",
+        atc_date: "2026-05-16",
+        origin_country: "TAIWAN",
+        supplier: "CHANG YANG MATERIAL CORP.",
+        loai_hinh: "A12",
+        loai_hinh_con: "DEFAULT",
+        sale_qty: 1500
+      },
+      {
+        lot_no: "CH2-26",
+        stt: 2,
+        lot_date: "2026-05-18",
+        get_docs_date: "2026-05-17",
+        factory_no: "B0SZ",
+        bill_no: "AWB-AP-992811",
+        bill_date: "2026-05-15",
+        pol: "SHANGHAI PUDONG",
+        pod: "TAN SON NHAT AIRPORT",
+        bill_term: "Freight Collect",
+        is_cont: false,
+        cont_no: "",
+        seal_no: "",
+        cont_type: "LCL",
+        pkg_qty: 45,
+        gw: 1250,
+        cbm: 4.5,
+        eta: "2026-05-18",
+        atc_date: "", 
+        origin_country: "CHINA",
+        supplier: "APPLE ASIA PACIFIC",
+        loai_hinh: "E21",
+        loai_hinh_con: "DEFAULT",
+        sale_qty: 3200
+      }
+    ];
+
+    const INITIAL_INVOICES = [
+      {
+        invoice_no: "1362-26020001",
+        lot_no: "CH1KD-26",
+        bill_no: "MBL-CY-77281",
+        invoice_date: "2026-02-11",
+        incoterm: "CIF",
+        total_amount: 396.84,
+        foc_amount: 50.00,
+        plus_sea_freight: 120.00,
+        handling_charges: 45.00,
+        other_charges: 10.00,
+        is_hang_chung_bill: false,
+        loai_hinh: "A12",
+        loai_hinh_con: "DEFAULT"
+      },
+      {
+        invoice_no: "1362-26020002",
+        lot_no: "CH1KD-26",
+        bill_no: "MBL-CY-77281",
+        invoice_date: "2026-02-11",
+        incoterm: "CIF",
+        total_amount: 4400.00,
+        foc_amount: 0,
+        plus_sea_freight: 300.00,
+        handling_charges: 80.00,
+        other_charges: 0,
+        is_hang_chung_bill: false,
+        loai_hinh: "A12",
+        loai_hinh_con: "DEFAULT"
+      }
+    ];
+
+    const INITIAL_GOODS = [
+      {
+        id: "g1",
+        invoice_no: "1362-26020001",
+        goods_no: "BANGDIEUKHIEN*1",
+        goods_item: 1,
+        goods_name_en: "Control Board TS02 Board 13*12*4.5cm",
+        goods_unit_en: "PCS",
+        goods_unit_en2: "BOXES",
+        goods_name_local: "Bảng điều khiển sử dụng cho máy hút ẩm quy cách 13*12*4.5cm / TS02 P C BOARD, HÀNG MỚI 100%",
+        goods_unit_local: "Cái",
+        goods_unit_local2: "Hộp",
+        hs_code: "85371019",
+        invoice_description: "TS02 PC Board for dehumidifier",
+        sale_amount: 396.84
+      },
+      {
+        id: "g2",
+        invoice_no: "1362-26020002",
+        goods_no: "CH GC CSHH-TPR",
+        goods_item: 1,
+        goods_name_en: "Thermo Plastic Rubber 3055D-R",
+        goods_unit_en: "KGS",
+        goods_unit_en2: "BAGS",
+        goods_name_local: "CH GC CSHH-TPR#&Cao su hỗn hợp dạng hạt ( hạt TPR ) / THERMO PLASTIC RUBBER 3055D-R, CAS NO.: 9003-55-8, 9003-53-6",
+        goods_unit_local: "Kg",
+        goods_unit_local2: "Bao",
+        hs_code: "40059990",
+        invoice_description: "Rubber granules TPR",
+        sale_amount: 4400.00
+      }
+    ];
+
+    const DICTIONARY_A12 = [
+      { goods_no: "BANG DIEU KHIEN", hs_code: "85371019", goods_name_local: "Bảng điều khiển nhiệt độ của máy nước nóng, sử dụng để điều khiển nhiệt độ máy nước nóng, mã hiệu: CB500, nhãn hiệu: FLYING TIGER KJ / TEMP. controller RKC CB500 (Hàng mới 100%)", goods_name_en: "Temperature Controller RKC CB500", goods_unit_en: "PCS", goods_unit_local: "Cái" },
+      { goods_no: "BANGDIEUKHIEN*1", hs_code: "85371019", goods_name_local: "Bảng điều khiển sử dụng cho máy hút ẩm quy cách 13*12*4.5cm / TS02 P C BOARD, HÀNG MỚI 100%", goods_name_en: "Control Board TS02 Board 13*12*4.5cm", goods_unit_en: "PCS", goods_unit_local: "Cái" },
+      { goods_no: "BANGDIEUKHIEN*2", hs_code: "85371019", goods_name_local: "Bảng điều khiển sử dụng cho máy hút ẩm quy cách 20*14.5*4cm / MINI P C BOARD, HÀNG MỚI 100%", goods_name_en: "Control Board Mini PC Board 20*14.5*4cm", goods_unit_en: "PCS", goods_unit_local: "Cái" },
+      { goods_no: "BLK", hs_code: "84213990", goods_name_local: "Bộ lọc khí quy cách phi 155*H190 sử dụng cho máy hút ẩm / 155*H190 FILTER, HÀNG MỚI 100%", goods_name_en: "Dehumidifier Air Filter phi 155*H190", goods_unit_en: "PCS", goods_unit_local: "Cái" },
+      { goods_no: "CH 711 ANTI UV RESIN", hs_code: "38123900", goods_name_local: "CH 711 ANTI UV RESIN#&Hạt phụ gia chống tia UV, Chế phẩm ổn định nhựa, Thành phần Anti-ultraviolet light absorber: 75% + Thermoplastic polyurethane: 25%,Cas No.: 70321-86-7, 9009-54-5 / 711 ANTI UV Resin", goods_name_en: "711 Anti UV Light Absorber Resin", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH DAU TRUC XOAN*1", hs_code: "84831090", goods_name_local: "Đầu trục xoắn, dùng để nén ép của máy ép nhựa, quy cách phi 32mm / 180Ei Short Nozzle (Hàng mới 100%)", goods_name_en: "Extruder Injection Screw Head 32mm", goods_unit_en: "PCS", goods_unit_local: "Cái" },
+      { goods_no: "CH DAU TRUC XOAN*2", hs_code: "84831090", goods_name_local: "Đầu trục xoắn, dùng để nén ép của máy ép nhựa, quy cách phi 35mm / 240Ei Short Nozzle (Hàng mới 100%)", goods_name_en: "Extruder Injection Screw Head 35mm", goods_unit_en: "PCS", goods_unit_local: "Cái" },
+      { goods_no: "CH DIEN CUC THAN*1", hs_code: "85451900", goods_name_local: "Điện cực than dùng cho máy gia công tia lửa điện, quy cách: 15*15*50mm / Graphite Electrodes (Hàng mới 100%)", goods_name_en: "Carbon Graphite Electrode 15*15*50mm", goods_unit_en: "PCS", goods_unit_local: "Cái" },
+      { goods_no: "CH DIEN CUC THAN*2", hs_code: "85451900", goods_name_local: "Điện cực than dùng cho máy gia công tia lửa điện, quy cách: 200*100*50mm / Graphite Electrodes (Hàng mới 100%)", goods_name_en: "Carbon Graphite Electrode 200*100*50mm", goods_unit_en: "PCS", goods_unit_local: "Cái" },
+      { goods_no: "CH DIEN CUC THAN*3", hs_code: "85451900", goods_name_local: "Điện cực than dùng cho máy gia công tia lửa điện, quy cách: 310*210*65mm / Graphite Electrodes (Hàng mới 100%)", goods_name_en: "Carbon Graphite Electrode 310*210*65mm", goods_unit_en: "PCS", goods_unit_local: "Cái" },
+      { goods_no: "CH DLM", hs_code: "34031919", goods_name_local: "CH DLM#&Dầu làm mền hạt nhựa - DLM / SOLSPERSE OIL 006, CAS NO.: 08012-95-1, 100% Hazard R-phrases Concentration", goods_name_en: "Solsperse Oil Plastic Softener DLM", goods_unit_en: "DRUM", goods_unit_local: "Thùng" },
+      { goods_no: "CH GC CSHH-TPR", hs_code: "40059990", goods_name_local: "CH GC CSHH-TPR#&Cao su hỗn hợp dạng hạt ( hạt TPR ) / THERMO PLASTIC RUBBER 3055D-R, CAS NO.: 9003-55-8, 9003-53-6", goods_name_en: "Thermo Plastic Rubber TPR 3055D-R", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH HAT LDPE*1", hs_code: "39011099", goods_name_local: "Hạt Nhựa dạng nguyên sinh (hạt LDPE: Low-Density Polyethylene) / LDPE LDF200YL, CAS NO: 9002-88-4, HÀNG MỚI 100%", goods_name_en: "Low Density Polyethylene LDPE LDF200YL", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH HAT LDPE*2", hs_code: "39011099", goods_name_local: "Hạt Nhựa dạng nguyên sinh (hạt LDPE: Low-Density Polyethylene) / LDPE LDF260GG, CAS NO: 9002-88-4, HÀNG MỚI 100%", goods_name_en: "Low Density Polyethylene LDPE LDF260GG", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH HAT LDPE*3", hs_code: "39011099", goods_name_local: "Hạt Nhựa dạng nguyên sinh (hạt LDPE: Low-Density Polyethylene) / PETROTHENE NA204000, CAS NO: 9002-88-4, HÀNG MỚI 100%", goods_name_en: "Low Density Polyethylene Petrothene NA204000", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH HAT LLDPE*1", hs_code: "39011092", goods_name_local: "Hạt Nhựa dạng nguyên sinh (hạt LLDPE) / LLDPE DFDA-7047 NT 7, CAS NO: 25087-34-7, HÀNG MỚI 100%", goods_name_en: "Linear Low Density Polyethylene LLDPE DFDA-7047", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH HAT LLDPE*2", hs_code: "39011092", goods_name_local: "Hạt Nhựa dạng nguyên sinh (hạt LLDPE) / LLDPE EVOLUE SP3010, CAS No.25087-34-7, HÀNG MỚI 100%", goods_name_en: "Linear Low Density Polyethylene Evolue SP3010", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH HAT NHUA POLYPROPYLENE", hs_code: "39021090", goods_name_local: "Hạt nhựa dạng nguyên sinh: hạt Polypropylene / Polypropylene Globalene PT6015, CAS No. 9003-07-0, HÀNG MỚI 100%", goods_name_en: "Polypropylene Resin Globalene PT6015", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH HAT NYLON*1", hs_code: "39081090", goods_name_local: "CH HAT NYLON#&Hạt nhựa (Hạt nylon - polyamit dạng nguyên sinh) / NYLON RESIN ZY 7335F NC, CAS NO.: 25038-54-4, 1592-23-0", goods_name_en: "Polyamide Nylon Resin ZY 7335F NC", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH HAT NYLON*2", hs_code: "39081090", goods_name_local: "CH HAT NYLON#&Hạt nhựa (Hạt nylon - polyamit dạng nguyên sinh)/ NYLON66 RESIN VY6012T9, CAS NO.: 32131-17-2", goods_name_en: "Polyamide Nylon 66 Resin VY6012T9", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH HAT NYLON KD", hs_code: "39081090", goods_name_local: "Hạt nhựa (Hạt polyamit dạng nguyên sinh) / NYLON66 RESIN VY6012T9, CAS NO.: 32131-17-2, HÀNG MỚI 100%", goods_name_en: "Polyamide Nylon 66 Raw VY6012T9", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH HAT TPE*1", hs_code: "39039099", goods_name_local: "Hạt nhựa Thermoplastic polyester elastomer dạng nguyên sinh dùng để sản xuất gót giày / Arnitel EM400, CAS NO: 37208-01-2, HÀNG MỚI 100%", goods_name_en: "Thermoplastic Polyester Elastomer Arnitel EM400", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH TAN", hs_code: "73181600", goods_name_local: "Đai ốc có ren bằng kim loại dùng gắn trong đế giày thể thao / Nut Hex M5, HÀNG MỚI 100%", goods_name_en: "Metal Threaded Nut Hex M5 for Shoes", goods_unit_en: "PCS", goods_unit_local: "Cái" },
+      { goods_no: "CH SOI IN 3D", hs_code: "39169022", goods_name_local: "Sợi nylon quy cách 1.75mm sử dụng cho máy in 3D / 3D Filament Nylon 1.75mm", goods_name_en: "Nylon 3D Printer Filament Thread 1.75mm", goods_unit_en: "ROLLS", goods_unit_local: "Cuộn" }
+    ];
+
+    const DICTIONARY_E21 = [
+      { goods_no: "CH 711 ANTI UV RESIN", hs_code: "38123900", goods_name_local: "CH 711 ANTI UV RESIN#&Hạt phụ gia chống tia UV, Chế phẩm ổn định nhựa, Thành phần Anti-ultraviolet light absorber: 75% + Thermoplastic polyurethane: 25%,Cas No.: 70321-86-7, 9009-54-5 / 711 ANTI UV Resin", goods_name_en: "Anti-UV Additive Resin 711", goods_unit_en: "BAGS", goods_unit_local: "Bao" },
+      { goods_no: "CH DLM", hs_code: "34031919", goods_name_local: "CH DLM#&Dầu làm mền hạt nhựa - DLM / SOLSPERSE OIL 006, CAS NO.: 08012-95-1, 100% Hazard R-phrases Concentration", goods_name_en: "Solsperse Oil Plastic Softener DLM", goods_unit_en: "DRUM", goods_unit_local: "Thùng" },
+      { goods_no: "CH GC CSHH-TPR", hs_code: "40059990", goods_name_local: "CH GC CSHH-TPR#&Cao su hỗn hợp dạng hạt ( hạt TPR ) / THERMO PLASTIC RUBBER 3055D-R, CAS NO.: 9003-55-8, 9003-53-6", goods_name_en: "Synthetic Copolymer Compound TPR 3055D-R", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH HAT NYLON*1", hs_code: "39081090", goods_name_local: "CH HAT NYLON#&Hạt nhựa (Hạt nylon - polyamit dạng nguyên sinh) / NYLON RESIN ZY 7335F NC, CAS NO.: 25038-54-4, 1592-23-0", goods_name_en: "Polyamide Nylon Polymer ZY 7335F NC", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH HAT NYLON*2", hs_code: "39081090", goods_name_local: "CH HAT NYLON#&Hạt nhựa (Hạt nylon - polyamit dạng nguyên sinh)/ NYLON66 RESIN VY6012T9, CAS NO.: 32131-17-2", goods_name_en: "Polyamide Nylon 66 VY6012T9", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH-UV-ABSORBE*2", hs_code: "29339990", goods_name_local: "CH-UV-ABSORBE#&Hợp chất hữu cơ UV absorber - chống tia UV / UV ABSORBER UV-968, CAS NO.: 70321-86-7, 100% 2-(2H-benzotriazol-2-yl)-4,6-bis(1-methyl-1-phenylethyl)pheNol", goods_name_en: "Organic UV Absorber UV-968 Compound", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "HAT TPU-KD", hs_code: "39095000", goods_name_local: "Hạt Nhựa nguyên sinh (hạt TPU) - HN-TPU / THERMOPLASTIC POLYURETHANE AVALON 6044 AG DP, (CAS No.: 1931129-39-3)", goods_name_en: "Thermoplastic Polyurethane Avalon 6044", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "HAT TPU-KD*30", hs_code: "39095000", goods_name_local: "Hạt Nhựa nguyên sinh (hạt Polyurethan) / THERMOPLASTIC POLYURETHANE RF-64DUTC, CAS NO.: 9009-54-5, HÀNG MỚI 100%", goods_name_en: "Thermoplastic Polyurethane RF-64DUTC", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "HAT TPU-KD*31", hs_code: "39095000", goods_name_local: "Hạt Nhựa nguyên sinh (hạt Polyurethan) / THERMOPLASTIC POLYURETHANE RF-85AUTC, CAS NO.: 9009-54-5, HÀNG MỚI 100%", goods_name_en: "Thermoplastic Polyurethane RF-85AUTC", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "HAT TPU-KD*32", hs_code: "39095000", goods_name_local: "Hạt Nhựa nguyên sinh (hạt Polyurethan) / THERMOPLASTIC POLYURETHANE RF-90AUTC, CAS NO.: 9009-54-5, HÀNG MỚI 100%", goods_name_en: "Thermoplastic Polyurethane RF-90AUTC", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "HAT TPU-KD*33", hs_code: "39095000", goods_name_local: "Hạt Nhựa nguyên sinh (hạt Polyurethan) / THERMOPLASTIC POLYURETHANE RF-95AUTC, CAS NO.: 110553-31-6, HÀNG MỚI 100%", goods_name_en: "Thermoplastic Polyurethane RF-95AUTC", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "HAT TPU-KD*34", hs_code: "39095000", goods_name_local: "Hạt Nhựa nguyên sinh (hạt Polyurethan) / THERMOPLASTIC POLYURETHANE RF-T1555PBLVM, CAS NO.: 9009-54-5, 27138-31-4, HÀNG MỚI 100%", goods_name_en: "Thermoplastic Polyurethane RF-T1555", goods_unit_en: "KGS", goods_unit_local: "Kg" },
+      { goods_no: "CH-VDK-GLJ", hs_code: "60053790", goods_name_local: "CH-VDK-GLJ#&Vải dệt kim đan dọc đã nhuộm chưa in khổ 44\" / LJ-A8482AD EPM5 44\" 100% Polyester, knitted fabric WARP, dyed, without printing", goods_name_en: "Knitted Warp Dyed Polyester Fabric 44", goods_unit_en: "YARDS", goods_unit_local: "Yard" }
+    ];
+
+    const FACTORY_OPTIONS = ["18A", "B0SZ", "B0M1", "B0M2"];
+
+    function App() {
+      const [user, setUser] = useState(null);
+      const [menuExpanded, setMenuExpanded] = useState(true);
+      const [activeMenu, setActiveMenu] = useState('DASHBOARD'); 
+      const [expandedMenus, setExpandedMenus] = useState({
+        A: false,
+        B: true, 
+        E: true,
+        L: true,
+        M: false
+      });
+
+      // State dữ liệu đồng bộ đám mây hoặc LocalStorage
+      const [lots, setLots] = useState([]);
+      const [invoices, setInvoices] = useState([]);
+      const [goods, setGoods] = useState([]);
+      
+      const [selectedLotNo, setSelectedLotNo] = useState(null);
+      const [selectedInvoiceNo, setSelectedInvoiceNo] = useState(null);
+
+      const [filterFromDate, setFilterFromDate] = useState('');
+      const [filterToDate, setFilterToDate] = useState('');
+      const [filterLotNo, setFilterLotNo] = useState('');
+      const [searchExecuted, setSearchExecuted] = useState(false); 
+
+      const [dbSearchQuery, setDbSearchQuery] = useState('');
+      const [dbSelectedTab, setDbSelectedTab] = useState('A12');
+      const [homeSearchQuery, setHomeSearchQuery] = useState('');
+
+      const [showAddModal, setShowAddModal] = useState(false);
+      const [modalMode, setModalMode] = useState('add'); 
+      const [modalTab, setModalTab] = useState('lot'); 
+      const [showMasterInvoiceModal, setShowMasterInvoiceModal] = useState(false);
+
+      const [inlineAtcLotNo, setInlineAtcLotNo] = useState(null);
+      const [inlineAtcDate, setInlineAtcDate] = useState('');
+
+      const [confirmState, setConfirmState] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: null
+      });
+
+      // Form States
+      const [lotForm, setLotForm] = useState({
+        lot_no: '', stt: 1, lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10),
+        factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', is_cont: true,
+        cont_no: '', seal_no: '', cont_type: '40HC', pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '',
+        origin_country: 'TAIWAN', supplier: 'CHANG YANG MATERIAL CORP.', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', sale_qty: 0
+      });
+
+      const [invoiceForm, setInvoiceForm] = useState({
+        invoice_no: '', lot_no: '', bill_no: '', invoice_date: new Date().toISOString().substring(0, 10), incoterm: 'CIF',
+        total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0, is_hang_chung_bill: false,
+        loai_hinh: 'A12', loai_hinh_con: 'DEFAULT'
+      });
+
+      const [goodsForm, setGoodsForm] = useState({
+        invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '',
+        goods_name_local: '', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0
+      });
+
+      const [selectedFactories, setSelectedFactories] = useState([]);
+      const [notification, setNotification] = useState(null);
+
+      const showNotification = (message, type = 'success') => {
+        setNotification({ message, type });
+        setTimeout(() => setNotification(null), 4500);
+      };
+
+      // --- KHỞI TẠO VÀ ĐỒNG BỘ DỮ LIỆU ---
+      useEffect(() => {
+        if (isFirebaseConfigured) {
+          const initAuth = async () => {
+            try {
+              await signInAnonymously(auth);
+            } catch (err) {
+              console.error("Lỗi xác thực hệ thống:", err);
+            }
+          };
+          initAuth();
+
+          const unsubscribe = onAuthStateChanged(auth, (userState) => {
+            setUser(userState);
+          });
+          return () => unsubscribe();
+        } else {
+          setUser({ uid: 'local_user', isAnonymous: true });
+        }
+      }, []);
+
+      useEffect(() => {
+        if (!user) return;
+
+        if (isFirebaseConfigured) {
+          const lotsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'lots');
+          const invoicesColRef = collection(db, 'artifacts', appId, 'public', 'data', 'invoices');
+          const goodsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'goods');
+
+          const unsubLots = onSnapshot(lotsColRef, (snapshot) => {
+            const data = snapshot.docs.map(doc => doc.data());
+            setLots(data.sort((a, b) => b.lot_date.localeCompare(a.lot_date)));
+            if (snapshot.empty) initializeSampleFirebaseData();
+          });
+
+          const unsubInvoices = onSnapshot(invoicesColRef, (snapshot) => {
+            setInvoices(snapshot.docs.map(doc => doc.data()));
+          });
+
+          const unsubGoods = onSnapshot(goodsColRef, (snapshot) => {
+            setGoods(snapshot.docs.map(doc => doc.data()));
+          });
+
+          return () => {
+            unsubLots();
+            unsubInvoices();
+            unsubGoods();
+          };
+        } else {
+          // Fallback sang LocalStorage
+          const localLots = localStorage.getItem('cy_lots');
+          const localInvoices = localStorage.getItem('cy_invoices');
+          const localGoods = localStorage.getItem('cy_goods');
+
+          if (localLots) setLots(JSON.parse(localLots).sort((a, b) => b.lot_date.localeCompare(a.lot_date)));
+          else {
+            localStorage.setItem('cy_lots', JSON.stringify(INITIAL_LOTS));
+            setLots(INITIAL_LOTS);
+          }
+
+          if (localInvoices) setInvoices(JSON.parse(localInvoices));
+          else {
+            localStorage.setItem('cy_invoices', JSON.stringify(INITIAL_INVOICES));
+            setInvoices(INITIAL_INVOICES);
+          }
+
+          if (localGoods) setGoods(JSON.parse(localGoods));
+          else {
+            localStorage.setItem('cy_goods', JSON.stringify(INITIAL_GOODS));
+            setGoods(INITIAL_GOODS);
+          }
+        }
+      }, [user]);
+
+      const initializeSampleFirebaseData = async () => {
+        try {
+          const batch = writeBatch(db);
+          INITIAL_LOTS.forEach(lot => batch.set(doc(db, 'artifacts', appId, 'public', 'data', 'lots', lot.lot_no), lot));
+          INITIAL_INVOICES.forEach(inv => batch.set(doc(db, 'artifacts', appId, 'public', 'data', 'invoices', inv.invoice_no), inv));
+          INITIAL_GOODS.forEach(g => batch.set(doc(db, 'artifacts', appId, 'public', 'data', 'goods', g.id), g));
+          await batch.commit();
+          showNotification("Đã khởi tạo dữ liệu mẫu lên đám mây Firestore!");
+        } catch (err) {
+          console.error("Lỗi đồng bộ dữ liệu ban đầu:", err);
+        }
+      };
+
+      // --- LOGIC PHỤ TRỢ (HELPER FUNCTIONS) ---
+      const getFirstVacantSeq = () => {
+        const activeSeqs = lots.map(l => Number(l.stt)).filter(n => !isNaN(n) && n > 0);
+        const uniqueSeqs = Array.from(new Set(activeSeqs)).sort((a, b) => a - b);
+        let nextSeq = 1;
+        for (let i = 0; i < uniqueSeqs.length; i++) {
+          if (uniqueSeqs[i] === nextSeq) nextSeq++;
+          else if (uniqueSeqs[i] > nextSeq) break;
+        }
+        return nextSeq;
+      };
+
+      const generateLotNoString = (type, subType, sttNum) => {
+        const yy = new Date().getFullYear().toString().slice(-2);
+        if (type === 'A12') {
+          if (subType === 'H11') return `CH${sttNum}-${yy}PMD`;
+          if (subType === 'DT') return `CH${sttNum}DT-${yy}`;
+          return `CH${sttNum}KD-${yy}`;
+        } else if (type === 'E21') {
+          if (subType === 'CHUYEN_TIEP') return `CH${sttNum}-${yy}CT`;
+          return `CH${sttNum}-${yy}`;
+        }
+        return `CH${sttNum}-${yy}`;
+      };
+
+      const getUniqueSuppliers = () => Array.from(new Set(lots.map(l => l.supplier).filter(Boolean)));
+      const getUniquePols = () => Array.from(new Set(lots.map(l => l.pol).filter(Boolean).map(p => p.trim().toUpperCase())));
+      const getUniquePods = () => Array.from(new Set(lots.map(l => l.pod).filter(Boolean).map(p => p.trim().toUpperCase())));
+
+      useEffect(() => {
+        if (showAddModal && modalMode === 'add' && modalTab === 'lot') {
+          const vacantStt = getFirstVacantSeq();
+          const calculatedLotNo = generateLotNoString(lotForm.loai_hinh, lotForm.loai_hinh_con, vacantStt);
+          setLotForm(prev => ({ ...prev, lot_no: calculatedLotNo, stt: vacantStt }));
+        }
+      }, [showAddModal, lotForm.loai_hinh, lotForm.loai_hinh_con, lots, modalMode, modalTab]);
+
+      useEffect(() => {
+        setLotForm(prev => ({ ...prev, factory_no: selectedFactories.join(', ') }));
+      }, [selectedFactories]);
+
+      // --- LOGIC PHÂN TÍCH TÁCH/GHÉP HÀNG CHUNG BILL ---
+      const checkBillNoGroupingHelper = (typedBillNo, currentLoaiHinh, currentLoaiHinhCon, isHangChungBill) => {
+        if (!typedBillNo || !isHangChungBill) return { matches: false, status: 'NORMAL' };
+        const matchingInvoices = invoices.filter(i => i.bill_no && i.bill_no.trim().toLowerCase() === typedBillNo.trim().toLowerCase());
+        if (matchingInvoices.length === 0) return { matches: false, status: 'NEW_BILL' };
+        
+        const relatedLots = lots.filter(l => matchingInvoices.some(i => i.lot_no === l.lot_no));
+        if (relatedLots.length === 0) return { matches: false, status: 'NEW_BILL' };
+
+        const sameTypeLot = relatedLots.find(l => l.loai_hinh === currentLoaiHinh && l.loai_hinh_con === currentLoaiHinhCon);
+        if (sameTypeLot) {
+          return {
+            matches: true, status: 'SAME_BILL_SAME_TYPE', proposedLotNo: sameTypeLot.lot_no, stt: sameTypeLot.stt,
+            message: `Hàng chung Bill & Cùng loại hình với Lô [${sameTypeLot.lot_no}]. Hóa đơn này sẽ tự động ghép vào Lô hiện tại.`
+          };
+        } else {
+          const baseLot = relatedLots[0];
+          const sharedStt = baseLot.stt;
+          const computedLotNo = generateLotNoString(currentLoaiHinh, currentLoaiHinhCon, sharedStt);
+          const existingNewLot = lots.find(l => l.lot_no === computedLotNo);
+          return {
+            matches: true, status: 'SAME_BILL_DIFF_TYPE', proposedLotNo: computedLotNo, stt: sharedStt, existingNewLot: !!existingNewLot, baseLot: baseLot,
+            message: `Trùng số Bill với Lô [${baseLot.lot_no}] (STT: ${sharedStt}) nhưng KHÁC loại hình. Hệ thống sẽ tự động tách làm Lô mới [${computedLotNo}] dùng CHUNG Số thứ tự [STT: ${sharedStt}]!`
+          };
+        }
+      };
+
+      const activeBillStatus = checkBillNoGroupingHelper(invoiceForm.bill_no, invoiceForm.loai_hinh, invoiceForm.loai_hinh_con, invoiceForm.is_hang_chung_bill);
+
+      // --- LƯU TRỮ VÀ THAY ĐỔI DỮ LIỆU (CẢ HAI CHẾ ĐỘ DB) ---
+      const handleSaveLot = async (e) => {
+        e.preventDefault();
+        if (!lotForm.lot_no.trim()) {
+          showNotification("Mã lô hàng không được bỏ trống", "error");
+          return;
+        }
+        if (modalMode === 'add' && lots.some(l => l.lot_no.toLowerCase() === lotForm.lot_no.trim().toLowerCase())) {
+          showNotification("Mã lô hàng đã tồn tại!", "error");
+          return;
+        }
+
+        const finalLot = {
+          ...lotForm,
+          lot_no: lotForm.lot_no.trim(),
+          stt: Number(lotForm.stt),
+          pkg_qty: Number(lotForm.pkg_qty) || 0,
+          gw: Number(lotForm.gw) || 0,
+          cbm: Number(lotForm.cbm) || 0,
+          sale_qty: Number(lotForm.sale_qty) || 0
+        };
+
+        try {
+          if (isFirebaseConfigured) {
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'lots', finalLot.lot_no), finalLot);
+          } else {
+            const updatedLots = [finalLot, ...lots.filter(l => l.lot_no !== finalLot.lot_no)];
+            setLots(updatedLots.sort((a, b) => b.lot_date.localeCompare(a.lot_date)));
+            localStorage.setItem('cy_lots', JSON.stringify(updatedLots));
+          }
+
+          showNotification(`Đã ${modalMode === 'add' ? 'tạo mới' : 'cập nhật'} Lô hàng ${finalLot.lot_no} thành công!`);
+          setSelectedLotNo(finalLot.lot_no);
+
+          if (modalMode === 'add') {
+            setInvoiceForm(prev => ({ 
+              ...prev, lot_no: finalLot.lot_no, bill_no: finalLot.bill_no, loai_hinh: finalLot.loai_hinh, loai_hinh_con: finalLot.loai_hinh_con
+            }));
+            setModalTab('invoice');
+          } else {
+            setShowAddModal(false);
+          }
+          setSearchExecuted(true);
+        } catch (err) {
+          showNotification("Lỗi lưu lô hàng: " + err.message, "error");
+        }
+      };
+
+      const handleSaveInvoice = async (e) => {
+        e.preventDefault();
+        if (!invoiceForm.invoice_no.trim()) {
+          showNotification("Vui lòng điền Số hóa đơn!", "error");
+          return;
+        }
+
+        let targetLotNo = invoiceForm.lot_no;
+
+        if (invoiceForm.is_hang_chung_bill && activeBillStatus.matches) {
+          targetLotNo = activeBillStatus.proposedLotNo;
+
+          if (activeBillStatus.status === 'SAME_BILL_DIFF_TYPE' && !activeBillStatus.existingNewLot) {
+            const baseLot = activeBillStatus.baseLot;
+            const newAutoLot = {
+              ...baseLot,
+              lot_no: activeBillStatus.proposedLotNo,
+              stt: Number(activeBillStatus.stt), 
+              lot_date: invoiceForm.invoice_date || baseLot.lot_date,
+              get_docs_date: baseLot.get_docs_date || new Date().toISOString().substring(0, 10),
+              bill_no: invoiceForm.bill_no,
+              atc_date: '',
+              loai_hinh: invoiceForm.loai_hinh,
+              loai_hinh_con: invoiceForm.loai_hinh_con,
+              pkg_qty: 0, gw: 0, cbm: 0, sale_qty: 0
+            };
+
+            try {
+              if (isFirebaseConfigured) {
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'lots', newAutoLot.lot_no), newAutoLot);
+              } else {
+                const updatedLots = [newAutoLot, ...lots.filter(l => l.lot_no !== newAutoLot.lot_no)];
+                setLots(updatedLots.sort((a, b) => b.lot_date.localeCompare(a.lot_date)));
+                localStorage.setItem('cy_lots', JSON.stringify(updatedLots));
+              }
+              showNotification(`Tự động tách Lô mới: [${newAutoLot.lot_no}] dùng chung STT: ${newAutoLot.stt}`);
+            } catch (err) {
+              showNotification("Lỗi tách lô ghép: " + err.message, "error");
+              return;
+            }
+          }
+        }
+
+        if (!targetLotNo) {
+          showNotification("Hóa đơn phải được liên kết với một Lô hàng!", "error");
+          return;
+        }
+
+        if (modalMode === 'add' && invoices.some(i => i.invoice_no.toLowerCase() === invoiceForm.invoice_no.trim().toLowerCase())) {
+          showNotification("Số hóa đơn này đã tồn tại!", "error");
+          return;
+        }
+
+        const finalInvoice = {
+          ...invoiceForm,
+          invoice_no: invoiceForm.invoice_no.trim(),
+          lot_no: targetLotNo,
+          total_amount: Number(invoiceForm.total_amount) || 0,
+          foc_amount: Number(invoiceForm.foc_amount) || 0,
+          plus_sea_freight: Number(invoiceForm.plus_sea_freight) || 0,
+          handling_charges: Number(invoiceForm.handling_charges) || 0,
+          other_charges: Number(invoiceForm.other_charges) || 0,
+        };
+
+        try {
+          if (isFirebaseConfigured) {
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'invoices', finalInvoice.invoice_no), finalInvoice);
+          } else {
+            const updatedInvoices = [finalInvoice, ...invoices.filter(i => i.invoice_no !== finalInvoice.invoice_no)];
+            setInvoices(updatedInvoices);
+            localStorage.setItem('cy_invoices', JSON.stringify(updatedInvoices));
+          }
+
+          showNotification(`Đã lưu Hóa đơn ${finalInvoice.invoice_no}`);
+          setSelectedLotNo(targetLotNo);
+          setSelectedInvoiceNo(finalInvoice.invoice_no);
+
+          if (modalMode === 'add') {
+            setGoodsForm(prev => ({ 
+              ...prev, invoice_no: finalInvoice.invoice_no, goods_no: '', goods_name_en: '', goods_name_local: '',
+              goods_unit_en: 'PCS', goods_unit_en2: '', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', sale_amount: 0
+            }));
+            setModalTab('goods');
+          } else {
+            setShowAddModal(false);
+          }
+        } catch (err) {
+          showNotification("Lỗi lưu hóa đơn: " + err.message, "error");
+        }
+      };
+
+      const handleSaveGoods = async (e) => {
+        e.preventDefault();
+        if (!goodsForm.goods_no.trim() || !goodsForm.goods_name_en.trim()) {
+          showNotification("Vui lòng nhập đầy đủ thông tin hàng hóa!", "error");
+          return;
+        }
+
+        const isEditing = modalMode === 'edit' && goodsForm.id;
+        const goodsId = isEditing ? goodsForm.id : "goods_" + Date.now();
+        
+        const finalGoods = {
+          ...goodsForm,
+          id: goodsId,
+          goods_no: goodsForm.goods_no.trim(),
+          goods_item: Number(goodsForm.goods_item) || 1,
+          sale_amount: Number(goodsForm.sale_amount) || 0
+        };
+
+        try {
+          if (isFirebaseConfigured) {
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'goods', goodsId), finalGoods);
+          } else {
+            const updatedGoods = [finalGoods, ...goods.filter(g => g.id !== goodsId)];
+            setGoods(updatedGoods);
+            localStorage.setItem('cy_goods', JSON.stringify(updatedGoods));
+          }
+
+          showNotification(`Đã lưu mặt hàng ${finalGoods.goods_no}`);
+
+          if (modalMode === 'add') {
+            setGoodsForm({
+              invoice_no: finalGoods.invoice_no, goods_no: '', goods_item: finalGoods.goods_item + 1, goods_name_en: '',
+              goods_unit_en: 'PCS', goods_unit_en2: '', goods_name_local: 'Hàng hóa nhập khẩu mới',
+              goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0
+            });
+          } else {
+            setShowAddModal(false);
+          }
+        } catch (err) {
+          showNotification("Lỗi lưu mặt hàng: " + err.message, "error");
+        }
+      };
+
+      const handleInlineAtcUpdate = async (lotNo, dateString) => {
+        const lotToUpdate = lots.find(l => l.lot_no === lotNo);
+        if (!lotToUpdate) return;
+        
+        const updatedLot = { ...lotToUpdate, atc_date: dateString };
+
+        try {
+          if (isFirebaseConfigured) {
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'lots', lotNo), updatedLot);
+          } else {
+            const updatedLots = lots.map(l => l.lot_no === lotNo ? updatedLot : l);
+            setLots(updatedLots);
+            localStorage.setItem('cy_lots', JSON.stringify(updatedLots));
+          }
+          showNotification(`Đã cập nhật Ngày Nhập Kho cho lô ${lotNo}!`);
+          setInlineAtcLotNo(null);
+          setInlineAtcDate('');
+        } catch (err) {
+          showNotification("Lỗi: " + err.message, "error");
+        }
+      };
+
+      // --- TRÌNH XÓA DỮ LIỆU CASCADE ---
+      const startEditLot = (lot, e) => {
+        if (e) e.stopPropagation();
+        setModalMode('edit');
+        setLotForm(lot);
+        setSelectedFactories(lot.factory_no ? lot.factory_no.split(',').map(s => s.trim()) : []);
+        setModalTab('lot');
+        setShowAddModal(true);
+      };
+
+      const startEditInvoice = (inv, e) => {
+        if (e) e.stopPropagation();
+        setModalMode('edit');
+        setInvoiceForm(inv);
+        setModalTab('invoice');
+        setShowAddModal(true);
+      };
+
+      const startEditGoods = (item, e) => {
+        if (e) e.stopPropagation();
+        setModalMode('edit');
+        setGoodsForm(item);
+        setModalTab('goods');
+        setShowAddModal(true);
+      };
+
+      const triggerDeleteLotConfirm = (lotNo, e) => {
+        if (e) e.stopPropagation();
+        const target = lotNo || selectedLotNo;
+        if (!target) return;
+
+        setConfirmState({
+          isOpen: true,
+          title: 'Xác Nhận Xóa Lô Hàng',
+          message: `Bạn đang yêu cầu xóa Lô hàng [${target}]? Tất cả hóa đơn thương mại và danh mục hàng hóa thuộc lô này sẽ bị xóa vĩnh viễn khỏi thiết bị của bạn.`,
+          onConfirm: () => executeDeleteSelectedLot(target)
+        });
+      };
+
+      const executeDeleteSelectedLot = async (targetLotNo) => {
+        const relatedInvoices = invoices.filter(i => i.lot_no === targetLotNo);
+        const relatedInvoiceNos = relatedInvoices.map(i => i.invoice_no);
+
+        try {
+          if (isFirebaseConfigured) {
+            const relatedGoods = goods.filter(g => relatedInvoiceNos.includes(g.invoice_no));
+            const batch = writeBatch(db);
+            relatedGoods.forEach(g => batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'goods', g.id)));
+            relatedInvoices.forEach(i => batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'invoices', i.invoice_no)));
+            batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'lots', targetLotNo));
+            await batch.commit();
+          } else {
+            const updatedGoods = goods.filter(g => !relatedInvoiceNos.includes(g.invoice_no));
+            const updatedInvoices = invoices.filter(i => i.lot_no !== targetLotNo);
+            const updatedLots = lots.filter(l => l.lot_no !== targetLotNo);
+
+            setGoods(updatedGoods);
+            setInvoices(updatedInvoices);
+            setLots(updatedLots);
+
+            localStorage.setItem('cy_goods', JSON.stringify(updatedGoods));
+            localStorage.setItem('cy_invoices', JSON.stringify(updatedInvoices));
+            localStorage.setItem('cy_lots', JSON.stringify(updatedLots));
+          }
+
+          showNotification(`Đã xóa toàn bộ dữ liệu của Lô hàng ${targetLotNo}.`);
+          setSelectedLotNo(null);
+          setSelectedInvoiceNo(null);
+        } catch (err) {
+          showNotification("Xóa thất bại: " + err.message, "error");
+        } finally {
+          setConfirmState(prev => ({ ...prev, isOpen: false }));
+        }
+      };
+
+      const triggerDeleteInvoiceConfirm = (invoiceNo, e) => {
+        if (e) e.stopPropagation();
+        setConfirmState({
+          isOpen: true,
+          title: 'Xác Nhận Xóa Hóa Đơn',
+          message: `Bạn có chắc chắn muốn xóa Hóa đơn [${invoiceNo}]? Mọi sản phẩm thuộc hóa đơn này sẽ bị xóa theo.`,
+          onConfirm: () => executeDeleteInvoice(invoiceNo)
+        });
+      };
+
+      const executeDeleteInvoice = async (invoiceNo) => {
+        try {
+          if (isFirebaseConfigured) {
+            const relatedGoods = goods.filter(g => g.invoice_no === invoiceNo);
+            const batch = writeBatch(db);
+            relatedGoods.forEach(g => batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'goods', g.id)));
+            batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'invoices', invoiceNo));
+            await batch.commit();
+          } else {
+            const updatedGoods = goods.filter(g => g.invoice_no !== invoiceNo);
+            const updatedInvoices = invoices.filter(i => i.invoice_no !== invoiceNo);
+
+            setGoods(updatedGoods);
+            setInvoices(updatedInvoices);
+
+            localStorage.setItem('cy_goods', JSON.stringify(updatedGoods));
+            localStorage.setItem('cy_invoices', JSON.stringify(updatedInvoices));
+          }
+          showNotification(`Đã xóa Hóa đơn ${invoiceNo} thành công.`);
+          setSelectedInvoiceNo(null);
+        } catch (err) {
+          showNotification("Lỗi xóa: " + err.message, "error");
+        } finally {
+          setConfirmState(prev => ({ ...prev, isOpen: false }));
+        }
+      };
+
+      const triggerDeleteGoodsConfirm = (goodsId, e) => {
+        if (e) e.stopPropagation();
+        setConfirmState({
+          isOpen: true,
+          title: 'Xác Nhận Xóa Mặt Hàng',
+          message: 'Bạn có muốn xóa dòng mặt hàng này không?',
+          onConfirm: () => executeDeleteGoods(goodsId)
+        });
+      };
+
+      const executeDeleteGoods = async (goodsId) => {
+        try {
+          if (isFirebaseConfigured) {
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'goods', goodsId));
+          } else {
+            const updatedGoods = goods.filter(g => g.id !== goodsId);
+            setGoods(updatedGoods);
+            localStorage.setItem('cy_goods', JSON.stringify(updatedGoods));
+          }
+          showNotification("Đã xóa dòng mặt hàng thành công!");
+        } catch (err) {
+          showNotification("Lỗi: " + err.message, "error");
+        } finally {
+          setConfirmState(prev => ({ ...prev, isOpen: false }));
+        }
+      };
+
+      // --- TRUY VẤN TRA CỨU NHANH ---
+      const handlePortalQuickSearch = (e) => {
+        e.preventDefault();
+        if (!homeSearchQuery.trim()) {
+          showNotification("Vui lòng nhập từ khóa tra cứu!", "warning");
+          return;
+        }
+        setFilterLotNo(homeSearchQuery);
+        setSearchExecuted(true);
+        setActiveMenu('E010'); 
+      };
+
+      const triggerSearch = () => {
+        setSearchExecuted(true);
+        showNotification("Đã lọc và cập nhật kết quả tìm kiếm.");
+      };
+
+      const clearSearchFilters = () => {
+        setFilterFromDate('');
+        setFilterToDate('');
+        setFilterLotNo('');
+        setSearchExecuted(false);
+        setSelectedLotNo(null);
+        setSelectedInvoiceNo(null);
+      };
+
+      // Tìm kiếm đa chiều Client-side
+      const filteredLots = lots.filter(lot => {
+        if (filterLotNo) {
+          const query = filterLotNo.toLowerCase();
+          const lotMatch = lot.lot_no.toLowerCase().includes(query);
+          const supplierMatch = lot.supplier && lot.supplier.toLowerCase().includes(query);
+          const billMatch = lot.bill_no && lot.bill_no.toLowerCase().includes(query);
+          const factMatch = lot.factory_no && lot.factory_no.toLowerCase().includes(query);
+          
+          const matchingInvs = invoices.filter(i => i.lot_no === lot.lot_no);
+          const invoiceMatch = matchingInvs.some(i => i.invoice_no.toLowerCase().includes(query));
+          const goodsMatch = goods.filter(g => matchingInvs.some(i => i.invoice_no === g.invoice_no))
+                                   .some(g => g.goods_no.toLowerCase().includes(query) || g.goods_name_en.toLowerCase().includes(query));
+
+          if (!lotMatch && !supplierMatch && !billMatch && !factMatch && !invoiceMatch && !goodsMatch) return false;
+        }
+        if (filterFromDate && lot.lot_date < filterFromDate) return false;
+        if (filterToDate && lot.lot_date > filterToDate) return false;
+        return true;
+      });
+
+      const currentInvoices = invoices.filter(inv => inv.lot_no === selectedLotNo);
+      const currentGoods = goods.filter(g => g.invoice_no === selectedInvoiceNo);
+      const pendingAtcLots = lots.filter(lot => !lot.atc_date || lot.atc_date.trim() === '');
+
+      const getInvoiceValueSum = (inv) => {
+        const baseValue = goods.filter(g => g.invoice_no === inv.invoice_no).reduce((sum, item) => sum + item.sale_amount, 0);
+        const fees = (Number(inv.plus_sea_freight) || 0) + (Number(inv.handling_charges) || 0) + (Number(inv.other_charges) || 0) - (Number(inv.foc_amount) || 0);
+        return baseValue + fees;
+      };
+
+      const getSelectedLotTotalValue = () => {
+        if (!selectedLotNo) return 0;
+        return invoices.filter(i => i.lot_no === selectedLotNo).reduce((sum, inv) => sum + getInvoiceValueSum(inv), 0);
+      };
+
+      const totalImportValue = invoices.reduce((sum, inv) => sum + getInvoiceValueSum(inv), 0);
+
+      const handleExportCSV = () => {
+        if (filteredLots.length === 0 || !searchExecuted) {
+          showNotification("Hãy tải dữ liệu trước khi xuất báo cáo!", "warning");
+          return;
+        }
+
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+        csvContent += `STT,Mã Lô Hàng,Ngày Mở Lô,Ngày Nhận HS,Mã Xưởng,Số Bill,Ngày Bill,Cảng Đi,Cảng Đến,Điều Kiện Bill,Hàng Cont,Số Cont,Số Seal,Loại Cont,Số Kiện,Gross Weight,CBM,Dự Kiến ETA,Ngày ATC,Nước Xuất,Nhà Cung Ứng,Tổng Tiền Lô\r\n`;
+        
+        filteredLots.forEach(lot => {
+          const lotInvs = invoices.filter(i => i.lot_no === lot.lot_no);
+          const lotVal = lotInvs.reduce((sum, inv) => sum + getInvoiceValueSum(inv), 0);
+          csvContent += `"${lot.stt}","${lot.lot_no}","${lot.lot_date}","${lot.get_docs_date || ''}","${lot.factory_no || ''}","${lot.bill_no || ''}","${lot.bill_date || ''}","${lot.pol || ''}","${lot.pod || ''}","${lot.bill_term || ''}","${lot.is_cont ? 'CÓ' : 'KHÔNG'}","${lot.cont_no || ''}","${lot.seal_no || ''}","${lot.cont_type || ''}","${lot.pkg_qty || 0}","${lot.gw || 0}","${lot.cbm || 0}","${lot.eta || ''}","${lot.atc_date || 'Chờ nhập'}","${lot.origin_country || ''}","${lot.supplier || ''}","${lotVal}"\r\n`;
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `BaoCao_Logistics_ChangYang_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showNotification("Đã xuất tệp báo cáo Excel CSV thành công!");
+      };
+
+      const toggleMenu = (key) => setExpandedMenus(prev => ({ ...prev, [key]: !prev[key] }));
+
+      // --- SO KHỚP CHỨNG TỪ TỰ ĐỘNG ---
+      const handleEnglishNameAutoLookup = (engName, associatedInvoiceNo) => {
+        if (!engName) return;
+        const targetInvoice = invoices.find(i => i.invoice_no === associatedInvoiceNo);
+        const lh = targetInvoice?.loai_hinh || 'A12';
+        const dict = lh === 'E21' ? DICTIONARY_E21 : DICTIONARY_A12;
+        const matchedItem = dict.find(item => item.goods_name_en.toLowerCase() === engName.toLowerCase());
+
+        if (matchedItem) {
+          setGoodsForm(prev => ({
+            ...prev, goods_name_en: engName, goods_no: matchedItem.goods_no, goods_name_local: matchedItem.goods_name_local,
+            hs_code: matchedItem.hs_code, goods_unit_en: matchedItem.goods_unit_en || 'PCS', goods_unit_en2: 'BAGS', 
+            goods_unit_local: matchedItem.goods_unit_local || 'Cái', goods_unit_local2: 'Bao' 
+          }));
+          showNotification(`Tự động khớp thành công: ${matchedItem.goods_no}`, "success");
+        } else {
+          setGoodsForm(prev => ({
+            ...prev, goods_name_en: engName, goods_no: "G-NEW-" + Date.now().toString().slice(-4),
+            goods_name_local: "Hàng hóa nhập khẩu mới", hs_code: "39010000", goods_unit_en: "PCS", goods_unit_en2: "", goods_unit_local: "Cái", goods_unit_local2: ""
+          }));
+        }
+      };
+
+      const getSortedLotsForSuggestions = () => [...lots].sort((a, b) => b.lot_date.localeCompare(a.lot_date));
+      const getSortedInvoicesForSuggestions = () => [...invoices].sort((a, b) => b.invoice_no.localeCompare(a.invoice_no));
+      const getFilteredDbDictionary = () => {
+        const dict = dbSelectedTab === 'E21' ? DICTIONARY_E21 : DICTIONARY_A12;
+        if (!dbSearchQuery.trim()) return dict;
+        const query = dbSearchQuery.toLowerCase();
+        return dict.filter(item => 
+          item.goods_no.toLowerCase().includes(query) || item.hs_code.toLowerCase().includes(query) ||
+          item.goods_name_local.toLowerCase().includes(query) || item.goods_name_en.toLowerCase().includes(query)
+        );
+      };
+
+      return (
+        <div className="flex h-screen bg-slate-955 text-slate-100 font-sans overflow-hidden">
+          
+          {/* --- TOAST NOTIFICATION --- */}
+          {notification && (
+            <div className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all duration-300 transform translate-y-0 ${
+              notification.type === 'error' ? 'bg-rose-600 border border-rose-500' : notification.type === 'warning' ? 'bg-amber-600 border border-amber-500' : 'bg-emerald-600 border border-emerald-500'
+            }`}>
+              <span className="text-lg">
+                {notification.type === 'error' ? '❌' : notification.type === 'warning' ? '⚠️' : '✅'}
+              </span>
+              <span className="font-bold text-sm">{notification.message}</span>
+            </div>
+          )}
+
+          {/* --- CONFIRM DIALOG --- */}
+          {confirmState.isOpen && (
+            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                <h3 className="text-sm font-bold text-white uppercase flex items-center gap-2">
+                  <span className="text-rose-500 text-lg">⚠️</span> {confirmState.title}
+                </h3>
+                <p className="text-slate-300 text-xs leading-relaxed">{confirmState.message}</p>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button onClick={() => setConfirmState(prev => ({ ...prev, isOpen: false }))} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">Hủy bỏ</button>
+                  <button onClick={confirmState.onConfirm} className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold">Xác nhận</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* --- SIDEBAR --- */}
+          <div className={`bg-slate-900 transition-all duration-300 flex flex-col justify-between border-r border-slate-800 shrink-0 ${menuExpanded ? 'w-72' : 'w-20'}`}>
+            <div>
+              <div className="p-4 flex items-center justify-between border-b border-slate-800 bg-slate-950">
+                {menuExpanded ? (
+                  <div className="flex items-center gap-2">
+                    <div className="bg-blue-600 text-white p-1 rounded font-black text-xs px-2 shadow">CHANGYANG</div>
+                    <h1 className="font-black text-xs tracking-wider text-slate-200">LOGISTICS IMS</h1>
+                  </div>
+                ) : (
+                  <div className="bg-blue-600 text-white p-1 rounded font-black text-[10px] mx-auto">CY</div>
+                )}
+                <button onClick={() => setMenuExpanded(!menuExpanded)} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="p-3 space-y-1">
+                <button onClick={() => setActiveMenu('DASHBOARD')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-left transition-all ${activeMenu === 'DASHBOARD' ? 'bg-blue-600/20 text-blue-400 font-bold border-l-4 border-blue-500' : 'hover:bg-slate-800/60 text-slate-400 hover:text-slate-200'}`}>
+                  <span className="text-sm">📊</span>
+                  {menuExpanded && <span className="text-xs">Dashboard</span>}
+                </button>
+
+                <div className="border-t border-slate-800 my-3"></div>
+
+                <div>
+                  <button onClick={() => toggleMenu('B')} className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 rounded text-slate-400 text-xs font-semibold">
+                    <div className="flex items-center gap-2">
+                      <span className="text-emerald-500">📂</span>
+                      {menuExpanded && <span className="text-slate-200 font-bold">Cơ Sở Dữ Liệu</span>}
+                    </div>
+                    {menuExpanded && <span>{expandedMenus.B ? '▲' : '▼'}</span>}
+                  </button>
+                  {expandedMenus.B && menuExpanded && (
+                    <div className="pl-4 pr-2 py-1 space-y-1 bg-slate-950/40 rounded text-[11px] mt-1 border border-slate-850">
+                      <button onClick={() => setActiveMenu('DATABASE_VIEW')} className={`w-full text-left py-2 px-2.5 rounded transition-colors block ${activeMenu === 'DATABASE_VIEW' ? 'bg-emerald-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
+                        🔍 Tra cứu Danh mục gốc
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <button onClick={() => toggleMenu('E')} className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 rounded text-slate-400 text-xs font-semibold">
+                    <div className="flex items-center gap-2">
+                      <span className="text-blue-500">📥</span>
+                      {menuExpanded && <span className="font-bold text-slate-200">Nghiệp Vụ</span>}
+                    </div>
+                    {menuExpanded && <span>{expandedMenus.E ? '▲' : '▼'}</span>}
+                  </button>
+                  {expandedMenus.E && menuExpanded && (
+                    <div className="pl-4 pr-2 py-1 space-y-1 bg-slate-950/40 rounded text-[11px] mt-1 border border-slate-850">
+                      <button onClick={() => { setActiveMenu('E010'); setSearchExecuted(false); }} className={`w-full text-left py-2 px-2.5 rounded transition-colors block ${activeMenu === 'E010' ? 'bg-blue-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
+                        E010 - Hồ sơ lô hàng
+                      </button>
+                      <button onClick={() => setActiveMenu('NO_ATC')} className={`w-full text-left py-2 px-2.5 rounded transition-colors block relative ${activeMenu === 'NO_ATC' ? 'bg-rose-950/40 border border-rose-900 text-rose-300 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
+                        <div className="flex justify-between items-center">
+                          <span>⏳ Chờ Nhập Kho (No ATC)</span>
+                          {pendingAtcLots.length > 0 && <span className="bg-rose-600 text-white text-[9px] px-1.5 py-0.2 rounded-full font-bold">{pendingAtcLots.length}</span>}
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 text-center border-t border-slate-800 bg-slate-950/60 text-[10px] text-slate-500">
+              {isFirebaseConfigured ? <span className="text-emerald-400 font-bold">☁️ ĐÁM MÂY</span> : <span className="text-amber-400 font-bold">💻 OFFLINE (LOCAL)</span>}
+            </div>
+          </div>
+
+          <div className="flex-1 flex flex-col min-w-0 bg-slate-950">
+            <header className="bg-slate-900 px-6 py-4 border-b border-slate-800 flex justify-between items-center shrink-0">
+              <h2 className="text-xs font-bold tracking-widest text-slate-300 uppercase">
+                {activeMenu === 'DASHBOARD' && '📊 BẢNG ĐIỀU HÀNH TRUNG TÂM'}
+                {activeMenu === 'DATABASE_VIEW' && '📂 DANH MỤC SẢN PHẨM GỐC'}
+                {activeMenu === 'E010' && '📂 DANH SÁCH KHAI BÁO LÔ HÀNG (E010)'}
+                {activeMenu === 'NO_ATC' && '⏳ THEO DÕI XE CHỜ NHẬP KHO'}
+              </h2>
+              <div className="text-[11px] bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-850 text-slate-400">
+                Lưu trữ: <strong className="text-blue-400">{isFirebaseConfigured ? 'Firestore Realtime' : 'LocalStorage Trình Duyệt'}</strong>
+              </div>
+            </header>
+
+            <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+              {/* DASHBOARD VIEW */}
+              {activeMenu === 'DASHBOARD' && (
+                <div className="space-y-6 max-w-6xl mx-auto">
+                  <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-850 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                    <h1 className="text-xl font-black text-white">Quản Trị Logistics Thực Thời - Chang Yang Việt Nam</h1>
+                    <p className="text-slate-400 text-xs mt-1 max-w-2xl leading-relaxed">
+                      Ứng dụng quản trị tác nghiệp thông minh tự động hỗ trợ tách/ghép hàng chung Bill, đối soát danh mục Excel và lưu trữ trực tiếp trên thiết bị cá nhân của bạn.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg space-y-4">
+                    <div className="text-center">
+                      <h3 className="font-bold text-xs text-slate-300 uppercase tracking-widest">🔎 TRA CỨU HỒ SƠ QUAN TRỌNG</h3>
+                    </div>
+                    <form onSubmit={handlePortalQuickSearch} className="flex gap-2 max-w-2xl mx-auto">
+                      <input 
+                        type="text" 
+                        placeholder="Ví dụ: CH1KD-26, MBL-CY-77281, CHANG YANG..." 
+                        value={homeSearchQuery}
+                        onChange={(e) => setHomeSearchQuery(e.target.value)}
+                        className="flex-1 bg-slate-950 border border-slate-800 focus:border-blue-600 rounded-xl py-3 px-4 text-xs text-white outline-none"
+                      />
+                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 rounded-xl transition-colors">Truy vấn</button>
+                    </form>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl flex items-center justify-between shadow-sm">
+                      <div>
+                        <p className="text-[10px] text-slate-500 uppercase font-bold">Tổng lô hàng khai báo</p>
+                        <h3 className="text-2xl font-black text-white font-mono mt-1">{lots.length} Lô</h3>
+                      </div>
+                      <div className="text-xl bg-blue-500/10 p-3 rounded-xl">📦</div>
+                    </div>
+                    <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl flex items-center justify-between shadow-sm">
+                      <div>
+                        <p className="text-[10px] text-rose-400/80 uppercase font-bold">Lô chờ thực nhập (No ATC)</p>
+                        <h3 className="text-2xl font-black text-rose-500 font-mono mt-1">{pendingAtcLots.length} Lô</h3>
+                      </div>
+                      <div className="text-xl bg-rose-500/10 p-3 rounded-xl">⏳</div>
+                    </div>
+                    <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl flex items-center justify-between shadow-sm">
+                      <div>
+                        <p className="text-[10px] text-slate-500 uppercase font-bold">Trị giá hàng hóa đã nhập</p>
+                        <h3 className="text-xl font-black text-amber-400 font-mono mt-1">${totalImportValue.toLocaleString(undefined, {minimumFractionDigits: 2})}</h3>
+                      </div>
+                      <div className="text-xl bg-amber-500/10 p-3 rounded-xl">💰</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* DATABASE VIEW */}
+              {activeMenu === 'DATABASE_VIEW' && (
+                <div className="space-y-6 max-w-6xl mx-auto bg-slate-900 border border-slate-800 p-5 rounded-xl shadow">
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wider">📂 Thư Viện Danh Mục Hàng Hóa Thực Tế</h3>
+                      <p className="text-xs text-slate-500 mt-1">Dò tìm mã hàng, quy cách, mã HS tương ứng từ danh sách chuẩn.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => setDbSelectedTab('A12')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${dbSelectedTab === 'A12' ? 'bg-blue-600 text-white' : 'bg-slate-950 text-slate-400'}`}>Danh Mục A12</button>
+                      <button onClick={() => setDbSelectedTab('E21')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${dbSelectedTab === 'E21' ? 'bg-emerald-600 text-white' : 'bg-slate-950 text-slate-400'}`}>Danh Mục E21</button>
+                    </div>
+                  </div>
+
+                  <input type="text" placeholder="Tìm kiếm nhanh mã hàng, HS code..." value={dbSearchQuery} onChange={(e) => setDbSearchQuery(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 px-4 text-xs text-white placeholder-slate-600 outline-none" />
+
+                  <div className="overflow-x-auto border border-slate-850 rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
+                          <th className="p-3 w-12 text-center">STT</th>
+                          <th className="p-3 font-mono">Mã Hàng</th>
+                          <th className="p-3 font-mono">Mã HS Code</th>
+                          <th className="p-3">Tên Tiếng Anh</th>
+                          <th className="p-3">Tên Tiếng Việt</th>
+                          <th className="p-3 text-center">ĐVT</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {getFilteredDbDictionary().map((item, index) => (
+                          <tr key={index} className="hover:bg-slate-850/30 text-slate-300 border-b border-slate-850/50">
+                            <td className="p-3 text-center text-slate-500 font-mono">{index + 1}</td>
+                            <td className="p-3 font-mono font-bold text-amber-400">{item.goods_no}</td>
+                            <td className="p-3 font-mono text-white bg-slate-955 font-bold">{item.hs_code}</td>
+                            <td className="p-3 font-medium text-slate-100">{item.goods_name_en}</td>
+                            <td className="p-3 italic text-slate-400">{item.goods_name_local}</td>
+                            <td className="p-3 text-center text-sky-400 font-bold">{item.goods_unit_en}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* MASTER DETAILS E010 GRID */}
+              {activeMenu === 'E010' && (
+                <div className="space-y-6">
+                  {/* Filters */}
+                  <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex flex-wrap gap-4 items-end shadow-md">
+                    <div className="flex-1 min-w-[150px]">
+                      <label className="block text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 font-bold">Từ Ngày Mở Lô</label>
+                      <input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono" />
+                    </div>
+                    <div className="flex-1 min-w-[150px]">
+                      <label className="block text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 font-bold">Đến Ngày Mở Lô</label>
+                      <input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono" />
+                    </div>
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="block text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 font-bold">Bộ lọc nâng cao</label>
+                      <input type="text" placeholder="Mã lô, Bill, Invoice, Nhà cung cấp..." value={filterLotNo} onChange={(e) => setFilterLotNo(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && triggerSearch()} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={triggerSearch} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-lg text-xs transition-colors">Tìm kiếm</button>
+                      <button onClick={clearSearchFilters} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-xs transition-colors">Xóa lọc</button>
+                    </div>
+                  </div>
+
+                  {!searchExecuted ? (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center space-y-4 max-w-2xl mx-auto">
+                      <div className="text-4xl">⚡</div>
+                      <h3 className="font-bold text-xs text-slate-300 uppercase tracking-widest">Hệ thống sẵn sàng nạp dữ liệu</h3>
+                      <button onClick={triggerSearch} className="bg-slate-950 hover:bg-slate-850 text-slate-300 border border-slate-800 font-bold px-5 py-2 rounded-lg text-xs">🔄 Nạp dữ liệu tác nghiệp</button>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Lots Table */}
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse min-w-[1800px]">
+                            <thead>
+                              <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-850">
+                                <th className="p-3.5 w-12 text-center sticky left-0 bg-slate-950 z-10">Chọn</th>
+                                <th className="p-3.5 sticky left-12 bg-slate-950 z-10">Mã Lô Hàng (Lot No)</th>
+                                <th className="p-3.5 text-center">STT</th>
+                                <th className="p-3.5 text-rose-400">Ngày ATC (Nhập Kho)</th>
+                                <th className="p-3.5">Ngày Mở Lô</th>
+                                <th className="p-3.5">Mã Xưởng</th>
+                                <th className="p-3.5">Số Bill</th>
+                                <th className="p-3.5 text-center">Hàng Cont</th>
+                                <th className="p-3.5 text-right">Số Kiện</th>
+                                <th className="p-3.5 text-right">G.W (kg)</th>
+                                <th className="p-3.5 text-right">CBM</th>
+                                <th className="p-3.5">ETA</th>
+                                <th className="p-3.5">Nhà Cung Ứng</th>
+                                <th className="p-3.5 text-right text-amber-300">Tổng Tiền Lô (USD)</th>
+                                <th className="p-3.5 text-center w-28 sticky right-0 bg-slate-950 z-10">Thao tác</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filteredLots.map(lot => {
+                                const isSelected = selectedLotNo === lot.lot_no;
+                                const lotInvs = invoices.filter(i => i.lot_no === lot.lot_no);
+                                const lotVal = lotInvs.reduce((sum, inv) => sum + getInvoiceValueSum(inv), 0);
+                                return (
+                                  <tr key={lot.lot_no} onClick={() => { setSelectedLotNo(lot.lot_no); setSelectedInvoiceNo(null); }} className={`cursor-pointer transition-all ${isSelected ? 'bg-blue-950/20 text-white border-l-2 border-blue-500' : 'hover:bg-slate-850/40 text-slate-300'}`}>
+                                    <td className="p-3.5 text-center sticky left-0 bg-slate-900 z-10"><input type="radio" checked={isSelected} readOnly className="accent-blue-500" /></td>
+                                    <td className="p-3.5 font-mono font-bold text-amber-400 sticky left-12 bg-slate-900 z-10">{lot.lot_no}</td>
+                                    <td className="p-3.5 text-center font-bold font-mono">{lot.stt}</td>
+                                    <td className="p-3.5">
+                                      {lot.atc_date ? <span className="bg-emerald-950 text-emerald-400 px-2.5 py-1 rounded font-mono font-bold border border-emerald-900">{lot.atc_date}</span> : <span className="bg-rose-950/60 text-rose-400 px-2.5 py-1 rounded font-mono font-bold border border-rose-900/60">CHỜ ATC</span>}
+                                    </td>
+                                    <td className="p-3.5 font-mono text-slate-400">{lot.lot_date}</td>
+                                    <td className="p-3.5 font-bold text-slate-300">{lot.factory_no}</td>
+                                    <td className="p-3.5 font-mono text-slate-100 font-bold">{lot.bill_no}</td>
+                                    <td className="p-3.5 text-center">{lot.is_cont ? '✓ Cont' : 'LCL'}</td>
+                                    <td className="p-3.5 text-right font-mono">{Number(lot.pkg_qty).toLocaleString()}</td>
+                                    <td className="p-3.5 text-right font-mono">{Number(lot.gw).toLocaleString()}</td>
+                                    <td className="p-3.5 text-right font-mono">{Number(lot.cbm).toLocaleString()}</td>
+                                    <td className="p-3.5 text-cyan-400 font-mono">{lot.eta}</td>
+                                    <td className="p-3.5 text-slate-200">{lot.supplier}</td>
+                                    <td className="p-3.5 text-right text-amber-300 font-mono font-bold">${lotVal.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    <td className="p-3.5 text-center sticky right-0 bg-slate-900 z-10 space-x-1.5">
+                                      <button onClick={(e) => startEditLot(lot, e)} className="px-2 py-1 bg-slate-950 hover:bg-slate-800 rounded border border-slate-800 text-[10px]">✏️ Sửa</button>
+                                      <button onClick={(e) => triggerDeleteLotConfirm(lot.lot_no, e)} className="px-2 py-1 bg-rose-950/40 hover:bg-rose-900 rounded border border-rose-900/40 text-[10px]">🗑️ Xóa</button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Detail Section: Invoices & Goods */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Commercial Invoices */}
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col max-h-[400px]">
+                          <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
+                            <h3 className="font-bold text-xs text-slate-300 uppercase">📄 Hóa Đơn Thương Mại (Lô: {selectedLotNo || '-'})</h3>
+                          </div>
+                          <div className="overflow-y-auto flex-1">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
+                                  <th className="p-3 w-12 text-center">Chọn</th>
+                                  <th className="p-3">Số Hóa Đơn</th>
+                                  <th className="p-3">Ngày HĐ</th>
+                                  <th className="p-3">Incoterm</th>
+                                  <th className="p-3 text-right">Thực Thu (USD)</th>
+                                  <th className="p-3 text-center">Thao tác</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {selectedLotNo ? (
+                                  currentInvoices.map(inv => {
+                                    const isSelected = selectedInvoiceNo === inv.invoice_no;
+                                    return (
+                                      <tr key={inv.invoice_no} onClick={() => setSelectedInvoiceNo(inv.invoice_no)} className={`cursor-pointer border-b border-slate-850 ${isSelected ? 'bg-indigo-950/20 text-white' : 'hover:bg-slate-850/30'}`}>
+                                        <td className="p-3 text-center"><input type="radio" checked={isSelected} readOnly className="accent-indigo-500" /></td>
+                                        <td className="p-3 font-bold text-indigo-400 font-mono">{inv.invoice_no}</td>
+                                        <td className="p-3 font-mono">{inv.invoice_date}</td>
+                                        <td className="p-3 font-bold text-pink-500">{inv.incoterm}</td>
+                                        <td className="p-3 text-right font-mono text-amber-400 font-bold">${getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                        <td className="p-3 text-center space-x-2">
+                                          <button onClick={(e) => startEditInvoice(inv, e)} className="text-blue-400 hover:underline">Sửa</button>
+                                          <button onClick={(e) => triggerDeleteInvoiceConfirm(inv.invoice_no, e)} className="text-rose-500 hover:underline">Xóa</button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                ) : (
+                                  <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">💡 Chọn một lô hàng ở trên để hiển thị hóa đơn.</td></tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Goods Items */}
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col max-h-[400px]">
+                          <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
+                            <h3 className="font-bold text-xs text-slate-300 uppercase">📦 Chi Tiết Sản Phẩm (HĐ: {selectedInvoiceNo || '-'})</h3>
+                          </div>
+                          <div className="overflow-y-auto flex-1">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
+                                  <th className="p-3 text-center w-10">STT</th>
+                                  <th className="p-3">Mã hàng</th>
+                                  <th className="p-3">Sản phẩm</th>
+                                  <th className="p-3 text-right">Trị giá (USD)</th>
+                                  <th className="p-3 text-center">Thao tác</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {selectedInvoiceNo ? (
+                                  currentGoods.map(g => (
+                                    <tr key={g.id} className="border-b border-slate-855 hover:bg-slate-850/30 text-slate-300">
+                                      <td className="p-3 text-center font-mono text-slate-500">{g.goods_item}</td>
+                                      <td className="p-3 font-mono text-emerald-400 font-bold">{g.goods_no}</td>
+                                      <td className="p-3 font-medium text-slate-100">{g.goods_name_en}</td>
+                                      <td className="p-3 text-right font-mono font-bold text-amber-400">${g.sale_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                      <td className="p-3 text-center space-x-2">
+                                        <button onClick={(e) => startEditGoods(g, e)} className="text-blue-400">✏️</button>
+                                        <button onClick={(e) => triggerDeleteGoodsConfirm(g.id, e)} className="text-rose-500">🗑️</button>
+                                      </td>
+                                    </tr>
+                                  ))
+                                ) : (
+                                  <tr><td colSpan="5" className="p-8 text-center text-slate-500 italic">💡 Chọn một hóa đơn ở bảng bên trái để hiển thị sản phẩm.</td></tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Master actions bottom bar */}
+                      <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center flex-wrap gap-4 shadow-lg">
+                        <div className="text-xs text-slate-400">
+                          {selectedLotNo ? (
+                            <div>Lô đang chọn: <strong className="text-white font-mono">{selectedLotNo}</strong> | Trị giá lô: <strong className="text-amber-400 font-mono">${getSelectedLotTotalValue().toLocaleString(undefined, {minimumFractionDigits: 2})} USD</strong></div>
+                          ) : 'Chọn một lô hàng để xem hành động nhanh.'}
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => {
+                            setModalMode('add'); setModalTab('lot');
+                            setLotForm({
+                              lot_no: '', stt: getFirstVacantSeq(), lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10),
+                              factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', is_cont: true,
+                              cont_no: '', seal_no: '', cont_type: '40HC', pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '',
+                              origin_country: 'TAIWAN', supplier: getUniqueSuppliers()[0] || 'CHANG YANG MATERIAL CORP.', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', sale_qty: 0
+                            });
+                            setSelectedFactories([]); setShowAddModal(true);
+                          }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs shadow-md">Thêm Lô Mới</button>
+                          
+                          <button onClick={() => selectedLotNo && setShowMasterInvoiceModal(true)} disabled={!selectedLotNo} className={`font-bold px-4 py-2 rounded-lg text-xs shadow-md ${selectedLotNo ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>Bảng Kê Hóa Đơn (Mẫu 02)</button>
+                          <button onClick={handleExportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs shadow-md">Xuất Excel (CSV)</button>
+                          <button onClick={() => triggerDeleteLotConfirm(selectedLotNo)} disabled={!selectedLotNo} className={`font-bold px-4 py-2 rounded-lg text-xs shadow-md ${selectedLotNo ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>Xóa Lô Hàng</button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ATC RECONCILIATION */}
+              {activeMenu === 'NO_ATC' && (
+                <div className="space-y-6">
+                  <div className="bg-rose-950/20 border border-rose-900/60 p-4 rounded-xl text-xs text-rose-300">
+                    <h4 className="font-bold uppercase text-rose-400">DANH SÁCH LÔ HÀNG CHỜ ATC DATE (NHẬP KHO THỰC TẾ)</h4>
+                    <p className="mt-1 leading-relaxed">Cập nhật ngay ngày thực tế xe hàng cập bến nhà máy để đóng hồ sơ.</p>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
+                          <th className="p-3.5">Mã Lô Hàng</th>
+                          <th className="p-3.5">Mã xưởng</th>
+                          <th className="p-3.5">Nhà cung ứng</th>
+                          <th className="p-3.5">Số Vận Đơn</th>
+                          <th className="p-3.5">ETA</th>
+                          <th className="p-3.5 text-center">Cập Nhật Ngày Nhập Kho (ATC)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingAtcLots.map(lot => (
+                          <tr key={lot.lot_no} className="hover:bg-slate-850/40 border-b border-slate-855/50 text-slate-300">
+                            <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
+                            <td className="p-3.5 font-bold">{lot.factory_no || '-'}</td>
+                            <td className="p-3.5">{lot.supplier}</td>
+                            <td className="p-3.5 font-mono">{lot.bill_no}</td>
+                            <td className="p-3.5 text-cyan-400 font-mono">{lot.eta}</td>
+                            <td className="p-3.5 text-center">
+                              {inlineAtcLotNo === lot.lot_no ? (
+                                <div className="flex gap-2 justify-center">
+                                  <input type="date" value={inlineAtcDate} onChange={(e) => setInlineAtcDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white outline-none" />
+                                  <button onClick={() => handleInlineAtcUpdate(lot.lot_no, inlineAtcDate)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded text-xs">Lưu</button>
+                                  <button onClick={() => setInlineAtcLotNo(null)} className="bg-slate-800 text-slate-400 hover:text-white px-2.5 py-1 rounded text-xs">Hủy</button>
+                                </div>
+                              ) : (
+                                <button onClick={() => { setInlineAtcLotNo(lot.lot_no); setInlineAtcDate(new Date().toISOString().substring(0, 10)); }} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-1.5 rounded text-xs">Cập Nhật ATC</button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* --- FORMS MODAL --- */}
+          {showAddModal && (
+            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex justify-between items-center shrink-0">
+                  <h3 className="font-bold text-xs uppercase text-white">📂 Khai báo dữ liệu logistics đa tầng</h3>
+                  <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white font-black text-sm">✕</button>
+                </div>
+
+                {/* Steps Menu */}
+                <div className="bg-slate-950/40 px-6 flex border-b border-slate-850 shrink-0">
+                  <button onClick={() => setModalTab('lot')} className={`py-3 px-4 font-bold text-[11px] uppercase tracking-wider border-b-2 transition-all ${modalTab === 'lot' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400'}`}>1. Lô Hàng (Lot Master)</button>
+                  <button onClick={() => setModalTab('invoice')} className={`py-3 px-4 font-bold text-[11px] uppercase tracking-wider border-b-2 transition-all ${modalTab === 'invoice' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-slate-400'}`}>2. Hóa Đơn Thương Mại (Invoice)</button>
+                  <button onClick={() => selectedInvoiceNo && setModalTab('goods')} className={`py-3 px-4 font-bold text-[11px] uppercase tracking-wider border-b-2 transition-all ${modalTab === 'goods' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400'}`}>3. Mặt Hàng Chi Tiết (Goods)</button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 bg-slate-900">
+                  {/* TAB 1: MASTER LOT */}
+                  {modalTab === 'lot' && (
+                    <form onSubmit={handleSaveLot} className="space-y-6">
+                      <div className="space-y-4">
+                        <h4 className="text-[11px] font-bold text-amber-400 uppercase tracking-widest border-b border-slate-800 pb-1.5">📁 PHÂN ĐOẠN 1: HỒ SƠ TỜ KHAI & NHÀ CUNG CẤP</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div>
+                            <label className="block text-[11px] text-slate-400 mb-1.5">Loại hình hải quan *</label>
+                            <select value={lotForm.loai_hinh} onChange={(e) => setLotForm({ ...lotForm, loai_hinh: e.target.value, loai_hinh_con: 'DEFAULT' })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none">
+                              <option value="A12">A12 (Kinh Doanh)</option>
+                              <option value="E21">E21 (Sản xuất xuất khẩu)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-400 mb-1.5">Loại hình chi tiết</label>
+                            <select value={lotForm.loai_hinh_con} onChange={(e) => setLotForm({ ...lotForm, loai_hinh_con: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none">
+                              {lotForm.loai_hinh === 'A12' ? (
+                                <>
+                                  <option value="DEFAULT">Kinh doanh (Mặc định)</option>
+                                  <option value="H11">Phi mậu dịch (PMD)</option>
+                                  <option value="DT">Đầu tư (DT)</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value="DEFAULT">E21 Thường</option>
+                                  <option value="CHUYEN_TIEP">Chuyển tiếp (CT)</option>
+                                </>
+                              )}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5 font-bold">Số Thứ Tự *</label>
+                            <input type="number" required value={lotForm.stt} onChange={(e) => { const val = Number(e.target.value); setLotForm({ ...lotForm, stt: val, lot_no: generateLotNoString(lotForm.loai_hinh, lotForm.loai_hinh_con, val) }); }} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-400 mb-1.5">Mã Lô Hàng *</label>
+                            <input type="text" disabled value={lotForm.lot_no} className="w-full bg-slate-950 border border-slate-850 text-amber-400 font-bold font-mono rounded-lg px-3 py-2 text-xs" />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5">Ngày Mở Lô *</label>
+                            <input type="date" required value={lotForm.lot_date} onChange={(e) => setLotForm({ ...lotForm, lot_date: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5">Ngày Nhận HS *</label>
+                            <input type="date" required value={lotForm.get_docs_date} onChange={(e) => setLotForm({ ...lotForm, get_docs_date: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5">Nhà Cung Ứng *</label>
+                            <input type="text" required list="modal-suppliers" value={lotForm.supplier} onChange={(e) => setLotForm({ ...lotForm, supplier: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white" />
+                            <datalist id="modal-suppliers">{getUniqueSuppliers().map((s, i) => <option key={i} value={s} />)}</datalist>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5">Nước Xuất Khẩu *</label>
+                            <input type="text" required value={lotForm.origin_country} onChange={(e) => setLotForm({ ...lotForm, origin_country: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white" />
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-950/40 p-4 border border-slate-850 rounded-xl space-y-3">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mã Xưởng Thực Tế Nhận Hàng *</label>
+                          <div className="flex gap-4 flex-wrap">
+                            {FACTORY_OPTIONS.map(fac => {
+                              const isChecked = selectedFactories.includes(fac);
+                              return (
+                                <label key={fac} className="flex items-center gap-2 cursor-pointer bg-slate-900 border border-slate-800 px-3 py-2 rounded-lg hover:border-slate-700 select-none">
+                                  <input type="checkbox" checked={isChecked} onChange={(e) => { if (e.target.checked) setSelectedFactories([...selectedFactories, fac]); else setSelectedFactories(selectedFactories.filter(item => item !== fac)); }} className="accent-blue-500 rounded" />
+                                  <span className="text-xs font-bold text-slate-200">{fac}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h4 className="text-[11px] font-bold text-cyan-400 uppercase tracking-widest border-b border-slate-800 pb-1.5">🚢 PHÂN ĐOẠN 2: THÔNG TIN VẬN TẢI & CONTAINER</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5">Số Vận Đơn (Bill No)</label>
+                            <input type="text" value={lotForm.bill_no} onChange={(e) => setLotForm({ ...lotForm, bill_no: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5">Cảng Đi (POL)</label>
+                            <input type="text" list="pols" value={lotForm.pol} onChange={(e) => setLotForm({ ...lotForm, pol: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white" />
+                            <datalist id="pols">{getUniquePols().map((p, i) => <option key={i} value={p} />)}</datalist>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5">Cảng Đến (POD)</label>
+                            <input type="text" list="pods" value={lotForm.pod} onChange={(e) => setLotForm({ ...lotForm, pod: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white" />
+                            <datalist id="pods">{getUniquePods().map((p, i) => <option key={i} value={p} />)}</datalist>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5">Ngày ETA Dự Kiến</label>
+                            <input type="date" value={lotForm.eta} onChange={(e) => setLotForm({ ...lotForm, eta: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono" />
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-950/30 p-4 border border-slate-850 rounded-xl">
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            <div className="flex items-center justify-between bg-slate-950/60 p-3.5 rounded-lg border border-slate-850">
+                              <span className="text-[11px] text-slate-300 font-medium">Vận chuyển Container?</span>
+                              <input type="checkbox" checked={lotForm.is_cont} onChange={(e) => setLotForm({ ...lotForm, is_cont: e.target.checked })} className="w-4 h-4 rounded accent-emerald-500" />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-slate-300 mb-1.5">Loại Container</label>
+                              <select disabled={!lotForm.is_cont} value={lotForm.cont_type} onChange={(e) => setLotForm({ ...lotForm, cont_type: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                                <option value="20GP">20GP</option>
+                                <option value="40GP">40GP</option>
+                                <option value="40HC">40HC</option>
+                                <option value="LCL">LCL (Hàng lẻ)</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-slate-300 mb-1.5">Số Container</label>
+                              <input type="text" disabled={!lotForm.is_cont} value={lotForm.cont_no} onChange={(e) => setLotForm({ ...lotForm, cont_no: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono" />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-slate-300 mb-1.5">Số Chì (Seal No)</label>
+                              <input type="text" disabled={!lotForm.is_cont} value={lotForm.seal_no} onChange={(e) => setLotForm({ ...lotForm, seal_no: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-800 flex justify-end">
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-xs font-bold">Lưu & Tiếp tục ➔</button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* TAB 2: INVOICE */}
+                  {modalTab === 'invoice' && (
+                    <form onSubmit={handleSaveInvoice} className="space-y-6">
+                      <div className="space-y-4">
+                        <h4 className="text-[11px] font-bold text-indigo-400 uppercase tracking-widest border-b border-slate-800 pb-1.5">📄 PHÂN ĐOẠN 3: THƯƠNG MẠI & PHỤ PHÍ HÓA ĐƠN</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5 font-bold">Lô Hàng Liên Kết *</label>
+                            <input type="text" required list="modal-invoice-lots" value={invoiceForm.lot_no} onChange={(e) => {
+                              const val = e.target.value;
+                              const matched = lots.find(l => l.lot_no === val);
+                              setInvoiceForm(prev => ({
+                                ...prev, lot_no: val, bill_no: matched ? matched.bill_no : prev.bill_no,
+                                loai_hinh: matched ? matched.loai_hinh : prev.loai_hinh, loai_hinh_con: matched ? matched.loai_hinh_con : prev.loai_hinh_con
+                              }));
+                            }} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono" />
+                            <datalist id="modal-invoice-lots">{getSortedLotsForSuggestions().map((l, i) => <option key={i} value={l.lot_no} />)}</datalist>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5">Số Vận Đơn</label>
+                            <input type="text" disabled value={invoiceForm.bill_no} className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-400 font-mono" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5">Số Hóa Đơn *</label>
+                            <input type="text" required value={invoiceForm.invoice_no} onChange={(e) => setInvoiceForm({ ...invoiceForm, invoice_no: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono" />
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-950/60 p-4 border border-slate-850 rounded-xl flex items-center justify-between">
+                          <div>
+                            <span className="block text-xs font-bold text-slate-200 uppercase tracking-wide">📦 Hàng chung một số vận đơn (Common Bill)</span>
+                            <span className="block text-[10px] text-slate-500 mt-0.5 font-sans">Ứng dụng sẽ tự động tách lô và đồng bộ STT thông minh.</span>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked={invoiceForm.is_hang_chung_bill} onChange={(e) => setInvoiceForm({ ...invoiceForm, is_hang_chung_bill: e.target.checked })} className="sr-only peer" />
+                            <div className="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                          </label>
+                        </div>
+
+                        {invoiceForm.is_hang_chung_bill && activeBillStatus.matches && (
+                          <div className="p-3 rounded-lg border text-xs bg-amber-950/30 border-amber-900/40 text-amber-400 leading-relaxed">
+                            <p className="font-bold mb-1">💡 Nghiệp Vụ Tự Động Hàng Chung Bill:</p>
+                            <p>{activeBillStatus.message}</p>
+                          </div>
+                        )}
+
+                        <div className="bg-slate-950/20 p-5 border border-slate-855 rounded-xl space-y-4">
+                          <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-850 pb-1.5">💰 KHAI BÁO GIÁ TRỊ & PHỤ PHÍ</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[11px] text-slate-300 mb-1.5">Trị Giá Hàng Gốc (USD) *</label>
+                              <input type="number" step="0.01" required value={invoiceForm.total_amount || ''} onChange={(e) => setInvoiceForm({ ...invoiceForm, total_amount: Number(e.target.value) })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-amber-400 font-bold font-mono" />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-slate-300 mb-1.5">Khấu Trừ Hàng FOC (USD)</label>
+                              <input type="number" value={invoiceForm.foc_amount || ''} onChange={(e) => setInvoiceForm({ ...invoiceForm, foc_amount: Number(e.target.value) })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-rose-400 font-mono" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-800 flex justify-end">
+                        <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-bold">Lưu & Khai sản phẩm ➔</button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* TAB 3: GOODS DETAIL */}
+                  {modalTab === 'goods' && (
+                    <form onSubmit={handleSaveGoods} className="space-y-6">
+                      <div className="space-y-4">
+                        <h4 className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest border-b border-slate-800 pb-1.5">📦 PHÂN ĐOẠN 4: CHI TIẾT MẶT HÀNG</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5 font-bold">Hóa Đơn Liên Kết *</label>
+                            <input type="text" required list="modal-invoice-suggestions" value={goodsForm.invoice_no} onChange={(e) => setGoodsForm({ ...goodsForm, invoice_no: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono" />
+                            <datalist id="modal-invoice-suggestions">{getSortedInvoicesForSuggestions().map((i, idx) => <option key={idx} value={i.invoice_no} />)}</datalist>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[11px] text-slate-300 mb-1.5">Thứ tự</label>
+                              <input type="number" value={goodsForm.goods_item} onChange={(e) => setGoodsForm({ ...goodsForm, goods_item: Number(e.target.value) })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white" />
+                            </div>
+                            <div className="col-span-2">
+                              <label className="block text-[11px] text-slate-400 mb-1.5">Mã Sản Phẩm (Tự động)</label>
+                              <input type="text" disabled value={goodsForm.goods_no} className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-amber-400 font-mono font-bold" />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5 font-bold">Tên Tiếng Anh * (Chọn từ gợi ý để tự động khớp mã và HS code)</label>
+                            <input type="text" required list="modal-dict-goods" placeholder="Bắt đầu gõ tên tiếng Anh..." value={goodsForm.goods_name_en} onChange={(e) => { const val = e.target.value; setGoodsForm(prev => ({ ...prev, goods_name_en: val })); handleEnglishNameAutoLookup(val, goodsForm.invoice_no); }} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-amber-300 font-bold" />
+                            <datalist id="modal-dict-goods">
+                              {(() => {
+                                const currentInv = invoices.find(i => i.invoice_no === goodsForm.invoice_no);
+                                const lh = currentInv?.loai_hinh || 'A12';
+                                const dict = lh === 'E21' ? DICTIONARY_E21 : DICTIONARY_A12;
+                                return dict.map((item, idx) => <option key={idx} value={item.goods_name_en}>{item.goods_no} - HS: {item.hs_code}</option>);
+                              })()}
+                            </datalist>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-400 mb-1.5">Tên Tiếng Việt (Tự động điền)</label>
+                            <textarea disabled rows="2" value={goodsForm.goods_name_local} className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2.5 text-xs text-slate-400 leading-relaxed outline-none resize-none" />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div>
+                            <label className="block text-[11px] text-slate-400 mb-1.5">Mã HS Code</label>
+                            <input type="text" disabled value={goodsForm.hs_code} className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-400 font-mono" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1.5 font-bold">Trị Giá Khai Báo (USD) *</label>
+                            <input type="number" required value={goodsForm.sale_amount || ''} onChange={(e) => setGoodsForm({ ...goodsForm, sale_amount: Number(e.target.value) })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-amber-300 font-bold font-mono" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-800 flex justify-end">
+                        <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg text-xs font-bold">➕ Ghi Nhận Sản Phẩm</button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* --- PRINT MASTER PREVIEW MODAL --- */}
+          {showMasterInvoiceModal && selectedLotNo && (
+            <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col my-8">
+                <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex justify-between items-center shrink-0">
+                  <h3 className="font-bold text-xs uppercase text-amber-400 tracking-widest">📋 Bản in Bảng kê hóa đơn (Mẫu 02/BKHĐ)</h3>
+                  <div className="flex gap-2">
+                    <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">🖨️ In Bảng Kê</button>
+                    <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-800 text-slate-300 font-bold px-3 py-2 rounded-lg text-xs">Đóng</button>
+                  </div>
+                </div>
+
+                <div className="p-8 bg-white text-slate-955 font-serif text-sm overflow-y-auto print-area max-h-[70vh]" id="printable-master-invoice">
+                  <style>{`
+                    @media print {
+                      body * { visibility: hidden; }
+                      #printable-master-invoice, #printable-master-invoice * { visibility: visible; }
+                      #printable-master-invoice { position: absolute; left: 0; top: 0; width: 100%; }
+                    }
+                  `}</style>
+                  
+                  <div className="flex justify-between items-start text-xs border-b border-slate-300 pb-3 font-sans">
+                    <div>
+                      <h1 className="font-bold text-sm uppercase text-slate-900">CÔNG TY TNHH CHANG YANG VIỆT NAM</h1>
+                      <p className="text-slate-500">Mã xưởng liên kết: {lots.find(l => l.lot_no === selectedLotNo)?.factory_no}</p>
+                    </div>
+                    <div className="text-right">
+                      <h3 className="font-bold text-slate-900">Mẫu số 02/BKHĐ/GSQL</h3>
+                      <p className="text-slate-500 text-[10px]">Kèm theo TT 39/2018/TT-BTC</p>
+                    </div>
+                  </div>
+
+                  <div className="text-center my-6">
+                    <h2 className="text-base font-bold uppercase tracking-wider text-slate-900">BẢNG KÊ HÓA ĐƠN THƯƠNG MẠI HÀNG HÓA NHẬP KHẨU</h2>
+                    <p className="text-xs font-semibold font-sans mt-1">SỐ LÔ QUẢN LÝ: {selectedLotNo}</p>
+                  </div>
+
+                  <div className="my-6">
+                    <table className="w-full text-left text-xs border-collapse border border-slate-400 font-sans">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-900 font-bold uppercase border-b border-slate-400">
+                          <th className="p-2 border-r border-slate-400 text-center w-10">STT</th>
+                          <th className="p-2 border-r border-slate-400">Số HĐ (Invoice No.)</th>
+                          <th className="p-2 border-r border-slate-400">Ngày HĐ</th>
+                          <th className="p-2 border-r border-slate-400">Incoterm</th>
+                          <th className="p-2 text-right">Trị Giá (USD)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {currentInvoices.map((inv, index) => (
+                          <tr key={inv.invoice_no} className="border-b border-slate-400 text-slate-900">
+                            <td className="p-2 border-r border-slate-400 text-center">{index + 1}</td>
+                            <td className="p-2 border-r border-slate-400 font-mono font-bold">{inv.invoice_no}</td>
+                            <td className="p-2 border-r border-slate-400">{inv.invoice_date}</td>
+                            <td className="p-2 border-r border-slate-400 text-center font-bold text-pink-700">{inv.incoterm}</td>
+                            <td className="p-2 text-right font-mono font-bold">${getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                          </tr>
+                        ))}
+                        <tr className="bg-slate-100 font-bold border-b border-slate-400 text-xs">
+                          <td colSpan="4" className="p-2.5 border-r border-slate-400 uppercase text-slate-800 text-center">TỔNG TRỊ GIÁ TRÊN BẢNG KÊ (USD)</td>
+                          <td className="p-2.5 text-right text-rose-700 font-mono">${getSelectedLotTotalValue().toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-12 flex justify-between items-start font-sans">
+                    <div className="w-1/2 text-center text-xs text-slate-500">
+                      <p className="italic">Người lập bảng kê</p>
+                      <p className="mt-16 font-bold text-slate-800">Bộ phận Chứng từ Hải quan</p>
+                    </div>
+                    <div className="w-1/2 text-center text-xs text-slate-500">
+                      <p className="font-bold text-slate-900">ĐẠI DIỆN DOANH NGHIỆP</p>
+                      <p className="italic">Ký và đóng dấu</p>
+                      <p className="mt-16 font-bold text-slate-800">Giám đốc - Ngô Thanh Hoàng</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
