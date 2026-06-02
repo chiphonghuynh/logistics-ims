@@ -349,15 +349,21 @@
       // Các Form nhập liệu của nghiệp vụ chính
       const [lotForm, setLotForm] = useState({
         lot_no: '', stt: 1, lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10),
-        factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', is_cont: true,
-        cont_no: '', seal_no: '', cont_type: '40HC', pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '',
-        origin_country: 'TAIWAN', supplier: 'CHANG YANG MATERIAL CORP.', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', sale_qty: 0
+        factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid',
+        transport_type: 'SEA_CONT', // AIR | EXPRESS | SEA_CONT | SEA_CFS
+        is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC',
+        pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '',
+        origin_country: 'TAIWAN', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', sale_qty: 0,
+        contract_start: '', contract_end: ''
       });
 
       const [invoiceForm, setInvoiceForm] = useState({
         invoice_no: '', lot_no: '', bill_no: '', invoice_date: new Date().toISOString().substring(0, 10),
         incoterm: 'CIF', total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0,
-        is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT'
+        other_charges_note: '',
+        is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT',
+        supplier: 'CHANG YANG MATERIAL CORP.',
+        contract_start: '', contract_end: ''
       });
 
       const [goodsForm, setGoodsForm] = useState({
@@ -477,9 +483,11 @@
               lot_no: activeBillStatus.proposedLotNo, stt: Number(activeBillStatus.stt), lot_date: invoiceForm.invoice_date || baseLot.lot_date,
               get_docs_date: baseLot.get_docs_date || new Date().toISOString().substring(0, 10), factory_no: baseLot.factory_no, bill_no: invoiceForm.bill_no,
               bill_date: baseLot.bill_date || '', pol: baseLot.pol || '', pod: baseLot.pod || '', bill_term: baseLot.bill_term || 'Freight Prepaid',
+              transport_type: baseLot.transport_type || 'SEA_CONT',
               is_cont: baseLot.is_cont, cont_no: baseLot.cont_no || '', seal_no: baseLot.seal_no || '', cont_type: baseLot.cont_type || '40HC',
               pkg_qty: 0, gw: 0, cbm: 0, eta: baseLot.eta || '', atc_date: '', origin_country: baseLot.origin_country || 'TAIWAN',
-              supplier: baseLot.supplier || '', loai_hinh: invoiceForm.loai_hinh, loai_hinh_con: invoiceForm.loai_hinh_con, sale_qty: 0
+              loai_hinh: invoiceForm.loai_hinh, loai_hinh_con: invoiceForm.loai_hinh_con, sale_qty: 0,
+              contract_start: '', contract_end: ''
             };
             saveLotsToStorage([newAutoLot, ...lots]);
             showNotification(`Tách Lô mới tự động: [${newAutoLot.lot_no}] chung STT: ${newAutoLot.stt}`);
@@ -1503,7 +1511,7 @@
                       Đang chọn Lô hàng: <strong className="text-white font-mono">{selectedLotNo || 'Chưa có'}</strong>
                     </span>
                     <div className="flex gap-2">
-                      <button onClick={() => { setModalMode('add'); setModalTab('lot'); setLotForm({ lot_no: '', stt: getFirstVacantSeq(), lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC', pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '', origin_country: 'TAIWAN', supplier: 'CHANG YANG MATERIAL CORP.', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', sale_qty: 0 }); setSelectedFactories([]); setShowAddModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">➕ Khai Lô Hàng Mới</button>
+                      <button onClick={() => { setModalMode('add'); setModalTab('lot'); setLotForm({ lot_no: '', stt: getFirstVacantSeq(), lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', transport_type: 'SEA_CONT', is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC', pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '', origin_country: 'TAIWAN', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', sale_qty: 0, contract_start: '', contract_end: '' }); setSelectedFactories([]); setShowAddModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">➕ Khai Lô Hàng Mới</button>
                       <button onClick={() => { if(!selectedLotNo) return; setShowMasterInvoiceModal(true); }} disabled={!selectedLotNo} className={`px-4 py-2 rounded-lg text-xs font-bold ${selectedLotNo ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>Bảng Kê Hóa Đơn (Mẫu 02)</button>
                     </div>
                   </div>
@@ -1624,10 +1632,12 @@
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6">
-                  {/* TAB 1: MASTER LOT */}
+                  {/* TAB 1: LÔ HÀNG */}
                   {modalTab === 'lot' && (
-                    <form onSubmit={handleSaveLot} className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <form onSubmit={handleSaveLot} className="space-y-5">
+
+                      {/* ROW 1: Loại hình + Sub-type + STT + Mã Lô */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Loại hình hải quan *</label>
                           <select value={lotForm.loai_hinh} onChange={(e) => setLotForm({...lotForm, loai_hinh: e.target.value, loai_hinh_con: 'DEFAULT'})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200">
@@ -1636,20 +1646,65 @@
                           </select>
                         </div>
                         <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">Loại hình con *</label>
+                          <select value={lotForm.loai_hinh_con} onChange={(e) => { const sub = e.target.value; setLotForm(prev => ({...prev, loai_hinh_con: sub, lot_no: generateLotNoString(prev.loai_hinh, sub, prev.stt)})); }} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200">
+                            {lotForm.loai_hinh === 'A12' ? <>
+                              <option value="DEFAULT">KD – Kinh doanh (mặc định)</option>
+                              <option value="H11">H11 – Gia công (…PMD)</option>
+                              <option value="DT">DT – Đầu tư (…DT…)</option>
+                            </> : <>
+                              <option value="DEFAULT">E21 – Mặc định</option>
+                              <option value="CHUYEN_TIEP">Chuyển tiếp (…CT)</option>
+                            </>}
+                          </select>
+                        </div>
+                        <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Số STT *</label>
                           <input type="number" required value={lotForm.stt} onChange={(e) => { const stt = Number(e.target.value); setLotForm({...lotForm, stt, lot_no: generateLotNoString(lotForm.loai_hinh, lotForm.loai_hinh_con, stt)}); }} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
                         </div>
                         <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Mã Lô Hàng</label>
-                          <input type="text" disabled value={lotForm.lot_no} className="w-full bg-slate-950 border border-slate-850 text-amber-400 font-bold px-3 py-2 text-xs" />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Nhà Cung Ứng</label>
-                          <input type="text" required value={lotForm.supplier} onChange={(e) => setLotForm({...lotForm, supplier: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          <label className="block text-[11px] text-slate-400 mb-1">Mã Lô Hàng (tự sinh)</label>
+                          <input type="text" disabled value={lotForm.lot_no} className="w-full bg-slate-950 border border-slate-850 text-amber-400 font-bold px-3 py-2 text-xs rounded" />
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      {/* ROW 2: Ngày Mở Lô + ETA + Ngày nhận chứng từ */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">Ngày Mở Lô</label>
+                          <input type="date" value={lotForm.lot_date} onChange={(e) => setLotForm({...lotForm, lot_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">ETA – Ngày dự kiến hàng đến</label>
+                          <input type="date" value={lotForm.eta} onChange={(e) => setLotForm({...lotForm, eta: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">Ngày Nhận Chứng Từ</label>
+                          <input type="date" value={lotForm.get_docs_date} onChange={(e) => setLotForm({...lotForm, get_docs_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                        </div>
+                      </div>
+
+                      {/* ROW 3: Số Bill + Ngày Bill + Điều kiện Bill */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">Số Bill (B/L No.)</label>
+                          <input type="text" value={lotForm.bill_no} onChange={(e) => setLotForm({...lotForm, bill_no: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">Ngày Bill</label>
+                          <input type="date" value={lotForm.bill_date} onChange={(e) => setLotForm({...lotForm, bill_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">Điều kiện Bill</label>
+                          <select value={lotForm.bill_term} onChange={(e) => setLotForm({...lotForm, bill_term: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white">
+                            <option value="Freight Prepaid">Freight Prepaid (Người gửi trả cước)</option>
+                            <option value="Freight Collect">Freight Collect (Người nhận trả cước)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* ROW 4: Cảng Đi + Cảng Đến + Xuất Xứ */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Cảng Đi (POL)</label>
                           <input type="text" value={lotForm.pol} onChange={(e) => setLotForm({...lotForm, pol: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
@@ -1659,24 +1714,95 @@
                           <input type="text" value={lotForm.pod} onChange={(e) => setLotForm({...lotForm, pod: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
                         </div>
                         <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Số Bill</label>
-                          <input type="text" value={lotForm.bill_no} onChange={(e) => setLotForm({...lotForm, bill_no: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Ngày Mở Lô</label>
-                          <input type="date" value={lotForm.lot_date} onChange={(e) => setLotForm({...lotForm, lot_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          <label className="block text-[11px] text-slate-400 mb-1">Xuất Xứ Hàng Hóa</label>
+                          <input type="text" value={lotForm.origin_country} onChange={(e) => setLotForm({...lotForm, origin_country: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
                         </div>
                       </div>
 
-                      <div className="bg-slate-950/40 p-4 border border-slate-855 rounded-xl space-y-3">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase">Mã Xưởng Nhận Hàng *</label>
-                        <div className="flex gap-4 flex-wrap">
+                      {/* ROW 5: Loại hàng vận chuyển */}
+                      <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 space-y-4">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">🚢 Phương thức vận chuyển</label>
+                        <div className="flex gap-3 flex-wrap">
+                          {[
+                            { val: 'AIR', label: '✈ AIR', color: 'sky' },
+                            { val: 'EXPRESS', label: '📦 EXPRESS (DHL/FedEx)', color: 'purple' },
+                            { val: 'SEA_CONT', label: '🚢 SEA – CONT', color: 'blue' },
+                            { val: 'SEA_CFS', label: '⚓ SEA – CFS (LCL)', color: 'indigo' },
+                          ].map(opt => (
+                            <button type="button" key={opt.val}
+                              onClick={() => setLotForm(prev => ({...prev, transport_type: opt.val, is_cont: opt.val === 'SEA_CONT'}))}
+                              className={`px-4 py-2 rounded-lg text-xs font-bold border transition-all
+                                ${lotForm.transport_type === opt.val
+                                  ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/40'
+                                  : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* SEA CONT: Số Cont + Seal + Loại Cont */}
+                        {lotForm.transport_type === 'SEA_CONT' && (
+                          <div className="grid grid-cols-3 gap-4 pt-2">
+                            <div>
+                              <label className="block text-[11px] text-slate-400 mb-1">Số Cont *</label>
+                              <input type="text" value={lotForm.cont_no} onChange={(e) => setLotForm({...lotForm, cont_no: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white font-mono" placeholder="TGBU-9928172" />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-slate-400 mb-1">Số Seal</label>
+                              <input type="text" value={lotForm.seal_no} onChange={(e) => setLotForm({...lotForm, seal_no: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white font-mono" />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-slate-400 mb-1">Loại Cont</label>
+                              <select value={lotForm.cont_type} onChange={(e) => setLotForm({...lotForm, cont_type: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white">
+                                <option>20DC</option><option>40DC</option><option>40HC</option><option>45HC</option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* AIR / EXPRESS / SEA_CFS: Số kiện + GW + CBM */}
+                        {lotForm.transport_type !== 'SEA_CONT' && (
+                          <div className="grid grid-cols-3 gap-4 pt-2">
+                            <div>
+                              <label className="block text-[11px] text-slate-400 mb-1">Số Kiện (Pkg Qty)</label>
+                              <input type="number" value={lotForm.pkg_qty || ''} onChange={(e) => setLotForm({...lotForm, pkg_qty: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-slate-400 mb-1">Gross Weight (KG)</label>
+                              <input type="number" step="0.01" value={lotForm.gw || ''} onChange={(e) => setLotForm({...lotForm, gw: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-slate-400 mb-1">CBM (m³)</label>
+                              <input type="number" step="0.001" value={lotForm.cbm || ''} onChange={(e) => setLotForm({...lotForm, cbm: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ROW 6: Hợp đồng (chỉ A12) */}
+                      {lotForm.loai_hinh === 'A12' && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[11px] text-amber-400 mb-1">📋 Ngày bắt đầu hợp đồng (A12)</label>
+                            <input type="date" value={lotForm.contract_start} onChange={(e) => setLotForm({...lotForm, contract_start: e.target.value})} className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-amber-400 mb-1">📋 Ngày kết thúc hợp đồng (A12)</label>
+                            <input type="date" value={lotForm.contract_end} onChange={(e) => setLotForm({...lotForm, contract_end: e.target.value})} className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ROW 7: Mã Xưởng */}
+                      <div className="bg-slate-950/40 p-4 border border-slate-800 rounded-xl space-y-3">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mã Xưởng Nhận Hàng *</label>
+                        <div className="flex gap-3 flex-wrap">
                           {FACTORY_OPTIONS.map((fac) => {
                             const isChecked = selectedFactories.includes(fac);
                             return (
-                              <label key={fac} className="flex items-center gap-2 cursor-pointer bg-slate-900 border border-slate-850 px-3 py-2 rounded-lg">
+                              <label key={fac} className={`flex items-center gap-2 cursor-pointer border px-4 py-2 rounded-lg transition-all ${isChecked ? 'bg-blue-900/30 border-blue-600 text-white' : 'bg-slate-900 border-slate-800 text-slate-400'}`}>
                                 <input type="checkbox" checked={isChecked} onChange={(e) => { if (e.target.checked) setSelectedFactories([...selectedFactories, fac]); else setSelectedFactories(selectedFactories.filter(i=>i!==fac)); }} className="accent-blue-500 rounded" />
-                                <span className="text-xs font-bold text-slate-200">{fac}</span>
+                                <span className="text-xs font-bold">{fac}</span>
                               </label>
                             );
                           })}
@@ -1684,50 +1810,173 @@
                       </div>
 
                       <div className="pt-4 border-t border-slate-800 flex justify-end">
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-xs font-bold">Lưu lô và tiếp tục ➔</button>
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-xs font-bold">Lưu lô và tiếp tục ➔</button>
                       </div>
                     </form>
                   )}
 
-                  {/* TAB 2: INVOICE */}
+                  {/* TAB 2: HÓA ĐƠN */}
                   {modalTab === 'invoice' && (
-                    <form onSubmit={handleSaveInvoice} className="space-y-6">
+                    <form onSubmit={handleSaveInvoice} className="space-y-5">
+
+                      {/* Hàng chung Bill toggle */}
+                      <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${invoiceForm.is_hang_chung_bill ? 'bg-amber-950/30 border-amber-700' : 'bg-slate-950/40 border-slate-800'}`}>
+                        <div>
+                          <p className="text-xs font-bold text-white">🔗 Hàng chung Bill (Shared B/L)</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Bật nếu hóa đơn này dùng chung số Bill với lô hàng khác loại hình → hệ thống tự tách lô mới</p>
+                        </div>
+                        <button type="button" onClick={() => setInvoiceForm(prev => ({...prev, is_hang_chung_bill: !prev.is_hang_chung_bill}))}
+                          className={`relative w-12 h-6 rounded-full transition-all ${invoiceForm.is_hang_chung_bill ? 'bg-amber-500' : 'bg-slate-700'}`}>
+                          <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${invoiceForm.is_hang_chung_bill ? 'left-7' : 'left-1'}`}></span>
+                        </button>
+                      </div>
+
+                      {/* Thông báo bill status */}
+                      {invoiceForm.is_hang_chung_bill && invoiceForm.bill_no && activeBillStatus.matches && (
+                        <div className={`p-3 rounded-lg text-[11px] border ${activeBillStatus.status === 'SAME_BILL_SAME_TYPE' ? 'bg-emerald-950/40 border-emerald-700 text-emerald-300' : 'bg-amber-950/40 border-amber-700 text-amber-300'}`}>
+                          ⚡ {activeBillStatus.message}
+                        </div>
+                      )}
+
+                      {/* ROW 1: Loại hình + Sub + Nhà cung ứng */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">Loại hình hải quan *</label>
+                          <select value={invoiceForm.loai_hinh} onChange={(e) => setInvoiceForm({...invoiceForm, loai_hinh: e.target.value, loai_hinh_con: 'DEFAULT'})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200">
+                            <option value="A12">A12 (Kinh doanh)</option>
+                            <option value="E21">E21 (SXXK)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">Loại hình con</label>
+                          <select value={invoiceForm.loai_hinh_con} onChange={(e) => setInvoiceForm({...invoiceForm, loai_hinh_con: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200">
+                            {invoiceForm.loai_hinh === 'A12' ? <>
+                              <option value="DEFAULT">KD – Kinh doanh</option>
+                              <option value="H11">H11 – Gia công</option>
+                              <option value="DT">DT – Đầu tư</option>
+                            </> : <>
+                              <option value="DEFAULT">E21 – Mặc định</option>
+                              <option value="CHUYEN_TIEP">Chuyển tiếp</option>
+                            </>}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">Nhà Cung Ứng (Supplier)</label>
+                          <input type="text" value={invoiceForm.supplier} onChange={(e) => setInvoiceForm({...invoiceForm, supplier: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" placeholder="CHANG YANG MATERIAL CORP." />
+                        </div>
+                      </div>
+
+                      {/* ROW 2: Mã Lô liên kết (datalist gợi ý) + Số HĐ + Ngày HĐ */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Mã Lô Hàng Liên Kết *</label>
-                          <input type="text" required value={invoiceForm.lot_no} onChange={(e) => setInvoiceForm({...invoiceForm, lot_no: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono" />
+                          <input type="text" required list="lot-suggestions" value={invoiceForm.lot_no}
+                            onChange={(e) => setInvoiceForm({...invoiceForm, lot_no: e.target.value})}
+                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-amber-400 font-bold font-mono"
+                            placeholder="Gõ để gợi ý lô gần nhất..." />
+                          <datalist id="lot-suggestions">
+                            {[...lots].sort((a,b) => b.stt - a.stt).slice(0, 20).map(l => (
+                              <option key={l.lot_no} value={l.lot_no}>{l.lot_no} – {l.bill_no || 'No Bill'} ({l.lot_date})</option>
+                            ))}
+                          </datalist>
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Số Hóa Đơn Thương Mại *</label>
                           <input type="text" required value={invoiceForm.invoice_no} onChange={(e) => setInvoiceForm({...invoiceForm, invoice_no: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono" />
                         </div>
                         <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Điều Khoản Incoterm</label>
-                          <select value={invoiceForm.incoterm} onChange={(e) => setInvoiceForm({...invoiceForm, incoterm: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white">
-                            <option value="CIF">CIF</option>
-                            <option value="FOB">FOB</option>
-                            <option value="C&F">C&F</option>
-                            <option value="EXW">EXW</option>
-                          </select>
+                          <label className="block text-[11px] text-slate-400 mb-1">Ngày Hóa Đơn</label>
+                          <input type="date" value={invoiceForm.invoice_date} onChange={(e) => setInvoiceForm({...invoiceForm, invoice_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
                         </div>
                       </div>
 
-                      <div className="bg-slate-950/20 p-5 border border-slate-855 rounded-xl space-y-4">
-                        <h5 className="text-[10px] font-bold text-slate-400 uppercase">💰 Khai Phí Phát Sinh Phụ Trội</h5>
+                      {/* ROW 3: Incoterm (full) + Số Bill */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">Điều Khoản Incoterm</label>
+                          <select value={invoiceForm.incoterm} onChange={(e) => setInvoiceForm({...invoiceForm, incoterm: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white">
+                            <optgroup label="Nhóm E – EXW">
+                              <option value="EXW">EXW – Ex Works</option>
+                            </optgroup>
+                            <optgroup label="Nhóm F – Free…">
+                              <option value="FCA">FCA – Free Carrier</option>
+                              <option value="FOB">FOB – Free on Board</option>
+                              <option value="FAS">FAS – Free Alongside Ship</option>
+                            </optgroup>
+                            <optgroup label="Nhóm C – Cost…">
+                              <option value="CIF">CIF – Cost, Insurance & Freight</option>
+                              <option value="CFR">CFR / C&F – Cost & Freight</option>
+                              <option value="CIP">CIP – Carriage & Insurance Paid</option>
+                              <option value="CPT">CPT – Carriage Paid To</option>
+                            </optgroup>
+                            <optgroup label="Nhóm D – Delivered…">
+                              <option value="DAP">DAP – Delivered at Place</option>
+                              <option value="DAT">DAT – Delivered at Terminal</option>
+                              <option value="DDP">DDP – Delivered Duty Paid</option>
+                            </optgroup>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">Số Bill liên quan</label>
+                          <input type="text" value={invoiceForm.bill_no} onChange={(e) => setInvoiceForm({...invoiceForm, bill_no: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono" />
+                        </div>
+                      </div>
+
+                      {/* Ngày hợp đồng nếu A12 */}
+                      {invoiceForm.loai_hinh === 'A12' && (
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-[11px] text-slate-300 mb-1">Trị Giá Hàng Hóa Gốc (USD) *</label>
-                            <input type="number" step="0.01" required value={invoiceForm.total_amount || ''} onChange={(e) => setInvoiceForm({...invoiceForm, total_amount: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-amber-400 font-bold font-mono" />
+                            <label className="block text-[11px] text-amber-400 mb-1">📋 Ngày bắt đầu hợp đồng (A12)</label>
+                            <input type="date" value={invoiceForm.contract_start} onChange={(e) => setInvoiceForm({...invoiceForm, contract_start: e.target.value})} className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
                           </div>
                           <div>
-                            <label className="block text-[11px] text-slate-300 mb-1">Khấu Trừ Hàng FOC (Miễn Phí)</label>
-                            <input type="number" value={invoiceForm.foc_amount || ''} onChange={(e) => setInvoiceForm({...invoiceForm, foc_amount: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-rose-400" />
+                            <label className="block text-[11px] text-amber-400 mb-1">📋 Ngày kết thúc hợp đồng (A12)</label>
+                            <input type="date" value={invoiceForm.contract_end} onChange={(e) => setInvoiceForm({...invoiceForm, contract_end: e.target.value})} className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ROW 4: Phí */}
+                      <div className="bg-slate-950/30 p-4 border border-slate-800 rounded-xl space-y-4">
+                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">💰 Khai Phí & Trị Giá Hóa Đơn</h5>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1">Trị Giá Hàng Hóa (USD) *</label>
+                            <input type="number" step="0.01" required value={invoiceForm.total_amount || ''} onChange={(e) => setInvoiceForm({...invoiceForm, total_amount: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-amber-400 font-bold font-mono" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1">Hàng FOC (Miễn Phí / Khấu Trừ)</label>
+                            <input type="number" step="0.01" value={invoiceForm.foc_amount || ''} onChange={(e) => setInvoiceForm({...invoiceForm, foc_amount: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-rose-400" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1">+ Cước Biển / Hàng Không</label>
+                            <input type="number" step="0.01" value={invoiceForm.plus_sea_freight || ''} onChange={(e) => setInvoiceForm({...invoiceForm, plus_sea_freight: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-sky-400" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1">+ Phí Handling</label>
+                            <input type="number" step="0.01" value={invoiceForm.handling_charges || ''} onChange={(e) => setInvoiceForm({...invoiceForm, handling_charges: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-sky-400" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1">+ Phí Khác (Other)</label>
+                            <input type="number" step="0.01" value={invoiceForm.other_charges || ''} onChange={(e) => setInvoiceForm({...invoiceForm, other_charges: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-sky-400" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1">Ghi chú phí khác</label>
+                            <input type="text" value={invoiceForm.other_charges_note || ''} onChange={(e) => setInvoiceForm({...invoiceForm, other_charges_note: e.target.value})} placeholder="VD: Phí lưu kho, phụ phí..." className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-slate-300" />
+                          </div>
+                        </div>
+                        <div className="flex justify-end">
+                          <div className="text-right">
+                            <p className="text-[10px] text-slate-500 uppercase">Tổng trị giá (khai báo HQ)</p>
+                            <p className="text-base font-black text-amber-400 font-mono">
+                              ${((invoiceForm.total_amount||0) - (invoiceForm.foc_amount||0) + (invoiceForm.plus_sea_freight||0) + (invoiceForm.handling_charges||0) + (invoiceForm.other_charges||0)).toFixed(2)}
+                            </p>
                           </div>
                         </div>
                       </div>
 
                       <div className="pt-4 border-t border-slate-800 flex justify-end">
-                        <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-bold">Lưu hóa đơn và tiếp tục ➔</button>
+                        <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg text-xs font-bold">Lưu hóa đơn và tiếp tục ➔</button>
                       </div>
                     </form>
                   )}
