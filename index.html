@@ -946,7 +946,8 @@
           }
         };
         reader.readAsBinaryString(file);
-      
+      };
+
       const handleEnglishNameAutoLookup = (engName, associatedInvoiceNo) => {
         if (!engName) return;
         const targetInvoice = invoices.find(i => i.invoice_no === associatedInvoiceNo);
