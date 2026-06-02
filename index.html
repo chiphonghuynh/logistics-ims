@@ -221,43 +221,6 @@
 
       const isConnected = !!apiUrl;
      
-  // 1. Các State hiện có của bạn
-  const [goodsList, setGoodsList] = React.useState([]);
-
-  // --- ĐẶT HÀM NÀY VÀO ĐÂY ---
-  const handleGoodsExcelImport = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet);
-        setGoodsList(json); // Cập nhật dữ liệu vào state
-      } catch (err) {
-        alert("Có lỗi khi đọc file, vui lòng kiểm tra định dạng!");
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-  // ---------------------------
-
-  return (
-    <div>
-       {/* 2. Gọi hàm ở thẻ input */}
-       <input 
-         type="file" 
-         onChange={handleGoodsExcelImport} 
-         accept=".xlsx, .xls"
-       />
-       {/* Phần hiển thị danh sách của bạn */}
-    </div>
-  );
-}
 
       // Helper: lưu state + đẩy lên Sheets (hoặc chỉ cache nếu chưa kết nối)
       const persist = async (sheet, data, stateSetter) => {
