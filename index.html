@@ -1003,51 +1003,101 @@
               </div>
 
               <div className="p-3 space-y-1">
-                <button onClick={() => setActiveMenu('DASHBOARD')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-left transition-all ${activeMenu === 'DASHBOARD' ? 'bg-blue-950 text-blue-400 font-bold border-l-4 border-blue-500' : 'hover:bg-slate-800 text-slate-400'}`}>
-                  <span>📊</span>{menuExpanded && <span className="text-xs">Bảng Chỉ Huy (Dashboard)</span>}
+
+                {/* 1. DASHBOARD */}
+                <button
+                  onClick={() => setActiveMenu('DASHBOARD')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${activeMenu === 'DASHBOARD' ? 'bg-blue-950 text-blue-400 font-bold border-l-4 border-blue-500' : 'hover:bg-slate-800 text-slate-400'}`}
+                >
+                  <span className="text-base">📊</span>
+                  {menuExpanded && <span className="text-xs font-semibold">Dashboard</span>}
                 </button>
-                
-                <div className="border-t border-slate-800 my-3"></div>
 
-                {/* Danh mục hàng hóa gốc */}
+                <div className="border-t border-slate-800 my-2"></div>
+
+                {/* 2. MASTER DATA */}
                 <div>
-                  <button onClick={() => setExpandedMenus(p=>({...p, B: !p.B}))} className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-800 rounded text-slate-400 text-xs font-semibold">
-                    <div className="flex items-center gap-2"><span>📂</span>{menuExpanded && <span className="text-slate-200 font-bold">B - Danh Mục Gốc</span>}</div>
-                    {menuExpanded && <span>{expandedMenus.B ? '▲' : '▼'}</span>}
+                  <button
+                    onClick={() => setExpandedMenus(p => ({ ...p, B: !p.B }))}
+                    className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-800 rounded-lg transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🗂</span>
+                      {menuExpanded && (
+                        <span className="text-xs font-bold text-slate-200 tracking-wide">Master Data</span>
+                      )}
+                    </div>
+                    {menuExpanded && (
+                      <span className="text-slate-500 text-[10px]">{expandedMenus.B ? '▲' : '▼'}</span>
+                    )}
                   </button>
+
                   {expandedMenus.B && menuExpanded && (
-                    <div className="pl-4 pr-2 py-1 space-y-1 bg-slate-950/40 rounded text-[11px] mt-1 border border-slate-850">
-                      <button onClick={() => setActiveMenu('DATABASE_VIEW')} className={`w-full text-left py-2 px-2.5 rounded transition-colors block ${activeMenu === 'DATABASE_VIEW' ? 'bg-emerald-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
-                        🔍 Quản lý danh mục A12/E21
+                    <div className="ml-3 mt-1 border-l-2 border-slate-800 pl-3 space-y-0.5">
+                      <button
+                        onClick={() => setActiveMenu('DATABASE_VIEW')}
+                        className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
+                          ${activeMenu === 'DATABASE_VIEW' ? 'bg-emerald-600/20 text-emerald-400 font-bold border border-emerald-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                      >
+                        <span>🏷</span> HS Code Category
                       </button>
                     </div>
                   )}
                 </div>
 
-                {/* Nghiệp vụ nhập khẩu */}
+                <div className="border-t border-slate-800 my-2"></div>
+
+                {/* 3. OPERATIONS */}
                 <div>
-                  <button onClick={() => setExpandedMenus(p=>({...p, E: !p.E}))} className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-800 rounded text-slate-400 text-xs font-semibold">
-                    <div className="flex items-center gap-2"><span>📥</span>{menuExpanded && <span className="font-bold text-slate-200">E - Nghiệp Vụ</span>}</div>
-                    {menuExpanded && <span>{expandedMenus.E ? '▲' : '▼'}</span>}
+                  <button
+                    onClick={() => setExpandedMenus(p => ({ ...p, E: !p.E }))}
+                    className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-800 rounded-lg transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">⚙️</span>
+                      {menuExpanded && (
+                        <span className="text-xs font-bold text-slate-200 tracking-wide">Operations</span>
+                      )}
+                    </div>
+                    {menuExpanded && (
+                      <span className="text-slate-500 text-[10px]">{expandedMenus.E ? '▲' : '▼'}</span>
+                    )}
                   </button>
+
                   {expandedMenus.E && menuExpanded && (
-                    <div className="pl-4 pr-2 py-1 space-y-1 bg-slate-950/40 rounded text-[11px] mt-1 border border-slate-850">
-                      <button onClick={() => setActiveMenu('E010')} className={`w-full text-left py-2 px-2.5 rounded transition-colors block ${activeMenu === 'E010' ? 'bg-blue-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
-                        E010 - Hồ sơ lô hàng
+                    <div className="ml-3 mt-1 border-l-2 border-slate-800 pl-3 space-y-0.5">
+                      {/* 3.1 Shipment Profiles */}
+                      <button
+                        onClick={() => setActiveMenu('E010')}
+                        className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
+                          ${activeMenu === 'E010' ? 'bg-blue-600/20 text-blue-400 font-bold border border-blue-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                      >
+                        <span>📦</span> Shipment Profiles
                       </button>
-                      <button onClick={() => setActiveMenu('NO_ATC')} className={`w-full text-left py-2 px-2.5 rounded transition-colors block relative ${activeMenu === 'NO_ATC' ? 'bg-rose-950/40 border border-rose-900 text-rose-300 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}>
-                        <div className="flex justify-between items-center">
-                          <span>⏳ Chờ Nhập Kho</span>
-                          {pendingAtcLots.length > 0 && <span className="bg-rose-600 text-white text-[9px] px-1.5 py-0.2 rounded-full font-bold">{pendingAtcLots.length}</span>}
+
+                      {/* 3.2 Pending Storage */}
+                      <button
+                        onClick={() => setActiveMenu('NO_ATC')}
+                        className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center justify-between
+                          ${activeMenu === 'NO_ATC' ? 'bg-rose-950/40 text-rose-400 font-bold border border-rose-900' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>⏳</span> Pending Storage
                         </div>
+                        {pendingAtcLots.length > 0 && (
+                          <span className="bg-rose-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold leading-none">
+                            {pendingAtcLots.length}
+                          </span>
+                        )}
                       </button>
                     </div>
                   )}
                 </div>
+
               </div>
             </div>
             <div className="p-3 text-center border-t border-slate-800 bg-slate-950/60 text-[10px] text-slate-500">
-              {menuExpanded ? <span>Phiên bản: <strong className="text-blue-500">v1.5.0-pro</strong></span> : <span>v1.5</span>}
+              {menuExpanded ? <span>Version: <strong className="text-blue-500">v1.5.0-pro</strong></span> : <span>v1.5</span>}
             </div>
           </div>
 
@@ -1055,10 +1105,10 @@
           <div className="flex-1 flex flex-col min-w-0 bg-slate-950">
             <header className="bg-slate-900 px-6 py-4 border-b border-slate-800 flex justify-between items-center shrink-0">
               <h2 className="text-xs font-bold tracking-widest text-slate-300 uppercase">
-                {activeMenu === 'DASHBOARD' && '📊 BẢNG ĐIỀU HÀNH TRUNG TÂM'}
-                {activeMenu === 'DATABASE_VIEW' && '📂 QUẢN LÝ DANH MỤC GỐC'}
-                {activeMenu === 'E010' && '📥 HỒ SƠ QUẢN LÝ LÔ HÀNG (E010)'}
-                {activeMenu === 'NO_ATC' && '⏳ THEO DÕI XE CHỜ NHẬP KHO'}
+                {activeMenu === 'DASHBOARD' && '📊 DASHBOARD'}
+                {activeMenu === 'DATABASE_VIEW' && '🏷 MASTER DATA — HS CODE CATEGORY'}
+                {activeMenu === 'E010' && '📦 OPERATIONS — SHIPMENT PROFILES'}
+                {activeMenu === 'NO_ATC' && '⏳ OPERATIONS — PENDING STORAGE'}
               </h2>
               <div className="flex items-center gap-2">
                 {isConnected ? (
