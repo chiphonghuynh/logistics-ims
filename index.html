@@ -411,7 +411,8 @@
 
       const [goodsForm, setGoodsForm] = useState({
         invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '',
-        goods_name_local: '', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0
+        goods_name_local: '', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '', 
+        origin_country: 'TAIWAN', qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, sale_amount: 0
       });
 
       const [selectedFactories, setSelectedFactories] = useState([]);
@@ -895,10 +896,16 @@
             );
 
             // Find columns
-            const idxGoodsNo = headers.findIndex(h => h.includes('mahang') || h.includes('goodsno') || h.includes('code'));
+            const idxGoodsNo = headers.findIndex(h => h.includes('mahang') || h.includes('invoiceno') || h.includes('goodsno'));
             const idxNameEn = headers.findIndex(h => h.includes('tienganh') || h.includes('english') || h.includes('name'));
-            const idxAmount = headers.findIndex(h => h.includes('trigia') || h.includes('amount') || h.includes('price'));
+            const idxAmount = headers.findIndex(h => h.includes('thanhtiengay') || h.includes('thanhtien') || h.includes('trigia') || h.includes('amount') || h.includes('price'));
             const idxNameLocal = headers.findIndex(h => h.includes('tiengviet') || h.includes('vietnamese') || h.includes('localname'));
+            const idxOrigin = headers.findIndex(h => h.includes('xuatxu') || h.includes('origin'));
+            const idxQty1 = headers.findIndex(h => h.includes('soluong1') || h.includes('qty1') || h.includes('quantity1'));
+            const idxUnit1 = headers.findIndex(h => h.includes('donvitnh1') || h.includes('unit1'));
+            const idxQty2 = headers.findIndex(h => h.includes('soluong2') || h.includes('qty2'));
+            const idxUnit2 = headers.findIndex(h => h.includes('donvitnh2') || h.includes('unit2'));
+            const idxUnitPrice = headers.findIndex(h => h.includes('dongia') || h.includes('unitprice') || h.includes('price'));
 
             if (idxGoodsNo === -1 || idxNameEn === -1 || idxAmount === -1) {
               return showNotification("File phải có ít nhất 3 cột: Mã Hàng, Tên Tiếng Anh, Trị Giá!", "error");
@@ -916,6 +923,12 @@
               const nameEn = (row[Object.keys(rawJson[0])[idxNameEn]] || '').toString().trim();
               const amount = Number(row[Object.keys(rawJson[0])[idxAmount]]) || 0;
               const nameLocal = idxNameLocal !== -1 ? (row[Object.keys(rawJson[0])[idxNameLocal]] || '').toString().trim() : '';
+              const origin = idxOrigin !== -1 ? (row[Object.keys(rawJson[0])[idxOrigin]] || 'TAIWAN').toString().trim() : 'TAIWAN';
+              const qty1 = idxQty1 !== -1 ? Number(row[Object.keys(rawJson[0])[idxQty1]]) || 0 : 0;
+              const unit1 = idxUnit1 !== -1 ? (row[Object.keys(rawJson[0])[idxUnit1]] || 'PCS').toString().trim() : 'PCS';
+              const qty2 = idxQty2 !== -1 ? Number(row[Object.keys(rawJson[0])[idxQty2]]) || 0 : 0;
+              const unit2 = idxUnit2 !== -1 ? (row[Object.keys(rawJson[0])[idxUnit2]] || '').toString().trim() : '';
+              const unitPrice = idxUnitPrice !== -1 ? Number(row[Object.keys(rawJson[0])[idxUnitPrice]]) || 0 : (amount && qty1 > 0 ? amount / qty1 : 0);
 
               if (!goodsNo || !nameEn || amount <= 0) continue;
 
@@ -930,6 +943,12 @@
                 goods_name_en: nameEn,
                 goods_name_local: nameLocal || dictItem?.goods_name_local || '',
                 hs_code: dictItem?.hs_code || '',
+                origin_country: origin,
+                qty1: qty1,
+                unit1: unit1,
+                qty2: qty2,
+                unit2: unit2,
+                unit_price: unitPrice,
                 sale_amount: amount
               });
             }
@@ -1610,26 +1629,38 @@
                       <div className="overflow-x-auto flex-1">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="bg-slate-950 text-slate-400 border-b border-slate-850 text-[10px] uppercase tracking-wider">
-                              <th className="p-3 text-center">STT</th>
-                              <th className="p-3">Mã Hàng</th>
-                              <th className="p-3">HS Code</th>
-                              <th className="p-3">Tên Tiếng Anh</th>
-                              <th className="p-3 text-emerald-400">📋 Tên Khai Báo HQ</th>
-                              <th className="p-3 text-right">Trị Giá (USD)</th>
-                              <th className="p-3 text-center">Thao tác</th>
+                            <tr className="bg-slate-950 text-slate-400 border-b border-slate-850 text-[9px] uppercase tracking-wider">
+                              <th className="p-2 text-center">STT</th>
+                              <th className="p-2">Mã Hàng</th>
+                              <th className="p-2">HS Code</th>
+                              <th className="p-2">Tên Tiếng Anh</th>
+                              <th className="p-2 text-emerald-400">📋 Tên Khai Báo</th>
+                              <th className="p-2">Xuất Xứ</th>
+                              <th className="p-2 text-center">SL 1</th>
+                              <th className="p-2">ĐVT 1</th>
+                              <th className="p-2 text-center">SL 2</th>
+                              <th className="p-2">ĐVT 2</th>
+                              <th className="p-2 text-right">Đơn Giá</th>
+                              <th className="p-2 text-right">Thành Tiền</th>
+                              <th className="p-2 text-center">Thao tác</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-855">
+                          <tbody className="divide-y divide-slate-855 text-[10px]">
                             {currentGoods.map((g) => (
                               <tr key={g.id} className="hover:bg-slate-850/30 text-slate-300">
-                                <td className="p-3 text-center font-mono text-slate-500">{g.goods_item}</td>
-                                <td className="p-3 font-mono text-emerald-400 font-bold">{g.goods_no}</td>
-                                <td className="p-3 font-mono text-slate-400 text-xs">{g.hs_code}</td>
-                                <td className="p-3 font-medium text-slate-100">{g.goods_name_en}</td>
-                                <td className="p-3 text-cyan-300 font-mono text-xs">{[g.goods_name_local, g.goods_name_en].filter(Boolean).join(' / ')}</td>
-                                <td className="p-3 text-right text-amber-400 font-bold">${g.sale_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                <td className="p-3 text-center space-x-1">
+                                <td className="p-2 text-center font-mono text-slate-500">{g.goods_item}</td>
+                                <td className="p-2 font-mono text-emerald-400 font-bold">{g.goods_no}</td>
+                                <td className="p-2 font-mono text-slate-400">{g.hs_code}</td>
+                                <td className="p-2 font-medium text-slate-100">{g.goods_name_en}</td>
+                                <td className="p-2 text-cyan-300 font-mono">{[g.goods_name_local, g.goods_name_en].filter(Boolean).join(' / ')}</td>
+                                <td className="p-2 text-center">{g.origin_country || '-'}</td>
+                                <td className="p-2 text-center font-bold text-amber-400">{g.qty1 || '-'}</td>
+                                <td className="p-2 text-center text-slate-400">{g.unit1 || '-'}</td>
+                                <td className="p-2 text-center text-slate-400">{g.qty2 || '-'}</td>
+                                <td className="p-2 text-center text-slate-400">{g.unit2 || '-'}</td>
+                                <td className="p-2 text-right font-mono text-amber-400">${g.unit_price ? g.unit_price.toFixed(2) : '-'}</td>
+                                <td className="p-2 text-right font-mono font-bold text-emerald-400">${g.sale_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                <td className="p-2 text-center space-x-1">
                                   <button onClick={(e) => startEditGoods(g, e)} className="text-blue-400 hover:underline text-xs">Sửa</button>
                                   <button onClick={(e) => triggerDeleteGoodsConfirm(g.id, e)} className="text-rose-500 hover:underline text-xs">Xóa</button>
                                 </td>
@@ -2199,10 +2230,57 @@
                           <input type="text" readOnly value={goodsForm.hs_code} className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-xs text-slate-400 font-mono focus:outline-none" />
                         </div>
                         <div>
-                          <label className="block text-[11px] text-slate-300 mb-1">Trị Giá Khai Báo (USD) *</label>
-                          <input type="number" required value={goodsForm.sale_amount || ''} onChange={e => setGoodsForm({...goodsForm, sale_amount: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-amber-300 font-bold" />
+                          <label className="block text-[11px] text-slate-300 mb-1">Xuất Xứ</label>
+                          <input type="text" value={goodsForm.origin_country || ''} onChange={e => setGoodsForm({...goodsForm, origin_country: e.target.value})} placeholder="VD: TAIWAN, CHINA..." className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
                         </div>
                       </div>
+
+                      {/* Số lượng và đơn vị */}
+                      <div className="bg-slate-950/40 p-4 border border-slate-800 rounded-xl space-y-3">
+                        <h4 className="text-[10px] font-bold text-slate-300 uppercase">📦 Số Lượng & Đơn Vị</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1">Số Lượng 1 *</label>
+                            <input type="number" step="0.01" required value={goodsForm.qty1 || ''} onChange={e => setGoodsForm({...goodsForm, qty1: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-2 text-xs text-white font-bold" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1">Đơn Vị 1</label>
+                            <input type="text" value={goodsForm.unit1 || ''} onChange={e => setGoodsForm({...goodsForm, unit1: e.target.value})} placeholder="PCS, KGS..." className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-2 text-xs text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1">Số Lượng 2 (Tùy chọn)</label>
+                            <input type="number" step="0.01" value={goodsForm.qty2 || ''} onChange={e => setGoodsForm({...goodsForm, qty2: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-2 text-xs text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1">Đơn Vị 2</label>
+                            <input type="text" value={goodsForm.unit2 || ''} onChange={e => setGoodsForm({...goodsForm, unit2: e.target.value})} placeholder="BOXES..." className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-2 text-xs text-white" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Đơn giá và thành tiền */}
+                      <div className="bg-blue-950/30 p-4 border border-blue-800 rounded-xl space-y-3">
+                        <h4 className="text-[10px] font-bold text-slate-300 uppercase">💰 Giá & Trị Giá</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1">Đơn Giá (USD) *</label>
+                            <input type="number" step="0.01" required value={goodsForm.unit_price || ''} onChange={e => setGoodsForm({...goodsForm, unit_price: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-amber-400 font-bold" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-300 mb-1">Trị Giá Khai Báo (USD) *
+                              <span className="text-slate-600 text-[10px] normal-case ml-1">= Đơn Giá × Số Lượng 1</span>
+                            </label>
+                            <input type="number" step="0.01" required value={goodsForm.sale_amount || ''} onChange={e => setGoodsForm({...goodsForm, sale_amount: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-amber-300 font-bold" />
+                          </div>
+                        </div>
+                        {goodsForm.qty1 > 0 && goodsForm.unit_price > 0 && (
+                          <div className="flex justify-end pt-2 border-t border-slate-700">
+                            <div className="text-right">
+                              <p className="text-[10px] text-slate-500 uppercase">Gợi ý thành tiền</p>
+                              <p className="text-sm font-bold text-emerald-400">${(goodsForm.qty1 * goodsForm.unit_price).toFixed(2)}</p>
+                            </div>
+                          </div>
+                        )}
 
                       <div>
                         <label className="block text-[11px] text-slate-400 mb-1">Tên Tiếng Việt Gốc (Chỉ đọc)</label>
