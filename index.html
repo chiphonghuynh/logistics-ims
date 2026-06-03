@@ -343,7 +343,119 @@
         invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_name_local: '', hs_code: '',
         origin: '', qty_1: 1, unit_1: 'PCS', qty_2: 0, unit_2: '', unit_price: 0, total_amount: 0
       });
+  // --- THAY THẾ & BỔ SUNG QUẢN LÝ ĐA HOÁ ĐƠN (LỰA CHỌN 2) ---
+      const [modalInvoices, setModalInvoices] = useState([]);
 
+      // Tự động đồng bộ hóa dữ liệu hóa đơn khi mở Modal Tạo mới hoặc Sửa Lô hàng
+      useEffect(() => {
+        if (showAddModal && modalTab === 'invoice') {
+          if (modalMode === 'add') {
+            // Trường hợp TẠO MỚI LÔ HÀNG: Khởi tạo sẵn 1 dòng hóa đơn trống nối liền với mã lô mới
+            setModalInvoices([
+              {
+                invoice_no: '',
+                lot_no: lotForm.lot_no,
+                bill_no: lotForm.bill_no || '',
+                invoice_date: new Date().toISOString().substring(0, 10),
+                incoterm: 'CIF',
+                total_amount: 0,
+                foc_amount: 0,
+                plus_sea_freight: 0,
+                handling_charges: 0,
+                other_charges: 0,
+                other_charges_note: '',
+                is_hang_chung_bill: false,
+                loai_hinh: lotForm.loai_hinh,
+                loai_hinh_con: lotForm.loai_hinh_con,
+                supplier: 'CHANG YANG MATERIAL CORP.'
+              }
+            ]);
+          } else if (modalMode === 'edit') {
+            // Trường hợp SỬA LÔ HÀNG CŨ: Lấy toàn bộ các hóa đơn hiện tại của Lô này lên để sửa hoặc thêm bớt
+            const existingInvoices = invoices.filter(i => i.lot_no === selectedLotNo);
+            if (existingInvoices.length > 0) {
+              setModalInvoices(existingInvoices);
+            } else {
+              setModalInvoices([
+                {
+                  invoice_no: '',
+                  lot_no: selectedLotNo,
+                  bill_no: lots.find(l => l.lot_no === selectedLotNo)?.bill_no || '',
+                  invoice_date: new Date().toISOString().substring(0, 10),
+                  incoterm: 'CIF',
+                  total_amount: 0,
+                  foc_amount: 0,
+                  plus_sea_freight: 0,
+                  handling_charges: 0,
+                  other_charges: 0,
+                  other_charges_note: '',
+                  is_hang_chung_bill: false,
+                  loai_hinh: lots.find(l => l.lot_no === selectedLotNo)?.loai_hinh || 'A12',
+                  loai_hinh_con: lots.find(l => l.lot_no === selectedLotNo)?.loai_hinh_con || 'DEFAULT',
+                  supplier: lots.find(l => l.lot_no === selectedLotNo)?.supplier || 'CHANG YANG MATERIAL CORP.'
+                }
+              ]);
+            }
+          }
+        }
+      }, [showAddModal, modalTab, modalMode, selectedLotNo, invoices]);
+
+      // Thay đổi giá trị trường dữ liệu của một hóa đơn cụ thể trong danh sách
+      const handleModalInvoiceChange = (index, field, value) => {
+        const next = [...modalInvoices];
+        next[index] = { ...next[index], [field]: value };
+        setModalInvoices(next);
+      };
+
+      // Bấm nút "+ Thêm Invoice" để chèn thêm một form hóa đơn mới vào lô hàng này
+      const handleAddModalInvoiceRow = () => {
+        const currentLotNo = modalMode === 'add' ? lotForm.lot_no : selectedLotNo;
+        const currentLot = lots.find(l => l.lot_no === currentLotNo) || lotForm;
+        setModalInvoices([
+          ...modalInvoices,
+          {
+            invoice_no: '',
+            lot_no: currentLotNo,
+            bill_no: currentLot.bill_no || '',
+            invoice_date: new Date().toISOString().substring(0, 10),
+            incoterm: 'CIF',
+            total_amount: 0,
+            foc_amount: 0,
+            plus_sea_freight: 0,
+            handling_charges: 0,
+            other_charges: 0,
+            other_charges_note: '',
+            is_hang_chung_bill: false,
+            loai_hinh: currentLot.loai_hinh || 'A12',
+            loai_hinh_con: currentLot.loai_hinh_con || 'DEFAULT',
+            supplier: currentLot.supplier || 'CHANG YANG MATERIAL CORP.'
+          }
+        ]);
+      };
+
+      // Xóa bớt một dòng hóa đơn khỏi danh sách
+      const handleRemoveModalInvoiceRow = (index) => {
+        if (modalInvoices.length <= 1) {
+          showNotification("Phải giữ lại ít nhất một hóa đơn cho lô hàng!", "error");
+          return;
+        }
+        setModalInvoices(modalInvoices.filter((_, i) => i !== index));
+      };
+
+      // Hàm so sánh chéo thời gian thực (Real-time): Kiểm tra trùng số hóa đơn
+      const checkInvoiceDuplicate = (invNo, currentIndex) => {
+        if (!invNo || !invNo.trim()) return false;
+        const target = invNo.trim().toLowerCase();
+        
+        // 1. Kiểm tra xem có trùng với ô nhập liệu nào khác ngay trong Modal không
+        const duplicateInModal = modalInvoices.some((inv, i) => i !== currentIndex && inv.invoice_no && inv.invoice_no.trim().toLowerCase() === target);
+        if (duplicateInModal) return true;
+
+        // 2. Kiểm tra xem có trùng với hóa đơn của các lô hàng khác đã lưu trên hệ thống không
+        const currentLotNo = modalMode === 'add' ? lotForm.lot_no : selectedLotNo;
+        const duplicateInGlobal = invoices.some(i => i.lot_no !== currentLotNo && i.invoice_no && i.invoice_no.trim().toLowerCase() === target);
+        return duplicateInGlobal;
+      };
       const [selectedFactories, setSelectedFactories] = useState([]);
       const [notification, setNotification] = useState(null);
 
@@ -454,29 +566,57 @@
         }));
       };
 
+      // --- CẬP NHẬT LOGIC LƯU ĐA HOÁ ĐƠN AN TOÀN ---
       const handleSaveInvoice = (e) => {
         e.preventDefault();
-        if (!invoiceForm.invoice_no.trim()) return showNotification("Please enter Invoice Number!", "error");
-        let targetLotNo = invoiceForm.lot_no;
-
-        if (invoiceForm.is_hang_chung_bill && activeBillStatus.matches) {
-          targetLotNo = activeBillStatus.proposedLotNo;
-          if (activeBillStatus.status === 'SAME_BILL_DIFF_TYPE' && !activeBillStatus.existingNewLot) {
-            const baseLot = activeBillStatus.baseLot;
-            const newAutoLot = {
-              lot_no: activeBillStatus.proposedLotNo, stt: Number(activeBillStatus.stt), lot_date: invoiceForm.invoice_date || baseLot.lot_date,
-              get_docs_date: baseLot.get_docs_date || new Date().toISOString().substring(0, 10), factory_no: baseLot.factory_no, bill_no: invoiceForm.bill_no,
-              bill_date: baseLot.bill_date || '', pol: baseLot.pol || '', pod: baseLot.pod || '', bill_term: baseLot.bill_term || 'Freight Prepaid',
-              transport_type: baseLot.transport_type || 'SEA_CONT',
-              is_cont: baseLot.is_cont, cont_no: baseLot.cont_no || '', seal_no: baseLot.seal_no || '', cont_type: baseLot.cont_type || '40HC',
-              pkg_qty: 0, gw: 0, cbm: 0, eta: baseLot.eta || '', atc_date: '', origin_country: baseLot.origin_country || 'TAIWAN',
-              loai_hinh: invoiceForm.loai_hinh, loai_hinh_con: invoiceForm.loai_hinh_con, sale_qty: 0,
-              contract_start: '', contract_end: ''
-            };
-            saveLotsToStorage([newAutoLot, ...lots]);
-            showNotification(`Auto-split Lot generated: [${newAutoLot.lot_no}] (STT: ${newAutoLot.stt})`);
+        
+        // Kiểm tra hợp lệ dữ liệu và chống trùng lặp trước khi cho lưu
+        for (let i = 0; i < modalInvoices.length; i++) {
+          const inv = modalInvoices[i];
+          if (!inv.invoice_no || !inv.invoice_no.trim()) {
+            return showNotification(`Dòng số ${i + 1}: Số hóa đơn không được để trống!`, "error");
+          }
+          if (checkInvoiceDuplicate(inv.invoice_no, i)) {
+            return showNotification(`Số hóa đơn "${inv.invoice_no.trim()}" bị trùng lặp hệ thống hoặc trùng dòng khác! Vui lòng sửa lại.`, "error");
           }
         }
+
+        const currentLotNo = modalMode === 'add' ? lotForm.lot_no : selectedLotNo;
+
+        // Định dạng chuẩn dữ liệu số trước khi lưu
+        const processedInvoices = modalInvoices.map(inv => {
+          if (inv.supplier) addSupplierHistory(inv.supplier.trim());
+          return {
+            ...inv,
+            invoice_no: inv.invoice_no.trim(),
+            lot_no: currentLotNo,
+            total_amount: Number(inv.total_amount) || 0,
+            foc_amount: Number(inv.foc_amount) || 0,
+            plus_sea_freight: Number(inv.plus_sea_freight) || 0,
+            handling_charges: Number(inv.handling_charges) || 0,
+            other_charges: Number(inv.other_charges) || 0,
+          };
+        });
+
+        // Tiến hành xóa bỏ các hóa đơn cũ liên kết với lô này và chèn danh sách mới cập nhật vào Database
+        const cleanGlobalInvoices = invoices.filter(i => i.lot_no !== currentLotNo);
+        const updatedGlobalInvoices = [...processedInvoices, ...cleanGlobalInvoices];
+
+        saveInvoicesToStorage(updatedGlobalInvoices);
+        setSelectedLotNo(currentLotNo);
+
+        if (processedInvoices.length > 0) {
+          setSelectedInvoiceNo(processedInvoices[0].invoice_no);
+          setGoodsForm(prev => ({ ...prev, invoice_no: processedInvoices[0].invoice_no, goods_no: '', goods_name_en: '', goods_name_local: '', hs_code: '', sale_amount: 0 }));
+        }
+
+        if (modalMode === 'add') {
+          setModalTab('goods'); // Tạo mới lô hàng sẽ chuyển tiếp sang Tab nhập chi tiết sản phẩm
+        } else {
+          setShowAddModal(false); // Chỉnh sửa thông tin lô hàng cũ sẽ đóng Modal luôn
+        }
+        showNotification(`Đã cập nhật thành công ${processedInvoices.length} Hóa đơn cho lô hàng ${currentLotNo}`);
+      };
 
         const finalInvoice = {
           ...invoiceForm, invoice_no: invoiceForm.invoice_no.trim(), lot_no: targetLotNo,
@@ -1506,92 +1646,197 @@
                     </form>
                   )}
 
-                  {modalTab === 'invoice' && (
-                    <form id="invoiceForm" onSubmit={handleSaveInvoice} className="space-y-5">
-                      <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${invoiceForm.is_hang_chung_bill ? 'bg-amber-950/30 border-amber-700' : 'bg-slate-950/40 border-slate-800'}`}>
-                        <div><p className="text-xs font-bold text-white">🔗 Shared B/L</p><p className="text-[11px] text-slate-400 mt-0.5">Enable if this invoice shares a Bill No with another lot of different customs type. System auto-splits it.</p></div>
-                        <button type="button" onClick={() => setInvoiceForm(prev => ({...prev, is_hang_chung_bill: !prev.is_hang_chung_bill}))} className={`relative w-12 h-6 rounded-full transition-all ${invoiceForm.is_hang_chung_bill ? 'bg-amber-500' : 'bg-slate-700'}`}><span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${invoiceForm.is_hang_chung_bill ? 'left-7' : 'left-1'}`}></span></button>
+                 {modalTab === 'invoice' && (
+            <form onSubmit={handleSaveInvoice} class="space-y-4 overflow-y-auto max-h-[65vh] pr-2">
+              <div class="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700">
+                <div>
+                  <span class="text-xs text-slate-400 block font-medium">ĐANG LIÊN KẾT VỚI LÔ HÀNG</span>
+                  <span class="text-sm font-mono font-bold text-sky-400">{modalMode === 'add' ? lotForm.lot_no : selectedLotNo}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddModalInvoiceRow}
+                  class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2 px-4 rounded transition duration-150 flex items-center gap-1 shadow"
+                >
+                  ➕ Thêm Invoice Mới
+                </button>
+              </div>
+
+              {modalInvoices.map((inv, index) => {
+                const isDup = checkInvoiceDuplicate(inv.invoice_no, index);
+                return (
+                  <div key={index} class={`p-4 rounded-xl bg-slate-900 border ${isDup ? 'border-red-500 bg-red-950/20' : 'border-slate-800'} relative space-y-3 transition-all shadow-md`}>
+                    
+                    {/* Header nhỏ của mỗi thẻ hóa đơn */}
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                      <div class="flex items-center gap-2">
+                        <span class="bg-slate-800 text-slate-300 font-mono text-xs px-2 py-0.5 rounded font-bold"># {index + 1}</span>
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Thông tin Hóa Đơn</h4>
                       </div>
-
-                      {invoiceForm.is_hang_chung_bill && invoiceForm.bill_no && activeBillStatus.matches && <div className={`p-3 rounded-lg text-[11px] border ${activeBillStatus.status === 'SAME_BILL_SAME_TYPE' ? 'bg-emerald-950/40 border-emerald-700 text-emerald-300' : 'bg-amber-950/40 border-amber-700 text-amber-300'}`}>⚡ {activeBillStatus.message}</div>}
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Customs Type *</label>
-                          <select value={invoiceForm.loai_hinh} onChange={(e) => setInvoiceForm({...invoiceForm, loai_hinh: e.target.value, loai_hinh_con: 'DEFAULT'})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200"><option value="A12">A12 (Business)</option><option value="E21">E21 (Processing)</option></select>
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Sub Type</label>
-                          <select value={invoiceForm.loai_hinh_con} onChange={(e) => setInvoiceForm({...invoiceForm, loai_hinh_con: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200">
-                            {invoiceForm.loai_hinh === 'A12' ? <><option value="DEFAULT">KD - Business</option><option value="H11">H11 - Non-commercial</option><option value="DT">DT - Investment</option></> : <><option value="DEFAULT">E21 - Default</option><option value="CHUYEN_TIEP">Transferred</option></>}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Supplier</label>
-                          <input type="text" list="supplier-history-list" value={invoiceForm.supplier} onChange={(e) => setInvoiceForm({...invoiceForm, supplier: e.target.value})} placeholder="Type or select..." className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
-                          <datalist id="supplier-history-list">{supplierHistory.map((s, i) => <option key={i} value={s} />)}</datalist>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Linked Lot No *</label>
-                          <input type="text" required list="lot-suggestions" value={invoiceForm.lot_no} onChange={(e) => setInvoiceForm({...invoiceForm, lot_no: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-amber-400 font-bold font-mono" placeholder="Type for recent lots..." />
-                          <datalist id="lot-suggestions">{[...lots].sort((a,b) => b.stt - a.stt).slice(0, 20).map(l => <option key={l.lot_no} value={l.lot_no}>{l.lot_no} - {l.bill_no || 'No Bill'} ({l.lot_date})</option>)}</datalist>
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Invoice Number *</label>
-                          <input type="text" required value={invoiceForm.invoice_no} onChange={(e) => setInvoiceForm({...invoiceForm, invoice_no: e.target.value})} disabled={modalMode === 'edit'} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono disabled:opacity-50" />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Invoice Date *</label>
-                          <input type="date" required value={invoiceForm.invoice_date} onChange={handleInvoiceDateChange} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Incoterm</label>
-                          <select value={invoiceForm.incoterm} onChange={(e) => setInvoiceForm({...invoiceForm, incoterm: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white">
-                            <optgroup label="Group E - EXW"><option value="EXW">EXW - Ex Works</option></optgroup>
-                            <optgroup label="Group F - Free..."><option value="FCA">FCA - Free Carrier</option><option value="FOB">FOB - Free on Board</option><option value="FAS">FAS - Free Alongside Ship</option></optgroup>
-                            <optgroup label="Group C - Cost..."><option value="CIF">CIF - Cost, Insurance & Freight</option><option value="CFR">CFR / C&F - Cost & Freight</option><option value="CIP">CIP - Carriage & Insurance Paid</option><option value="CPT">CPT - Carriage Paid To</option></optgroup>
-                            <optgroup label="Group D - Delivered..."><option value="DAP">DAP - Delivered at Place</option><option value="DAT">DAT - Delivered at Terminal</option><option value="DDP">DDP - Delivered Duty Paid</option></optgroup>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Related Bill No <span className="ml-1 text-slate-600 normal-case font-normal">— find from existing</span></label>
-                          <input type="text" list="bill-no-suggestions" value={invoiceForm.bill_no} onChange={(e) => setInvoiceForm({...invoiceForm, bill_no: e.target.value.toUpperCase()})} placeholder="Type to search bill..." className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono" />
-                          <datalist id="bill-no-suggestions">{[...new Set(lots.filter(l => l.bill_no).map(l => l.bill_no))].map((b, i) => <option key={i} value={b}>{b} — {lots.filter(l => l.bill_no === b).map(l => l.lot_no).join(', ')}</option>)}</datalist>
-                        </div>
-                      </div>
-
-                      {invoiceForm.loai_hinh === 'A12' && (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div><label className="block text-[11px] text-amber-400 mb-1">📋 Contract Start Date</label><input type="date" value={invoiceForm.contract_start} readOnly className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white opacity-70" /></div>
-                          <div><label className="block text-[11px] text-amber-400 mb-1">📋 Contract End Date</label><input type="date" value={invoiceForm.contract_end} readOnly className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white opacity-70" /></div>
-                        </div>
+                      {modalInvoices.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveModalInvoiceRow(index)}
+                          class="text-red-400 hover:text-red-300 text-xs font-medium bg-red-500/10 hover:bg-red-500/20 px-2 py-1 rounded transition"
+                        >
+                          🗑️ Xóa dòng này
+                        </button>
                       )}
+                    </div>
 
-                      <div className="bg-slate-950/30 p-4 border border-slate-800 rounded-xl space-y-4">
-                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">💰 Value & Charges Declaration</h5>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                          <div><label className="block text-[11px] text-slate-300 mb-1">Goods Value (USD) *</label><input type="number" step="0.01" required value={invoiceForm.total_amount || ''} onChange={(e) => setInvoiceForm({...invoiceForm, total_amount: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-amber-400 font-bold font-mono" /></div>
-                          <div><label className="block text-[11px] text-slate-300 mb-1">FOC Amount (Discount)</label><input type="number" step="0.01" value={invoiceForm.foc_amount || ''} onChange={(e) => setInvoiceForm({...invoiceForm, foc_amount: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-rose-400" /></div>
-                          <div><label className="block text-[11px] text-slate-300 mb-1">+ Sea/Air Freight</label><input type="number" step="0.01" value={invoiceForm.plus_sea_freight || ''} onChange={(e) => setInvoiceForm({...invoiceForm, plus_sea_freight: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-sky-400" /></div>
-                          <div><label className="block text-[11px] text-slate-300 mb-1">+ Handling Charge</label><input type="number" step="0.01" value={invoiceForm.handling_charges || ''} onChange={(e) => setInvoiceForm({...invoiceForm, handling_charges: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-sky-400" /></div>
-                          <div><label className="block text-[11px] text-slate-300 mb-1">+ Other Charges</label><input type="number" step="0.01" value={invoiceForm.other_charges || ''} onChange={(e) => setInvoiceForm({...invoiceForm, other_charges: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-sky-400" /></div>
-                          <div><label className="block text-[11px] text-slate-300 mb-1">Other Charge Note</label><input type="text" value={invoiceForm.other_charges_note || ''} onChange={(e) => setInvoiceForm({...invoiceForm, other_charges_note: e.target.value})} placeholder="Storage, surcharge..." className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-slate-300" /></div>
-                        </div>
-                        <div className="flex justify-end">
-                          <div className="text-right">
-                            <p className="text-[10px] text-slate-500 uppercase">Customs Declared Value</p>
-                            <p className="text-base font-black text-amber-400 font-mono">${((invoiceForm.total_amount||0) - (invoiceForm.foc_amount||0) + (invoiceForm.plus_sea_freight||0) + (invoiceForm.handling_charges||0) + (invoiceForm.other_charges||0)).toFixed(2)}</p>
-                          </div>
-                        </div>
+                    {/* Dòng 1: Số hóa đơn & Ngày hóa đơn & Nhà cung ứng */}
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Số Hóa Đơn (Invoice No) <span class="text-red-400">*</span></label>
+                        <input
+                          type="text"
+                          value={inv.invoice_no}
+                          onChange={(e) => handleModalInvoiceChange(index, 'invoice_no', e.target.value)}
+                          class={`w-full bg-slate-950 border text-slate-100 rounded p-2 text-sm font-mono focus:outline-none focus:ring-1 ${isDup ? 'border-red-500 focus:ring-red-500' : 'border-slate-700 focus:ring-blue-500'}`}
+                          placeholder="Nhập mã hóa đơn..."
+                        />
+                        {isDup && <p class="text-red-400 text-[11px] mt-1 font-medium">⚠️ Lỗi: Số hóa đơn đã tồn tại hoặc trùng lắp chéo!</p>}
                       </div>
-                    </form>
-                  )}
+                      <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Ngày Hóa Đơn</label>
+                        <input
+                          type="date"
+                          value={inv.invoice_date}
+                          onChange={(e) => handleModalInvoiceChange(index, 'invoice_date', e.target.value)}
+                          class="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Nhà Cung Ứng (Supplier)</label>
+                        <input
+                          type="text"
+                          value={inv.supplier}
+                          onChange={(e) => handleModalInvoiceChange(index, 'supplier', e.target.value)}
+                          class="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          list="modal_suppliers"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Dòng 2: Incoterm & Các loại giá trị tiền tệ */}
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Incoterm</label>
+                        <select
+                          value={inv.incoterm}
+                          onChange={(e) => handleModalInvoiceChange(index, 'incoterm', e.target.value)}
+                          class="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="CIF">CIF</option>
+                          <option value="FOB">FOB</option>
+                          <option value="EXW">EXW</option>
+                          <option value="CFR">CFR</option>
+                          <option value="DDU">DDU</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Tổng Trị Giá (USD)</label>
+                        <input
+                          type="number" step="any"
+                          value={inv.total_amount || ''}
+                          onChange={(e) => handleModalInvoiceChange(index, 'total_amount', e.target.value)}
+                          class="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Trị Giá FOC (USD)</label>
+                        <input
+                          type="number" step="any"
+                          value={inv.foc_amount || ''}
+                          onChange={(e) => handleModalInvoiceChange(index, 'foc_amount', e.target.value)}
+                          class="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Cước Biển Cộng (+)</label>
+                        <input
+                          type="number" step="any"
+                          value={inv.plus_sea_freight || ''}
+                          onChange={(e) => handleModalInvoiceChange(index, 'plus_sea_freight', e.target.value)}
+                          class="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Dòng 3: Chi phí handling & Loại hình */}
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Phí Handling (USD)</label>
+                        <input
+                          type="number" step="any"
+                          value={inv.handling_charges || ''}
+                          onChange={(e) => handleModalInvoiceChange(index, 'handling_charges', e.target.value)}
+                          class="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Phí Khác (USD)</label>
+                        <input
+                          type="number" step="any"
+                          value={inv.other_charges || ''}
+                          onChange={(e) => handleModalInvoiceChange(index, 'other_charges', e.target.value)}
+                          class="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Ghi Chú Phí Khác</label>
+                        <input
+                          type="text"
+                          value={inv.other_charges_note || ''}
+                          onChange={(e) => handleModalInvoiceChange(index, 'other_charges_note', e.target.value)}
+                          class="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="Lý do chi phí..."
+                        />
+                      </div>
+                      <div class="flex items-center mt-5 pl-2">
+                        <label class="inline-flex items-center cursor-pointer select-none text-xs text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={inv.is_hang_chung_bill}
+                            onChange={(e) => handleModalInvoiceChange(index, 'is_hang_chung_bill', e.target.checked)}
+                            class="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0 mr-2 w-4 h-4"
+                          />
+                          Hàng Chung Số Bill
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Hàng nút bấm dưới cùng Form */}
+              <div class="flex justify-end gap-2 border-t border-slate-800 pt-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-2 px-4 rounded text-sm transition"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-5 rounded text-sm transition shadow"
+                >
+                  {modalMode === 'add' ? 'Tiếp tục (Nhập sản phẩm) ➡️' : '💾 Lưu cập nhật dữ liệu'}
+                </button>
+              </div>
+
+              {/* Dữ liệu gợi ý nhà cung cấp nội bộ */}
+              <datalist id="modal_suppliers">
+                {supplierHistory.map((s, idx) => <option key={idx} value={s} />)}
+              </datalist>
+            </form>
+          )}
 
                   {modalTab === 'goods' && (
                     <div className="space-y-6">
