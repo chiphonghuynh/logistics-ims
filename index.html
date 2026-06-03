@@ -189,11 +189,11 @@
     ];
 
     const SAMPLE_INVOICES = [
-      { invoice_no: "1362-26020001", lot_no: "CH1KD-26", bill_no: "MBL-CY-77281", invoice_date: "2026-02-11", incoterm: "CIF", total_amount: 396.84, foc_amount: 50.00, plus_sea_freight: 120.00, handling_charges: 45.00, other_charges: 10.00, is_hang_chung_bill: false, loai_hinh: "A12", loai_hinh_con: "DEFAULT", contract_start: "2026-02-01", contract_end: "2026-07-31" }
+      { invoice_no: "1362-26020001", lot_no: "CH1KD-26", bill_no: "MBL-CY-77281", invoice_date: "2026-02-11", incoterm: "CIF", total_amount: 396.84, foc_amount: 50.00, plus_sea_freight: 120.00, handling_charges: 45.00, other_charges: 10.00, is_hang_chung_bill: false, loai_hinh: "A12", loai_hinh_con: "DEFAULT" }
     ];
 
     const SAMPLE_GOODS = [
-      { id: "g1", invoice_no: "1362-26020001", goods_no: "BANGDIEUKHIEN*1", goods_item: 1, goods_name_en: "Temperature Controller RKC CB500", goods_unit_en: "PCS", goods_unit_en2: "", goods_name_local: "Bảng điều khiển nhiệt độ của máy nước nóng", goods_unit_local: "Cái", goods_unit_local2: "", hs_code: "85371019", invoice_description: "TS02 PC Board for dehumidifier", sale_amount: 396.84, qty1: 1, qty2: 0, price: 396.84, customs_name: "Bảng điều khiển nhiệt độ của máy nước nóng / Temperature Controller RKC CB500" }
+      { id: "g1", invoice_no: "1362-26020001", goods_no: "BANGDIEUKHIEN*1", goods_item: 1, goods_name_en: "Control Board TS02 Board 13*12*4.5cm", goods_unit_en: "PCS", goods_unit_en2: "BOXES", goods_name_local: "Bảng điều khiển sử dụng cho máy hút ẩm quy cách 13*12*4.5cm / TS02 P C BOARD, HÀNG MỚI 100%", goods_unit_local: "Cái", goods_unit_local2: "Hộp", hs_code: "85371019", invoice_description: "TS02 PC Board for dehumidifier", sale_amount: 396.84 }
     ];
 
     const FACTORY_OPTIONS = ["18A", "B0SZ", "B0M1", "B0M2"];
@@ -220,7 +220,6 @@
       const [showApiSetup, setShowApiSetup] = useState(!localStorage.getItem('cy_api_url'));
 
       const isConnected = !!apiUrl;
-     
 
       // Helper: lưu state + đẩy lên Sheets (hoặc chỉ cache nếu chưa kết nối)
       const persist = async (sheet, data, stateSetter) => {
@@ -307,6 +306,28 @@
       const [selectedLotNo, setSelectedLotNo] = useState(null);
       const [selectedInvoiceNo, setSelectedInvoiceNo] = useState(null);
 
+      // Auto-select first invoice when lot is selected
+      useEffect(() => {
+        if (selectedLotNo && !selectedInvoiceNo) {
+          const firstInv = invoices.find(inv => inv.lot_no === selectedLotNo);
+          if (firstInv) setSelectedInvoiceNo(firstInv.invoice_no);
+        }
+      }, [selectedLotNo, invoices]);
+
+      // Auto-calculate contract dates
+      const calculateContractDates = (invoiceDate) => {
+        if (!invoiceDate) return { contract_start: '', contract_end: '' };
+        const invDate = new Date(invoiceDate);
+        const start = new Date(invDate);
+        start.setDate(start.getDate() - 10);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 180);
+        return {
+          contract_start: start.toISOString().substring(0, 10),
+          contract_end: end.toISOString().substring(0, 10)
+        };
+      };
+
       // Advanced Filters
       const [filterFromDate, setFilterFromDate] = useState('');
       const [filterToDate, setFilterToDate] = useState('');
@@ -326,9 +347,6 @@
       const [modalMode, setModalMode] = useState('add'); // 'add' | 'edit'
       const [modalTab, setModalTab] = useState('lot'); // 'lot' | 'invoice' | 'goods'
       const [showMasterInvoiceModal, setShowMasterInvoiceModal] = useState(false);
-
-      // Quản lý xác nhận thay đổi tên khai báo hải quan thủ công
-      const [customsNameConfirmState, setCustomsNameConfirmState] = useState({ isOpen: false, proposedName: '', backupForm: null });
 
       // Quản lý Modal thêm mới/chỉnh sửa sản phẩm gốc (Từ điển)
       const [showDictModal, setShowDictModal] = useState(false);
@@ -375,10 +393,11 @@
         lot_no: '', stt: 1, lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10),
         factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid',
         carrier: '', // Hãng tàu / FWD
-        transport_type: 'SEA_CONT', // AIR | EXPRESS | SEA_CONT | SEA_CFS | BONDED | TRUCK
+        transport_type: 'SEA_CONT', // AIR | EXPRESS | SEA_CONT | SEA_CFS
         is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC',
         pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '',
-        origin_country: 'TAIWAN', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', sale_qty: 0
+        origin_country: 'TAIWAN', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', sale_qty: 0,
+        contract_start: '', contract_end: ''
       });
 
       const [invoiceForm, setInvoiceForm] = useState({
@@ -392,8 +411,7 @@
 
       const [goodsForm, setGoodsForm] = useState({
         invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '',
-        goods_name_local: '', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '',
-        qty1: 1, unit1: 'Cái', qty2: 0, unit2: '', price: 0, customs_name: ''
+        goods_name_local: '', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0
       });
 
       const [selectedFactories, setSelectedFactories] = useState([]);
@@ -512,7 +530,8 @@
               transport_type: baseLot.transport_type || 'SEA_CONT',
               is_cont: baseLot.is_cont, cont_no: baseLot.cont_no || '', seal_no: baseLot.seal_no || '', cont_type: baseLot.cont_type || '40HC',
               pkg_qty: 0, gw: 0, cbm: 0, eta: baseLot.eta || '', atc_date: '', origin_country: baseLot.origin_country || 'TAIWAN',
-              loai_hinh: invoiceForm.loai_hinh, loai_hinh_con: invoiceForm.loai_hinh_con, sale_qty: 0
+              loai_hinh: invoiceForm.loai_hinh, loai_hinh_con: invoiceForm.loai_hinh_con, sale_qty: 0,
+              contract_start: '', contract_end: ''
             };
             saveLotsToStorage([newAutoLot, ...lots]);
             showNotification(`Tách Lô mới tự động: [${newAutoLot.lot_no}] chung STT: ${newAutoLot.stt}`);
@@ -524,6 +543,12 @@
           total_amount: Number(invoiceForm.total_amount) || 0, foc_amount: Number(invoiceForm.foc_amount) || 0,
           plus_sea_freight: Number(invoiceForm.plus_sea_freight) || 0, handling_charges: Number(invoiceForm.handling_charges) || 0, other_charges: Number(invoiceForm.other_charges) || 0,
         };
+        // Auto-calculate contract dates for A12 if not set
+        if (finalInvoice.loai_hinh === 'A12' && (!finalInvoice.contract_start || !finalInvoice.contract_end)) {
+          const { contract_start, contract_end } = calculateContractDates(finalInvoice.invoice_date);
+          finalInvoice.contract_start = contract_start;
+          finalInvoice.contract_end = contract_end;
+        }
         if (finalInvoice.supplier) addSupplierHistory(finalInvoice.supplier.trim());
 
         let newInvoices = [];
@@ -532,20 +557,7 @@
             return showNotification("Số hóa đơn này đã tồn tại!", "error");
           }
           newInvoices = [finalInvoice, ...invoices];
-          setGoodsForm(prev => ({ 
-            ...prev, 
-            invoice_no: finalInvoice.invoice_no, 
-            goods_no: '', 
-            goods_name_en: '', 
-            goods_name_local: '', 
-            hs_code: '', 
-            qty1: 1, 
-            unit1: 'Cái', 
-            qty2: 0, 
-            unit2: '', 
-            price: 0, 
-            customs_name: '' 
-          }));
+          setGoodsForm(prev => ({ ...prev, invoice_no: finalInvoice.invoice_no, goods_no: '', goods_name_en: '', goods_name_local: '', hs_code: '', sale_amount: 0 }));
           setModalTab('goods');
         } else {
           newInvoices = invoices.map(i => i.invoice_no === finalInvoice.invoice_no ? finalInvoice : i);
@@ -557,11 +569,13 @@
         showNotification(`Đã lưu Hóa đơn ${finalInvoice.invoice_no}`);
       };
 
-      // Hàm lưu mặt hàng chi tiết sau khi đã qua bước xác nhận
-      const saveGoodsItemDirectly = (itemToSave) => {
-        const isEditing = modalMode === 'edit' && itemToSave.id;
-        const goodsId = isEditing ? itemToSave.id : "goods_" + Date.now();
-        const finalGoods = { ...itemToSave, id: goodsId };
+      const handleSaveGoods = (e) => {
+        e.preventDefault();
+        if (!goodsForm.goods_no.trim() || !goodsForm.goods_name_en.trim()) return showNotification("Vui lòng điền đủ thông tin!", "error");
+
+        const isEditing = modalMode === 'edit' && goodsForm.id;
+        const goodsId = isEditing ? goodsForm.id : "goods_" + Date.now();
+        const finalGoods = { ...goodsForm, id: goodsId, goods_no: goodsForm.goods_no.trim(), goods_item: Number(goodsForm.goods_item) || 1, sale_amount: Number(goodsForm.sale_amount) || 0 };
 
         let newGoods = [];
         if (isEditing) {
@@ -571,46 +585,11 @@
           newGoods = [...goods, finalGoods];
           setGoodsForm({
             invoice_no: finalGoods.invoice_no, goods_no: '', goods_item: finalGoods.goods_item + 1, goods_name_en: '',
-            goods_unit_en: 'PCS', goods_unit_en2: '', goods_name_local: 'Hàng hóa nhập khẩu mới', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '',
-            qty1: 1, unit1: 'Cái', qty2: 0, unit2: '', price: 0, customs_name: ''
+            goods_unit_en: 'PCS', goods_unit_en2: '', goods_name_local: 'Hàng hóa nhập khẩu mới', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0
           });
         }
         saveGoodsToStorage(newGoods);
         showNotification(`Đã lưu sản phẩm ${finalGoods.goods_no} thành công.`);
-      };
-
-      const handleSaveGoods = (e) => {
-        e.preventDefault();
-        if (!goodsForm.goods_no.trim() || !goodsForm.goods_name_en.trim()) return showNotification("Vui lòng điền đủ thông tin!", "error");
-
-        // Thành tiền tự động = đơn giá x số lượng 1
-        const computedAmount = (Number(goodsForm.qty1) || 0) * (Number(goodsForm.price) || 0);
-
-        // Tạo tên khai báo hải quan mặc định chuẩn nếu trống
-        const defaultCustomsName = `${goodsForm.goods_name_local} / ${goodsForm.goods_name_en}`;
-        const finalCustomsName = goodsForm.customs_name.trim() || defaultCustomsName;
-
-        const candidateGoods = { 
-          ...goodsForm, 
-          goods_no: goodsForm.goods_no.trim(), 
-          goods_item: Number(goodsForm.goods_item) || 1, 
-          qty1: Number(goodsForm.qty1) || 0,
-          qty2: Number(goodsForm.qty2) || 0,
-          price: Number(goodsForm.price) || 0,
-          customs_name: finalCustomsName,
-          sale_amount: computedAmount 
-        };
-
-        // Hỏi xác nhận nếu người dùng đổi tên khai báo hải quan khác với công thức mặc định (Yêu cầu 3)
-        if (finalCustomsName !== defaultCustomsName) {
-          setCustomsNameConfirmState({
-            isOpen: true,
-            proposedName: finalCustomsName,
-            backupForm: candidateGoods
-          });
-        } else {
-          saveGoodsItemDirectly(candidateGoods);
-        }
       };
 
       const handleInlineAtcUpdate = (lotNo, dateString) => {
@@ -687,7 +666,7 @@
         });
       };
 
-      // --- CHỨC NĂNG IMPORT FILE EXCEL THÔNG MINH CHO TỪ ĐIỂN ---
+      // --- CHỨC NĂNG IMPORT FILE EXCEL THÔNG MINH (COLUMNS AUTO-MAPPING) ---
       const handleExcelImport = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -700,26 +679,61 @@
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             
+            // Đọc bảng tính thành mảng 2 chiều
             const rawJson = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
             if (rawJson.length < 2) {
               return showNotification("Tệp Excel trống rỗng hoặc không có dữ liệu!", "error");
             }
 
+            // Tiền xử lý dòng tiêu đề (loại bỏ dấu tiếng Việt, viết thường, loại bỏ khoảng trắng VÀ ký tự đặc biệt)
             const headers = rawJson[0].map(h => h
               ? h.toString().toLowerCase().trim()
-                  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                  .replace(/[^a-z0-9]/g, '')
+                  .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // bỏ dấu tiếng Việt
+                  .replace(/[^a-z0-9]/g, '')                        // bỏ tất cả ký tự không phải chữ/số (kể cả ngoặc, gạch ngang...)
               : '');
 
-            const idxGoodsNo = headers.findIndex(h => h.includes('mahang') || h.includes('goodsno') || h.includes('masanpham'));
-            const idxHsCode = headers.findIndex(h => h.includes('hscode') || h.includes('mahs'));
-            const idxNameEn = headers.findIndex(h => h.includes('tienganh') || h.includes('english') || h.includes('nameen'));
-            const idxNameLocal = headers.findIndex(h => h.includes('tiengviet') || h.includes('vietnamese') || h.includes('namevn'));
+            // Debug: log headers ra console để kiểm tra nếu cần
+            console.log('[Import] Headers sau normalize:', headers);
 
+            // Tìm kiếm chỉ số cột - ưu tiên keyword cụ thể hơn để tránh nhầm
+            // idxGoodsNo: Mã Hàng / Goods No / Item Code / Mã Sản Phẩm
+            const idxGoodsNo = headers.findIndex(h =>
+              h === 'mahang' || h === 'goodsno' || h === 'itemcode' || h === 'masanpham' ||
+              h.startsWith('mahang') || h.includes('goodsno') || h.includes('itemcode') || h.includes('masanpham')
+            );
+            // idxHsCode: HS Code / Mã HS — dùng keyword dài hơn để không nhầm
+            const idxHsCode = headers.findIndex(h =>
+              h === 'hscode' || h === 'mahs' || h === 'hs' ||
+              h.includes('hscode') || h.includes('mahs') || h.startsWith('hscode')
+            );
+            // idxNameEn: Tên Tiếng Anh / English Name / Description
+            const idxNameEn = headers.findIndex(h =>
+              h.includes('tientienganh') || h.includes('tentienganh') || h.includes('tienganh') ||
+              h.includes('english') || h.includes('nameen') || h.includes('tenhangen') ||
+              h.includes('descen') || (h.includes('ten') && h.includes('anh'))
+            );
+            // idxNameLocal: Tên Tiếng Việt / Vietnamese Name
+            const idxNameLocal = headers.findIndex(h =>
+              h.includes('tientingviet') || h.includes('tentingviet') || h.includes('tiengviet') ||
+              h.includes('vietnamese') || h.includes('namevn') || h.includes('tenhangviet') ||
+              h.includes('mota') || (h.includes('ten') && h.includes('viet'))
+            );
+
+            // Nếu không tìm được, thử fallback theo vị trí cột (A=0, B=1, C=2, D=3)
             const finalGoodsNo  = idxGoodsNo  !== -1 ? idxGoodsNo  : 0;
             const finalHsCode   = idxHsCode   !== -1 ? idxHsCode   : 1;
             const finalNameEn   = idxNameEn   !== -1 ? idxNameEn   : 2;
             const finalNameLocal= idxNameLocal !== -1 ? idxNameLocal: 3;
+
+            // Chỉ báo lỗi nếu cả tự động lẫn fallback đều không có dữ liệu
+            const missingCols = [];
+            if (idxGoodsNo === -1)  missingCols.push('Mã Hàng (cột A)');
+            if (idxHsCode === -1)   missingCols.push('HS Code (cột B)');
+            if (idxNameEn === -1)   missingCols.push('Tên Tiếng Anh (cột C)');
+            if (missingCols.length === 3) {
+              // Hoàn toàn không nhận diện được → báo lỗi kèm hướng dẫn
+              return showNotification(`Không nhận diện được cột! Hệ thống đang dùng vị trí cột mặc định A/B/C/D. Vui lòng đảm bảo header dòng 1 không bị trống.`, "error");
+            }
 
             const importedItems = [];
             for (let i = 1; i < rawJson.length; i++) {
@@ -741,21 +755,28 @@
             }
 
             const targetDict = dbSelectedTab === 'A12' ? dictA12 : dictE21;
+            
+            // Trộn dữ liệu: Ghi đè thông tin nếu trùng mã hàng, hoặc thêm mới
             let updatedDict = [...targetDict];
             importedItems.forEach(newItem => {
               const idx = updatedDict.findIndex(i => i.goods_no.toLowerCase() === newItem.goods_no.toLowerCase());
               if (idx !== -1) {
-                updatedDict[idx] = newItem;
+                updatedDict[idx] = newItem; // Đè dữ liệu mới
               } else {
-                updatedDict.push(newItem);
+                updatedDict.push(newItem); // Thêm dòng mới
               }
             });
 
             if (dbSelectedTab === 'A12') saveDictA12ToStorage(updatedDict); else saveDictE21ToStorage(updatedDict);
+            const detected = `Cột phát hiện: A=${finalGoodsNo}, B=${finalHsCode}, C=${finalNameEn}, D=${finalNameLocal}`;
             showNotification(`Import thành công! Đã cập nhật ${importedItems.length} mặt hàng vào Danh mục ${dbSelectedTab}.`);
           } catch (err) {
             console.error(err);
-            showNotification("Đọc Excel thất bại! Vui lòng kiểm tra lại cấu trúc file.", "error");
+            if (err.name === 'QuotaExceededError' || (err.message && err.message.toLowerCase().includes('quota'))) {
+              showNotification("Bộ nhớ cục bộ đã đầy! Hãy xóa bớt dữ liệu cũ hoặc dùng trình duyệt khác.", "error");
+            } else {
+              showNotification("Đọc Excel thất bại! Vui lòng kiểm tra lại cấu trúc file.", "error");
+            }
           }
         };
         reader.readAsArrayBuffer(file);
@@ -821,16 +842,10 @@
 
       const currentInvoices = invoices.filter(inv => inv.lot_no === selectedLotNo);
       const currentGoods = goods.filter(g => g.invoice_no === selectedInvoiceNo);
-      
-      // Tính toán danh sách toàn bộ hàng hoá thuộc toàn bộ hoá đơn trong lô (Yêu cầu 1)
-      const goodsOfSelectedLot = goods.filter(g => 
-        invoices.filter(inv => inv.lot_no === selectedLotNo).map(inv => inv.invoice_no).includes(g.invoice_no)
-      );
-
       const pendingAtcLots = lots.filter(lot => !lot.atc_date || lot.atc_date.trim() === '');
 
       const getInvoiceValueSum = (inv) => {
-        const base = goods.filter(g => g.invoice_no === inv.invoice_no).reduce((sum, item) => sum + (Number(item.sale_amount) || 0), 0);
+        const base = goods.filter(g => g.invoice_no === inv.invoice_no).reduce((sum, item) => sum + item.sale_amount, 0);
         return base + (Number(inv.plus_sea_freight) || 0) + (Number(inv.handling_charges) || 0) + (Number(inv.other_charges) || 0) - (Number(inv.foc_amount) || 0);
       };
 
@@ -855,6 +870,85 @@
         showNotification("Đã xuất báo cáo CSV thành công!");
       };
 
+      // Import Goods from Excel
+      const handleImportGoodsFromExcel = (e) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedInvoiceNo) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const bstr = event.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const rawJson = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+            if (!rawJson || rawJson.length === 0) {
+              return showNotification("File Excel rỗng hoặc không hợp lệ!", "error");
+            }
+
+            // Normalize headers
+            const headers = Object.keys(rawJson[0]).map(h =>
+              h.toString().toLowerCase().trim()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]/g, '')
+            );
+
+            // Find columns
+            const idxGoodsNo = headers.findIndex(h => h.includes('mahang') || h.includes('goodsno') || h.includes('code'));
+            const idxNameEn = headers.findIndex(h => h.includes('tienganh') || h.includes('english') || h.includes('name'));
+            const idxAmount = headers.findIndex(h => h.includes('trigia') || h.includes('amount') || h.includes('price'));
+            const idxNameLocal = headers.findIndex(h => h.includes('tiengviet') || h.includes('vietnamese') || h.includes('localname'));
+
+            if (idxGoodsNo === -1 || idxNameEn === -1 || idxAmount === -1) {
+              return showNotification("File phải có ít nhất 3 cột: Mã Hàng, Tên Tiếng Anh, Trị Giá!", "error");
+            }
+
+            // Import goods
+            const importedGoods = [];
+            const targetInvoice = invoices.find(i => i.invoice_no === selectedInvoiceNo);
+            const targetDict = targetInvoice?.loai_hinh === 'E21' ? dictE21 : dictA12;
+            let nextGoodsItem = (currentGoods.length || 0) + 1;
+
+            for (let i = 0; i < rawJson.length; i++) {
+              const row = rawJson[i];
+              const goodsNo = (row[Object.keys(rawJson[0])[idxGoodsNo]] || '').toString().trim();
+              const nameEn = (row[Object.keys(rawJson[0])[idxNameEn]] || '').toString().trim();
+              const amount = Number(row[Object.keys(rawJson[0])[idxAmount]]) || 0;
+              const nameLocal = idxNameLocal !== -1 ? (row[Object.keys(rawJson[0])[idxNameLocal]] || '').toString().trim() : '';
+
+              if (!goodsNo || !nameEn || amount <= 0) continue;
+
+              // Auto-lookup in dictionary
+              const dictItem = targetDict.find(d => d.goods_no.toLowerCase() === goodsNo.toLowerCase() || d.goods_name_en.toLowerCase() === nameEn.toLowerCase());
+
+              importedGoods.push({
+                id: "goods_" + Date.now() + "_" + i,
+                invoice_no: selectedInvoiceNo,
+                goods_item: nextGoodsItem++,
+                goods_no: dictItem?.goods_no || goodsNo,
+                goods_name_en: nameEn,
+                goods_name_local: nameLocal || dictItem?.goods_name_local || '',
+                hs_code: dictItem?.hs_code || '',
+                sale_amount: amount
+              });
+            }
+
+            if (importedGoods.length === 0) {
+              return showNotification("Không import được dòng hàng nào. Kiểm tra định dạng file!", "error");
+            }
+
+            const newGoods = [...goods, ...importedGoods];
+            saveGoodsToStorage(newGoods);
+            showNotification(`✅ Đã import ${importedGoods.length} mặt hàng thành công!`);
+          } catch (err) {
+            console.error(err);
+            showNotification("Lỗi đọc file Excel! " + (err.message || ""), "error");
+          }
+        };
+        reader.readAsBinaryString(file);
+      };
+
       // Đối chiếu danh mục tự động
       const handleEnglishNameAutoLookup = (engName, associatedInvoiceNo) => {
         if (!engName) return;
@@ -864,35 +958,36 @@
         const matched = dict.find(item => item.goods_name_en.toLowerCase() === engName.toLowerCase());
 
         if (matched) {
-          const defaultCustomsName = `${matched.goods_name_local} / ${matched.goods_name_en}`;
           setGoodsForm(prev => ({
-            ...prev,
-            goods_name_en: engName,
-            goods_no: matched.goods_no,
-            goods_name_local: matched.goods_name_local,
-            hs_code: matched.hs_code,
-            goods_unit_en: matched.goods_unit_en || 'PCS',
-            goods_unit_local: matched.goods_unit_local || 'Cái',
-            unit1: matched.goods_unit_local || 'Cái',
-            customs_name: defaultCustomsName
+            ...prev, goods_name_en: engName, goods_no: matched.goods_no, goods_name_local: matched.goods_name_local,
+            hs_code: matched.hs_code, goods_unit_en: matched.goods_unit_en || 'PCS', goods_unit_local: matched.goods_unit_local || 'Cái'
           }));
           showNotification(`Đồng bộ đối chiếu tự động mã: ${matched.goods_no}`);
         }
       };
 
-      // Lọc từ điển gốc để hiển thị
+      // Lọc từ điển gốc để hiển thị — chỉ trả dữ liệu khi có query
       const getFilteredDbDictionary = () => {
-        if (!dbSearchQuery.trim()) return [];
-        const dict = dbSelectedTab === 'E21' ? dictE21 : dictA12;
-        const q = dbSearchQuery.toLowerCase();
-        return dict.filter(item => {
-          const goodsNo = String(item?.goods_no || '').toLowerCase();
-          const hsCode = String(item?.hs_code || '').toLowerCase();
-          const nameLocal = String(item?.goods_name_local || '').toLowerCase();
-          const nameEn = String(item?.goods_name_en || '').toLowerCase();
-          return (goodsNo.includes(q) || hsCode.includes(q) || nameLocal.includes(q) || nameEn.includes(q));
-        });
-      };
+  if (!dbSearchQuery.trim()) return []; // ẩn khi chưa search
+
+  const dict = dbSelectedTab === 'E21' ? dictE21 : dictA12;
+  const q = dbSearchQuery.toLowerCase();
+
+  return dict.filter(item => {
+    // Ép tất cả các trường về chuỗi (String) một cách an toàn trước khi toLowerCase()
+    const goodsNo = String(item?.goods_no || '').toLowerCase();
+    const hsCode = String(item?.hs_code || '').toLowerCase();
+    const nameLocal = String(item?.goods_name_local || '').toLowerCase();
+    const nameEn = String(item?.goods_name_en || '').toLowerCase();
+
+    return (
+      goodsNo.includes(q) ||
+      hsCode.includes(q) ||
+      nameLocal.includes(q) ||
+      nameEn.includes(q)
+    );
+  });
+};
 
       const filteredDbDict = getFilteredDbDictionary();
       const dbTotalPages = Math.max(1, Math.ceil(filteredDbDict.length / DB_PAGE_SIZE));
@@ -901,6 +996,7 @@
       const handleDbTabChange = (tab) => { setDbSelectedTab(tab); setDbCurrentPage(1); setDbSearchQuery(''); setSelectedDictItems(new Set()); };
       const handleDbSearch = (q) => { setDbSearchQuery(q); setDbCurrentPage(1); setSelectedDictItems(new Set()); };
 
+      // Toggle chọn 1 dòng
       const toggleDictSelect = (goodsNo) => {
         setSelectedDictItems(prev => {
           const next = new Set(prev);
@@ -908,7 +1004,7 @@
           return next;
         });
       };
-      
+      // Chọn/bỏ tất cả dòng đang hiển thị
       const toggleSelectAll = () => {
         if (selectedDictItems.size === dbPagedDict.length && dbPagedDict.length > 0) {
           setSelectedDictItems(new Set());
@@ -916,7 +1012,7 @@
           setSelectedDictItems(new Set(dbPagedDict.map(i => i.goods_no)));
         }
       };
-
+      // Xóa hàng loạt các dòng đã chọn
       const handleBulkDelete = () => {
         if (selectedDictItems.size === 0) return;
         setConfirmState({
@@ -934,6 +1030,7 @@
         });
       };
 
+      // Màn hình chờ khởi tạo
       if (!dbReady) {
         return (
           <div className="flex h-screen bg-slate-950 items-center justify-center flex-col gap-4">
@@ -947,57 +1044,6 @@
 
       return (
         <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
-
-          {/* --- MODAL XÁC NHẬN SỬA TÊN KHAI BÁO HẢI QUAN (Yêu cầu 3) --- */}
-          {customsNameConfirmState.isOpen && (
-            <div className="fixed inset-0 z-[9999] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-                <div className="text-amber-400 text-2xl">⚠️</div>
-                <h3 className="text-sm font-black text-white uppercase">Xác Nhận Thay Đổi Tên Khai Báo Hải Quan</h3>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Bạn đang thay đổi thủ công <strong>Tên Khai Báo Hải Quan</strong> khác với định dạng chuẩn của hệ thống:
-                </p>
-                <div className="bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs space-y-2">
-                  <div>
-                    <span className="text-slate-500 block">Tên mặc định chuẩn:</span>
-                    <span className="font-mono text-slate-400">{customsNameConfirmState.backupForm ? `${customsNameConfirmState.backupForm.goods_name_local} / ${customsNameConfirmState.backupForm.goods_name_en}` : ''}</span>
-                  </div>
-                  <div className="border-t border-slate-900 pt-2">
-                    <span className="text-amber-400 block">Tên bạn chỉnh sửa thủ công:</span>
-                    <span className="font-mono text-amber-300 font-bold">{customsNameConfirmState.proposedName}</span>
-                  </div>
-                </div>
-                <p className="text-[11px] text-slate-500">Bạn có muốn tiếp tục lưu hàng hóa với tên khai báo tùy chỉnh này không?</p>
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={() => {
-                      // Hủy thay đổi, khôi phục tên mặc định chuẩn
-                      const correctedForm = {
-                        ...customsNameConfirmState.backupForm,
-                        customs_name: `${customsNameConfirmState.backupForm.goods_name_local} / ${customsNameConfirmState.backupForm.goods_name_en}`
-                      };
-                      setCustomsNameConfirmState({ isOpen: false, proposedName: '', backupForm: null });
-                      saveGoodsItemDirectly(correctedForm);
-                    }}
-                    className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold"
-                  >
-                    Khôi Phục Chuẩn
-                  </button>
-                  <button
-                    onClick={() => {
-                      // Đồng ý lưu với tên thủ công
-                      const targetForm = customsNameConfirmState.backupForm;
-                      setCustomsNameConfirmState({ isOpen: false, proposedName: '', backupForm: null });
-                      saveGoodsItemDirectly(targetForm);
-                    }}
-                    className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold"
-                  >
-                    Xác Nhận Thay Đổi
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* --- MODAL CẤU HÌNH GOOGLE SHEETS API --- */}
           {showApiSetup && (
@@ -1273,7 +1319,7 @@
               {/* --- DATABASE_VIEW WITH CRUD AND EXCEL IMPORT --- */}
               {activeMenu === 'DATABASE_VIEW' && (
                 <div className="space-y-4 max-w-6xl mx-auto">
-                  <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 shadow font-sans">
+                  <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 shadow">
 
                     {/* HEADER + NÚT THAO TÁC */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-4">
@@ -1439,18 +1485,18 @@
                 <div className="space-y-6">
                   
                   {/* BỘ LỌC TÌM KIẾM LÔ HÀNG */}
-                  <div className="no-print bg-slate-900 p-5 rounded-xl border border-slate-800 flex flex-wrap gap-4 items-end shadow-md">
+                  <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex flex-wrap gap-4 items-end shadow-md">
                     <div className="flex-1 min-w-[150px]">
                       <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Ngày</label>
-                      <input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} className="w-full bg-slate-950 border border-slate-855 rounded-lg px-3 py-2 text-xs text-white" />
+                      <input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" />
                     </div>
                     <div className="flex-1 min-w-[150px]">
                       <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Đến Ngày</label>
-                      <input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className="w-full bg-slate-950 border border-slate-855 rounded-lg px-3 py-2 text-xs text-white" />
+                      <input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" />
                     </div>
                     <div className="flex-1 min-w-[200px]">
                       <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Khóa Tra Cứu</label>
-                      <input type="text" placeholder="Tìm theo mã lô, số Bill..." value={filterLotNo} onChange={(e) => setFilterLotNo(e.target.value)} className="w-full bg-slate-950 border border-slate-855 rounded-lg px-3 py-2 text-xs text-white" />
+                      <input type="text" placeholder="Tìm theo mã lô, số Bill..." value={filterLotNo} onChange={(e) => setFilterLotNo(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" />
                     </div>
                     <div className="flex gap-2">
                       <button onClick={handleExportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Xuất Excel CSV</button>
@@ -1496,7 +1542,7 @@
                                 <td className="p-3 text-center">{lot.is_cont ? `${lot.cont_no} (${lot.cont_type})` : 'LCL'}</td>
                                 <td className="p-3 text-right font-mono">{Number(lot.pkg_qty).toLocaleString()}</td>
                                 <td className="p-3 text-right font-mono text-amber-300 font-bold">${lotVal.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                <td className="p-3 text-center space-x-2" onClick={e => e.stopPropagation()}>
+                                <td className="p-3 text-center space-x-2">
                                   <button onClick={(e) => startEditLot(lot, e)} className="text-blue-400 hover:underline">Sửa</button>
                                   <button onClick={(e) => triggerDeleteLotConfirm(lot.lot_no, e)} className="text-rose-500 hover:underline">Xóa</button>
                                 </td>
@@ -1522,8 +1568,8 @@
                               <th className="p-3 w-12 text-center">Chọn</th>
                               <th className="p-3">Số Hóa Đơn</th>
                               <th className="p-3">Ngày HĐ</th>
-                              <th className="p-3">Hợp đồng (Bắt đầu ➔ Kết thúc) (Yêu cầu 1)</th>
-                              <th className="p-3 text-right">Tổng Tiền HĐ</th>
+                              <th className="p-3">Incoterm</th>
+                              <th className="p-3 text-right">Tổng Tiền Thực Thu</th>
                               <th className="p-3 text-center">Thao tác</th>
                             </tr>
                           </thead>
@@ -1532,12 +1578,10 @@
                               <tr key={inv.invoice_no} onClick={() => setSelectedInvoiceNo(inv.invoice_no)} className={`cursor-pointer ${selectedInvoiceNo === inv.invoice_no ? 'bg-indigo-950/20 text-white border-l-2 border-indigo-500' : 'hover:bg-slate-850/30'}`}>
                                 <td className="p-3 text-center"><input type="radio" checked={selectedInvoiceNo === inv.invoice_no} readOnly className="accent-indigo-500" /></td>
                                 <td className="p-3 font-bold font-mono text-indigo-400">{inv.invoice_no}</td>
-                                <td className="p-3 font-mono">{inv.invoice_date}</td>
-                                <td className="p-3 text-slate-400 font-mono text-[10px]">
-                                  {inv.contract_start ? `${inv.contract_start} ➔ ${inv.contract_end}` : 'Chưa thiết lập'}
-                                </td>
+                                <td className="p-3">{inv.invoice_date}</td>
+                                <td className="p-3 font-bold text-pink-500">{inv.incoterm}</td>
                                 <td className="p-3 text-right text-amber-400 font-bold font-mono">${getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                <td className="p-3 text-center space-x-2" onClick={e => e.stopPropagation()}>
+                                <td className="p-3 text-center space-x-2">
                                   <button onClick={(e) => startEditInvoice(inv, e)} className="text-blue-400 hover:underline">Sửa</button>
                                   <button onClick={(e) => triggerDeleteInvoiceConfirm(inv.invoice_no, e)} className="text-rose-500 hover:underline">Xóa</button>
                                 </td>
@@ -1551,63 +1595,48 @@
                       </div>
                     </div>
 
-                    {/* Bảng Mặt Hàng Chi Tiết Theo Hoá Đơn */}
+                    {/* Bảng Mặt Hàng Chi Tiết */}
                     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col">
                       <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
-                        <h3 className="font-bold text-xs tracking-wide uppercase">📦 Hàng Hoá Theo HĐ: {selectedInvoiceNo || 'N/A'}</h3>
-                        {selectedInvoiceNo && (
-                          <div className="flex items-center gap-2">
-                            <label className="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded text-[10px] flex items-center gap-1">
-                              📥 Import Excel Hàng (Yêu cầu 4)
-                              <input type="file" accept=".xlsx, .xls" onChange={(e) => handleGoodsExcelImport(e, selectedInvoiceNo)} className="hidden" />
-                            </label>
-                          </div>
-                        )}
+                        <h3 className="font-bold text-xs tracking-wide uppercase">📦 Danh Sách Mặt Hàng (Mã HĐ: {selectedInvoiceNo || 'N/A'})</h3>
+                        <div className="flex gap-2 items-center">
+                          <button onClick={() => { if(!selectedInvoiceNo) return showNotification("Vui lòng chọn hóa đơn trước!", "error"); setModalMode('add'); setModalTab('goods'); setGoodsForm({invoice_no: selectedInvoiceNo, goods_no: '', goods_item: (currentGoods.length || 0) + 1, goods_name_en: '', goods_name_local: '', hs_code: '', goods_unit_en: 'PCS', goods_unit_local: 'Cái'}); setShowAddModal(true); }} disabled={!selectedInvoiceNo} className={`text-xs font-bold px-3 py-1.5 rounded ${selectedInvoiceNo ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>➕ Khai Lô Mặt Hàng</button>
+                          <label className={`text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 cursor-pointer ${selectedInvoiceNo ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>
+                            📥 Load Excel
+                            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImportGoodsFromExcel} disabled={!selectedInvoiceNo} className="hidden" />
+                          </label>
+                        </div>
                       </div>
                       <div className="overflow-x-auto flex-1">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="bg-slate-950 text-slate-400 border-b border-slate-855">
+                            <tr className="bg-slate-950 text-slate-400 border-b border-slate-850 text-[10px] uppercase tracking-wider">
                               <th className="p-3 text-center">STT</th>
-                              <th className="p-3">Mã hàng / HS Code</th>
-                              <th className="p-3">Tên Khai Báo Hải Quan (Yêu cầu 3)</th>
-                              <th className="p-3 text-right">SL 1 / ĐVT 1</th>
-                              <th className="p-3 text-right">SL 2 / ĐVT 2</th>
-                              <th className="p-3 text-right">Đơn giá (USD)</th>
-                              <th className="p-3 text-right">Thành Tiền (SL1 * ĐG)</th>
+                              <th className="p-3">Mã Hàng</th>
+                              <th className="p-3">HS Code</th>
+                              <th className="p-3">Tên Tiếng Anh</th>
+                              <th className="p-3 text-emerald-400">📋 Tên Khai Báo HQ</th>
+                              <th className="p-3 text-right">Trị Giá (USD)</th>
                               <th className="p-3 text-center">Thao tác</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-855">
-                            {currentGoods.map((g, index) => (
-                              <tr key={g.id} className="hover:bg-slate-850/30">
-                                <td className="p-3 text-center font-mono text-slate-500">{index + 1}</td>
-                                <td className="p-3 font-mono">
-                                  <div className="text-emerald-400 font-bold">{g.goods_no}</div>
-                                  <div className="text-slate-500 text-[10px]">{g.hs_code}</div>
-                                </td>
-                                <td className="p-3 font-medium text-slate-200">
-                                  {/* Hiển thị Tên Khai Báo Hải quan chuẩn chỉ */}
-                                  <div>{g.customs_name || `${g.goods_name_local} / ${g.goods_name_en}`}</div>
-                                </td>
-                                <td className="p-3 text-right font-mono">
-                                  <div className="font-bold text-slate-200">{(g.qty1 ?? 1).toLocaleString()}</div>
-                                  <div className="text-[10px] text-slate-500">{g.goods_unit_local || 'Cái'}</div>
-                                </td>
-                                <td className="p-3 text-right font-mono">
-                                  <div className="text-slate-400">{(g.qty2 ?? 0) > 0 ? (g.qty2).toLocaleString() : '-'}</div>
-                                  <div className="text-[10px] text-slate-500">{(g.qty2 ?? 0) > 0 ? (g.goods_unit_local2 || '') : ''}</div>
-                                </td>
-                                <td className="p-3 text-right font-mono text-slate-300">${(g.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                <td className="p-3 text-right text-amber-400 font-bold font-mono">${(g.sale_amount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                <td className="p-3 text-center space-x-2" onClick={e => e.stopPropagation()}>
-                                  <button onClick={(e) => startEditGoods(g, e)} className="text-blue-400 hover:underline">✏️</button>
-                                  <button onClick={(e) => triggerDeleteGoodsConfirm(g.id, e)} className="text-rose-500 hover:underline">🗑️</button>
+                            {currentGoods.map((g) => (
+                              <tr key={g.id} className="hover:bg-slate-850/30 text-slate-300">
+                                <td className="p-3 text-center font-mono text-slate-500">{g.goods_item}</td>
+                                <td className="p-3 font-mono text-emerald-400 font-bold">{g.goods_no}</td>
+                                <td className="p-3 font-mono text-slate-400 text-xs">{g.hs_code}</td>
+                                <td className="p-3 font-medium text-slate-100">{g.goods_name_en}</td>
+                                <td className="p-3 text-cyan-300 font-mono text-xs">{[g.goods_name_local, g.goods_name_en].filter(Boolean).join(' / ')}</td>
+                                <td className="p-3 text-right text-amber-400 font-bold">${g.sale_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                <td className="p-3 text-center space-x-1">
+                                  <button onClick={(e) => startEditGoods(g, e)} className="text-blue-400 hover:underline text-xs">Sửa</button>
+                                  <button onClick={(e) => triggerDeleteGoodsConfirm(g.id, e)} className="text-rose-500 hover:underline text-xs">Xóa</button>
                                 </td>
                               </tr>
                             ))}
                             {selectedInvoiceNo && currentGoods.length === 0 && (
-                              <tr><td colSpan="8" className="p-6 text-center text-slate-500 italic">Hóa đơn chưa có sản phẩm. Hãy tải file Excel hoặc gõ tìm kiếm để tạo dòng hàng mới.</td></tr>
+                              <tr><td colSpan="7" className="p-8 text-center text-slate-500 italic">Hóa đơn chưa có sản phẩm. Sử dụng nút <strong>"📥 Load Excel"</strong> để nhập danh sách hàng, hoặc click <strong>"➕ Khai Lô Mặt Hàng"</strong> để thêm từng sản phẩm.</td></tr>
                             )}
                           </tbody>
                         </table>
@@ -1615,72 +1644,13 @@
                     </div>
                   </div>
 
-                  {/* BẢNG TỔNG HỢP TOÀN BỘ MẶT HÀNG CỦA LÔ HÀNG (Yêu cầu 1 & Yêu cầu 3) */}
-                  {selectedLotNo && (
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col">
-                      <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
-                        <h3 className="font-bold text-xs tracking-wide uppercase text-amber-400">
-                          📦 Tổng Hợp Toàn Bộ Mặt Hàng Trong Lô: {selectedLotNo} ({goodsOfSelectedLot.length} mặt hàng)
-                        </h3>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
-                          <thead>
-                            <tr className="bg-slate-950 text-slate-400 border-b border-slate-855">
-                              <th className="p-3 text-center w-12">STT</th>
-                              <th className="p-3 w-32">Số HĐ liên quan</th>
-                              <th className="p-3 w-40">Mã Hàng / Mã HS</th>
-                              <th className="p-3">Tên Khai Báo Hải Quan (Tên Việt / Tên Anh)</th>
-                              <th className="p-3 text-right w-24">SL 1 / ĐVT 1</th>
-                              <th className="p-3 text-right w-24">SL 2 / ĐVT 2</th>
-                              <th className="p-3 text-right w-28">Đơn Giá (USD)</th>
-                              <th className="p-3 text-right w-32">Thành Tiền (USD)</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-855">
-                            {goodsOfSelectedLot.map((g, idx) => (
-                              <tr key={g.id} className="hover:bg-slate-850/30">
-                                <td className="p-3 text-center font-mono text-slate-500">{idx + 1}</td>
-                                <td className="p-3 font-mono font-bold text-indigo-400">{g.invoice_no}</td>
-                                <td className="p-3 font-mono">
-                                  <div className="text-emerald-400 font-bold">{g.goods_no}</div>
-                                  <div className="text-slate-500 text-[10px]">{g.hs_code}</div>
-                                </td>
-                                <td className="p-3 text-slate-200">
-                                  <span>{g.customs_name || `${g.goods_name_local} / ${g.goods_name_en}`}</span>
-                                </td>
-                                <td className="p-3 text-right font-mono">
-                                  <div className="font-bold text-slate-300">{(g.qty1 ?? 1).toLocaleString()}</div>
-                                  <div className="text-[10px] text-slate-500">{g.goods_unit_local || 'Cái'}</div>
-                                </td>
-                                <td className="p-3 text-right font-mono">
-                                  <div className="text-slate-400">{(g.qty2 ?? 0) > 0 ? (g.qty2).toLocaleString() : '-'}</div>
-                                  <div className="text-[10px] text-slate-500">{(g.qty2 ?? 0) > 0 ? (g.goods_unit_local2 || '') : ''}</div>
-                                </td>
-                                <td className="p-3 text-right font-mono text-slate-400">${(g.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                <td className="p-3 text-right text-amber-300 font-bold font-mono">${(g.sale_amount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                              </tr>
-                            ))}
-                            {goodsOfSelectedLot.length === 0 && (
-                              <tr>
-                                <td colSpan="8" className="p-8 text-center text-slate-500 italic">
-                                  Chưa tìm thấy bất kỳ mặt hàng nào được liên kết với lô hàng này. Hãy thêm hàng hóa cho hóa đơn của lô hàng này!
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
                   {/* THANH ĐIỀU KHIỂN CHUNG DƯỚI CÙNG */}
                   <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center shadow-lg">
                     <span className="text-xs text-slate-400">
                       Đang chọn Lô hàng: <strong className="text-white font-mono">{selectedLotNo || 'Chưa có'}</strong>
                     </span>
                     <div className="flex gap-2">
-                      <button onClick={() => { setModalMode('add'); setModalTab('lot'); setLotForm({ lot_no: '', stt: getFirstVacantSeq(), lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', carrier: '', transport_type: 'SEA_CONT', is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC', pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '', origin_country: 'TAIWAN', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', sale_qty: 0 }); setSelectedFactories([]); setShowAddModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">➕ Khai Lô Hàng Mới</button>
+                      <button onClick={() => { setModalMode('add'); setModalTab('lot'); setLotForm({ lot_no: '', stt: getFirstVacantSeq(), lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', carrier: '', transport_type: 'SEA_CONT', is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC', pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '', origin_country: 'TAIWAN', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', sale_qty: 0, contract_start: '', contract_end: '' }); setSelectedFactories([]); setShowAddModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">➕ Khai Lô Hàng Mới</button>
                       <button onClick={() => { if(!selectedLotNo) return; setShowMasterInvoiceModal(true); }} disabled={!selectedLotNo} className={`px-4 py-2 rounded-lg text-xs font-bold ${selectedLotNo ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>Bảng Kê Hóa Đơn (Mẫu 02)</button>
                     </div>
                   </div>
@@ -1898,7 +1868,7 @@
                         </div>
                       </div>
 
-                      {/* ROW 5: Loại hàng vận chuyển (Cập nhật 6 Phương thức - Yêu cầu 2) */}
+                      {/* ROW 5: Loại hàng vận chuyển */}
                       <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 space-y-4">
                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">🚢 Phương thức vận chuyển</label>
                         <div className="flex gap-3 flex-wrap">
@@ -1907,8 +1877,6 @@
                             { val: 'EXPRESS', label: '📦 EXPRESS (DHL/FedEx)', color: 'purple' },
                             { val: 'SEA_CONT', label: '🚢 SEA – CONT', color: 'blue' },
                             { val: 'SEA_CFS', label: '⚓ SEA – CFS (LCL)', color: 'indigo' },
-                            { val: 'BONDED', label: '🏢 NGOẠI QUAN', color: 'teal' },
-                            { val: 'TRUCK', label: '🚛 BY TRUCK', color: 'orange' }
                           ].map(opt => (
                             <button type="button" key={opt.val}
                               onClick={() => setLotForm(prev => ({...prev, transport_type: opt.val, is_cont: opt.val === 'SEA_CONT'}))}
@@ -1941,7 +1909,7 @@
                           </div>
                         )}
 
-                        {/* AIR / EXPRESS / SEA_CFS / BONDED / TRUCK: Số kiện + GW + CBM */}
+                        {/* AIR / EXPRESS / SEA_CFS: Số kiện + GW + CBM (CBM ẩn với AIR/EXPRESS) */}
                         {lotForm.transport_type !== 'SEA_CONT' && (
                           <div className="grid grid-cols-3 gap-4 pt-2">
                             <div>
@@ -1952,15 +1920,36 @@
                               <label className="block text-[11px] text-slate-400 mb-1">Gross Weight (KG)</label>
                               <input type="number" step="0.01" value={lotForm.gw || ''} onChange={(e) => setLotForm({...lotForm, gw: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white" />
                             </div>
-                            <div>
-                              <label className="block text-[11px] text-slate-400 mb-1">CBM (m³)</label>
-                              <input type="number" step="0.001" value={lotForm.cbm || ''} onChange={(e) => setLotForm({...lotForm, cbm: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white" />
-                            </div>
+                            {lotForm.transport_type === 'SEA_CFS' && (
+                              <div>
+                                <label className="block text-[11px] text-slate-400 mb-1">CBM (m³)</label>
+                                <input type="number" step="0.001" value={lotForm.cbm || ''} onChange={(e) => setLotForm({...lotForm, cbm: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white" />
+                              </div>
+                            )}
+                            {(lotForm.transport_type === 'AIR' || lotForm.transport_type === 'EXPRESS') && (
+                              <div className="flex items-end pb-2">
+                                <p className="text-[10px] text-slate-600 italic">CBM không áp dụng với {lotForm.transport_type === 'AIR' ? 'hàng không' : 'Express'}</p>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
 
-                      {/* ROW 6: Mã Xưởng */}
+                      {/* ROW 6: Hợp đồng (chỉ A12) */}
+                      {lotForm.loai_hinh === 'A12' && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[11px] text-amber-400 mb-1">📋 Ngày bắt đầu hợp đồng (A12)</label>
+                            <input type="date" value={lotForm.contract_start} onChange={(e) => setLotForm({...lotForm, contract_start: e.target.value})} className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-amber-400 mb-1">📋 Ngày kết thúc hợp đồng (A12)</label>
+                            <input type="date" value={lotForm.contract_end} onChange={(e) => setLotForm({...lotForm, contract_end: e.target.value})} className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ROW 7: Mã Xưởng */}
                       <div className="bg-slate-950/40 p-4 border border-slate-800 rounded-xl space-y-3">
                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mã Xưởng Nhận Hàng *</label>
                         <div className="flex gap-3 flex-wrap">
@@ -2059,23 +2048,11 @@
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Ngày Hóa Đơn</label>
-                          <input type="date" value={invoiceForm.invoice_date} onChange={(e) => handleInvoiceDateChange(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          <input type="date" value={invoiceForm.invoice_date} onChange={(e) => setInvoiceForm({...invoiceForm, invoice_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
                         </div>
                       </div>
 
-                      {/* ROW 3: Ngày hợp đồng tự động hiển thị để sửa nếu cần (Yêu cầu 1 & Yêu cầu 2) */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-950/40 p-4 rounded-xl border border-slate-800">
-                        <div>
-                          <label className="block text-[11px] text-cyan-400 font-bold mb-1">📋 Ngày Bắt Đầu Hợp Đồng (Hóa đơn - 10 ngày)</label>
-                          <input type="date" value={invoiceForm.contract_start} onChange={(e) => setInvoiceForm({...invoiceForm, contract_start: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-emerald-400 font-bold mb-1">📋 Ngày Kết Thúc Hợp Đồng (Bắt đầu + 180 ngày)</label>
-                          <input type="date" value={invoiceForm.contract_end} onChange={(e) => setInvoiceForm({...invoiceForm, contract_end: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
-                        </div>
-                      </div>
-
-                      {/* ROW 4: Incoterm + Số Bill */}
+                      {/* ROW 3: Incoterm (full) + Số Bill */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Điều Khoản Incoterm</label>
@@ -2117,7 +2094,21 @@
                         </div>
                       </div>
 
-                      {/* ROW 5: Phí */}
+                      {/* Ngày hợp đồng nếu A12 */}
+                      {invoiceForm.loai_hinh === 'A12' && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[11px] text-amber-400 mb-1">📋 Ngày bắt đầu hợp đồng (A12)</label>
+                            <input type="date" value={invoiceForm.contract_start} onChange={(e) => setInvoiceForm({...invoiceForm, contract_start: e.target.value})} className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-amber-400 mb-1">📋 Ngày kết thúc hợp đồng (A12)</label>
+                            <input type="date" value={invoiceForm.contract_end} onChange={(e) => setInvoiceForm({...invoiceForm, contract_end: e.target.value})} className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ROW 4: Phí */}
                       <div className="bg-slate-950/30 p-4 border border-slate-800 rounded-xl space-y-4">
                         <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">💰 Khai Phí & Trị Giá Hóa Đơn</h5>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -2162,7 +2153,7 @@
                     </form>
                   )}
 
-                  {/* TAB 3: GOODS (Phần 3: Nhập Hàng Hóa Chi Tiết mới nâng cao - Yêu cầu 3 & Yêu cầu 4) */}
+                  {/* TAB 3: GOODS */}
                   {modalTab === 'goods' && (
                     <form onSubmit={handleSaveGoods} className="space-y-5">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2198,7 +2189,7 @@
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-3 gap-4">
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Mã Sản Phẩm (Tự động điền)</label>
                           <input type="text" readOnly value={goodsForm.goods_no} className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-xs text-amber-400 font-mono font-bold focus:outline-none" />
@@ -2208,60 +2199,27 @@
                           <input type="text" readOnly value={goodsForm.hs_code} className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-xs text-slate-400 font-mono focus:outline-none" />
                         </div>
                         <div>
-                          <label className="block text-[11px] text-slate-300 mb-1">Số lượng 1 *</label>
-                          <input type="number" step="any" required value={goodsForm.qty1 || ''} onChange={e => setGoodsForm({...goodsForm, qty1: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" placeholder="0" />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-300 mb-1">Đơn vị tính 1 *</label>
-                          <input type="text" required value={goodsForm.goods_unit_local || ''} onChange={e => setGoodsForm({...goodsForm, goods_unit_local: e.target.value, unit1: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" placeholder="VD: Cái, Kg" />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Số lượng 2 (Tùy chọn)</label>
-                          <input type="number" step="any" value={goodsForm.qty2 || ''} onChange={e => setGoodsForm({...goodsForm, qty2: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" placeholder="0" />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Đơn vị tính 2 (Tùy chọn)</label>
-                          <input type="text" value={goodsForm.goods_unit_local2 || ''} onChange={e => setGoodsForm({...goodsForm, goods_unit_local2: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" placeholder="VD: Hộp, Thùng" />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-300 mb-1">Đơn giá *</label>
-                          <input type="number" step="any" required value={goodsForm.price || ''} onChange={e => setGoodsForm({...goodsForm, price: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" placeholder="0.00" />
+                          <label className="block text-[11px] text-slate-300 mb-1">Trị Giá Khai Báo (USD) *</label>
+                          <input type="number" required value={goodsForm.sale_amount || ''} onChange={e => setGoodsForm({...goodsForm, sale_amount: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-amber-300 font-bold" />
                         </div>
                       </div>
 
                       <div>
                         <label className="block text-[11px] text-slate-400 mb-1">Tên Tiếng Việt Gốc (Chỉ đọc)</label>
-                        <textarea readOnly rows="1" value={goodsForm.goods_name_local} className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-xs text-slate-400 focus:outline-none" />
+                        <textarea readOnly rows="2" value={goodsForm.goods_name_local} className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-xs text-slate-400 focus:outline-none" />
                       </div>
 
-                      {/* Tên khai báo hải quan (Yêu cầu 3) */}
-                      <div>
-                        <label className="block text-[11px] text-emerald-400 mb-1 font-bold uppercase tracking-wider">📋 Tên Khai Báo Hải Quan (Tự động bắt hoặc Chỉnh sửa thủ công)</label>
-                        <input 
-                          type="text" 
-                          value={goodsForm.customs_name} 
-                          onChange={e => setGoodsForm({...goodsForm, customs_name: e.target.value})} 
-                          placeholder="Mặc định: Tên tiếng Việt / Tên tiếng Anh" 
-                          className="w-full bg-slate-950 border border-emerald-900/50 rounded px-3 py-2 text-xs text-emerald-300 font-mono focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-
-                      <div className="bg-slate-950/40 p-4 border border-slate-800 rounded-xl flex justify-between items-center">
+                      {/* Tên khai báo hải quan = tên tiếng Việt + "/" + tên tiếng Anh */}
+                      {(goodsForm.goods_name_local || goodsForm.goods_name_en) && (
                         <div>
-                          <span className="text-xs text-slate-500 block">Thành tiền tạm tính:</span>
-                          <span className="text-base font-black text-amber-400 font-mono">${((Number(goodsForm.qty1) || 0) * (Number(goodsForm.price) || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})} USD</span>
+                          <label className="block text-[11px] text-emerald-400 mb-1 font-bold uppercase tracking-wider">📋 Tên Khai Báo Hải Quan (Chỉ xem)</label>
+                          <div className="w-full bg-slate-950/60 border border-emerald-900/50 rounded px-3 py-2.5 text-xs text-emerald-300 font-mono leading-relaxed select-all">
+                            {[goodsForm.goods_name_local, goodsForm.goods_name_en].filter(Boolean).join(' / ')}
+                          </div>
                         </div>
-                      </div>
+                      )}
 
-                      {/* Chức năng Import Excel nhanh hàng hoá trực tiếp từ Modal (Yêu cầu 4) */}
-                      <div className="pt-4 border-t border-slate-800 flex justify-between items-center flex-wrap gap-2">
-                        <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded text-xs flex items-center gap-1.5 shadow">
-                          📥 Import Excel Hàng Hoá
-                          <input type="file" accept=".xlsx, .xls" onChange={(e) => { handleGoodsExcelImport(e, goodsForm.invoice_no); }} className="hidden" />
-                        </label>
+                      <div className="pt-4 border-t border-slate-800 flex justify-end">
                         <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg text-xs font-bold">➕ Ghi Nhận Mặt Hàng</button>
                       </div>
                     </form>
@@ -2299,13 +2257,12 @@
                     <p className="text-xs font-semibold mt-1">SỐ LÔ QUẢN LÝ: {selectedLotNo}</p>
                   </div>
 
-                  <table className="w-full text-left text-xs border-collapse border border-slate-400 mt-4 font-sans">
+                  <table className="w-full text-left text-xs border-collapse border border-slate-400 mt-4">
                     <thead>
-                      <tr className="bg-slate-100 border-b border-slate-400 font-bold">
+                      <tr className="bg-slate-150 border-b border-slate-400 font-bold">
                         <th className="p-2 border-r border-slate-400 text-center w-10">STT</th>
                         <th className="p-2 border-r border-slate-400">Số HĐ (Invoice No)</th>
                         <th className="p-2 border-r border-slate-400">Ngày HĐ</th>
-                        <th className="p-2 border-r border-slate-400">Hợp đồng (Bắt đầu ➔ Kết thúc)</th>
                         <th className="p-2 border-r border-slate-400 text-right">Trị Giá (USD)</th>
                       </tr>
                     </thead>
@@ -2314,15 +2271,12 @@
                         <tr key={inv.invoice_no} className="border-b border-slate-400">
                           <td className="p-2 border-r border-slate-400 text-center">{index + 1}</td>
                           <td className="p-2 border-r border-slate-400 font-mono font-bold">{inv.invoice_no}</td>
-                          <td className="p-2 border-r border-slate-400 font-mono">{inv.invoice_date}</td>
-                          <td className="p-2 border-r border-slate-400 font-mono text-[11px]">
-                            {inv.contract_start ? `${inv.contract_start} đến ${inv.contract_end}` : 'Chưa thiết lập'}
-                          </td>
+                          <td className="p-2 border-r border-slate-400">{inv.invoice_date}</td>
                           <td className="p-2 border-r border-slate-400 text-right font-mono">${getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                         </tr>
                       ))}
                       <tr className="bg-slate-100 font-bold text-xs">
-                        <td colSpan="4" className="p-2.5 border-r border-slate-400 uppercase text-center">TỔNG TRỊ GIÁ TRÊN BẢNG KÊ</td>
+                        <td colSpan="3" className="p-2.5 border-r border-slate-400 uppercase text-center">TỔNG TRỊ GIÁ TRÊN BẢNG KÊ</td>
                         <td className="p-2.5 text-right font-mono">${getSelectedLotTotalValue().toLocaleString(undefined, {minimumFractionDigits: 2})} USD</td>
                       </tr>
                     </tbody>
