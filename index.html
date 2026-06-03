@@ -306,28 +306,6 @@
       const [selectedLotNo, setSelectedLotNo] = useState(null);
       const [selectedInvoiceNo, setSelectedInvoiceNo] = useState(null);
 
-      // Auto-select first invoice when lot is selected
-      useEffect(() => {
-        if (selectedLotNo && !selectedInvoiceNo) {
-          const firstInv = invoices.find(inv => inv.lot_no === selectedLotNo);
-          if (firstInv) setSelectedInvoiceNo(firstInv.invoice_no);
-        }
-      }, [selectedLotNo, invoices]);
-
-      // Auto-calculate contract dates
-      const calculateContractDates = (invoiceDate) => {
-        if (!invoiceDate) return { contract_start: '', contract_end: '' };
-        const invDate = new Date(invoiceDate);
-        const start = new Date(invDate);
-        start.setDate(start.getDate() - 10);
-        const end = new Date(start);
-        end.setDate(end.getDate() + 180);
-        return {
-          contract_start: start.toISOString().substring(0, 10),
-          contract_end: end.toISOString().substring(0, 10)
-        };
-      };
-
       // Advanced Filters
       const [filterFromDate, setFilterFromDate] = useState('');
       const [filterToDate, setFilterToDate] = useState('');
@@ -411,8 +389,7 @@
 
       const [goodsForm, setGoodsForm] = useState({
         invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '',
-        goods_name_local: '', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '', 
-        origin_country: 'TAIWAN', qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, sale_amount: 0
+        goods_name_local: '', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0
       });
 
       const [selectedFactories, setSelectedFactories] = useState([]);
@@ -544,12 +521,6 @@
           total_amount: Number(invoiceForm.total_amount) || 0, foc_amount: Number(invoiceForm.foc_amount) || 0,
           plus_sea_freight: Number(invoiceForm.plus_sea_freight) || 0, handling_charges: Number(invoiceForm.handling_charges) || 0, other_charges: Number(invoiceForm.other_charges) || 0,
         };
-        // Auto-calculate contract dates for A12 if not set
-        if (finalInvoice.loai_hinh === 'A12' && (!finalInvoice.contract_start || !finalInvoice.contract_end)) {
-          const { contract_start, contract_end } = calculateContractDates(finalInvoice.invoice_date);
-          finalInvoice.contract_start = contract_start;
-          finalInvoice.contract_end = contract_end;
-        }
         if (finalInvoice.supplier) addSupplierHistory(finalInvoice.supplier.trim());
 
         let newInvoices = [];
@@ -869,103 +840,6 @@
         link.click();
         document.body.removeChild(link);
         showNotification("Đã xuất báo cáo CSV thành công!");
-      };
-
-      // Import Goods from Excel
-      const handleImportGoodsFromExcel = (e) => {
-        const file = e.target.files?.[0];
-        if (!file || !selectedInvoiceNo) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const bstr = event.target?.result;
-            const wb = XLSX.read(bstr, { type: 'binary' });
-            const wsname = wb.SheetNames[0];
-            const ws = wb.Sheets[wsname];
-            const rawJson = XLSX.utils.sheet_to_json(ws, { defval: '' });
-
-            if (!rawJson || rawJson.length === 0) {
-              return showNotification("File Excel rỗng hoặc không hợp lệ!", "error");
-            }
-
-            // Normalize headers
-            const headers = Object.keys(rawJson[0]).map(h =>
-              h.toString().toLowerCase().trim()
-                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                .replace(/[^a-z0-9]/g, '')
-            );
-
-            // Find columns
-            const idxGoodsNo = headers.findIndex(h => h.includes('mahang') || h.includes('invoiceno') || h.includes('goodsno'));
-            const idxNameEn = headers.findIndex(h => h.includes('tienganh') || h.includes('english') || h.includes('name'));
-            const idxAmount = headers.findIndex(h => h.includes('thanhtiengay') || h.includes('thanhtien') || h.includes('trigia') || h.includes('amount') || h.includes('price'));
-            const idxNameLocal = headers.findIndex(h => h.includes('tiengviet') || h.includes('vietnamese') || h.includes('localname'));
-            const idxOrigin = headers.findIndex(h => h.includes('xuatxu') || h.includes('origin'));
-            const idxQty1 = headers.findIndex(h => h.includes('soluong1') || h.includes('qty1') || h.includes('quantity1'));
-            const idxUnit1 = headers.findIndex(h => h.includes('donvitnh1') || h.includes('unit1'));
-            const idxQty2 = headers.findIndex(h => h.includes('soluong2') || h.includes('qty2'));
-            const idxUnit2 = headers.findIndex(h => h.includes('donvitnh2') || h.includes('unit2'));
-            const idxUnitPrice = headers.findIndex(h => h.includes('dongia') || h.includes('unitprice') || h.includes('price'));
-
-            if (idxGoodsNo === -1 || idxNameEn === -1 || idxAmount === -1) {
-              return showNotification("File phải có ít nhất 3 cột: Mã Hàng, Tên Tiếng Anh, Trị Giá!", "error");
-            }
-
-            // Import goods
-            const importedGoods = [];
-            const targetInvoice = invoices.find(i => i.invoice_no === selectedInvoiceNo);
-            const targetDict = targetInvoice?.loai_hinh === 'E21' ? dictE21 : dictA12;
-            let nextGoodsItem = (currentGoods.length || 0) + 1;
-
-            for (let i = 0; i < rawJson.length; i++) {
-              const row = rawJson[i];
-              const goodsNo = (row[Object.keys(rawJson[0])[idxGoodsNo]] || '').toString().trim();
-              const nameEn = (row[Object.keys(rawJson[0])[idxNameEn]] || '').toString().trim();
-              const amount = Number(row[Object.keys(rawJson[0])[idxAmount]]) || 0;
-              const nameLocal = idxNameLocal !== -1 ? (row[Object.keys(rawJson[0])[idxNameLocal]] || '').toString().trim() : '';
-              const origin = idxOrigin !== -1 ? (row[Object.keys(rawJson[0])[idxOrigin]] || 'TAIWAN').toString().trim() : 'TAIWAN';
-              const qty1 = idxQty1 !== -1 ? Number(row[Object.keys(rawJson[0])[idxQty1]]) || 0 : 0;
-              const unit1 = idxUnit1 !== -1 ? (row[Object.keys(rawJson[0])[idxUnit1]] || 'PCS').toString().trim() : 'PCS';
-              const qty2 = idxQty2 !== -1 ? Number(row[Object.keys(rawJson[0])[idxQty2]]) || 0 : 0;
-              const unit2 = idxUnit2 !== -1 ? (row[Object.keys(rawJson[0])[idxUnit2]] || '').toString().trim() : '';
-              const unitPrice = idxUnitPrice !== -1 ? Number(row[Object.keys(rawJson[0])[idxUnitPrice]]) || 0 : (amount && qty1 > 0 ? amount / qty1 : 0);
-
-              if (!goodsNo || !nameEn || amount <= 0) continue;
-
-              // Auto-lookup in dictionary
-              const dictItem = targetDict.find(d => d.goods_no.toLowerCase() === goodsNo.toLowerCase() || d.goods_name_en.toLowerCase() === nameEn.toLowerCase());
-
-              importedGoods.push({
-                id: "goods_" + Date.now() + "_" + i,
-                invoice_no: selectedInvoiceNo,
-                goods_item: nextGoodsItem++,
-                goods_no: dictItem?.goods_no || goodsNo,
-                goods_name_en: nameEn,
-                goods_name_local: nameLocal || dictItem?.goods_name_local || '',
-                hs_code: dictItem?.hs_code || '',
-                origin_country: origin,
-                qty1: qty1,
-                unit1: unit1,
-                qty2: qty2,
-                unit2: unit2,
-                unit_price: unitPrice,
-                sale_amount: amount
-              });
-            }
-
-            if (importedGoods.length === 0) {
-              return showNotification("Không import được dòng hàng nào. Kiểm tra định dạng file!", "error");
-            }
-
-            const newGoods = [...goods, ...importedGoods];
-            saveGoodsToStorage(newGoods);
-            showNotification(`✅ Đã import ${importedGoods.length} mặt hàng thành công!`);
-          } catch (err) {
-            console.error(err);
-            showNotification("Lỗi đọc file Excel! " + (err.message || ""), "error");
-          }
-        };
-        reader.readAsBinaryString(file);
       };
 
       // Đối chiếu danh mục tự động
@@ -1618,56 +1492,35 @@
                     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col">
                       <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
                         <h3 className="font-bold text-xs tracking-wide uppercase">📦 Danh Sách Mặt Hàng (Mã HĐ: {selectedInvoiceNo || 'N/A'})</h3>
-                        <div className="flex gap-2 items-center">
-                          <button onClick={() => { if(!selectedInvoiceNo) return showNotification("Vui lòng chọn hóa đơn trước!", "error"); setModalMode('add'); setModalTab('goods'); setGoodsForm({invoice_no: selectedInvoiceNo, goods_no: '', goods_item: (currentGoods.length || 0) + 1, goods_name_en: '', goods_name_local: '', hs_code: '', goods_unit_en: 'PCS', goods_unit_local: 'Cái'}); setShowAddModal(true); }} disabled={!selectedInvoiceNo} className={`text-xs font-bold px-3 py-1.5 rounded ${selectedInvoiceNo ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>➕ Khai Lô Mặt Hàng</button>
-                          <label className={`text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 cursor-pointer ${selectedInvoiceNo ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>
-                            📥 Load Excel
-                            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImportGoodsFromExcel} disabled={!selectedInvoiceNo} className="hidden" />
-                          </label>
-                        </div>
                       </div>
                       <div className="overflow-x-auto flex-1">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="bg-slate-950 text-slate-400 border-b border-slate-850 text-[9px] uppercase tracking-wider">
-                              <th className="p-2 text-center">STT</th>
-                              <th className="p-2">Mã Hàng</th>
-                              <th className="p-2">HS Code</th>
-                              <th className="p-2">Tên Tiếng Anh</th>
-                              <th className="p-2 text-emerald-400">📋 Tên Khai Báo</th>
-                              <th className="p-2">Xuất Xứ</th>
-                              <th className="p-2 text-center">SL 1</th>
-                              <th className="p-2">ĐVT 1</th>
-                              <th className="p-2 text-center">SL 2</th>
-                              <th className="p-2">ĐVT 2</th>
-                              <th className="p-2 text-right">Đơn Giá</th>
-                              <th className="p-2 text-right">Thành Tiền</th>
-                              <th className="p-2 text-center">Thao tác</th>
+                            <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
+                              <th className="p-3 text-center">STT</th>
+                              <th className="p-3">Mã Hàng</th>
+                              <th className="p-3">HS Code</th>
+                              <th className="p-3">Tên Tiếng Anh</th>
+                              <th className="p-3 text-right">Trị Giá</th>
+                              <th className="p-3 text-center">Thao tác</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-855 text-[10px]">
+                          <tbody className="divide-y divide-slate-855">
                             {currentGoods.map((g) => (
-                              <tr key={g.id} className="hover:bg-slate-850/30 text-slate-300">
-                                <td className="p-2 text-center font-mono text-slate-500">{g.goods_item}</td>
-                                <td className="p-2 font-mono text-emerald-400 font-bold">{g.goods_no}</td>
-                                <td className="p-2 font-mono text-slate-400">{g.hs_code}</td>
-                                <td className="p-2 font-medium text-slate-100">{g.goods_name_en}</td>
-                                <td className="p-2 text-cyan-300 font-mono">{[g.goods_name_local, g.goods_name_en].filter(Boolean).join(' / ')}</td>
-                                <td className="p-2 text-center">{g.origin_country || '-'}</td>
-                                <td className="p-2 text-center font-bold text-amber-400">{g.qty1 || '-'}</td>
-                                <td className="p-2 text-center text-slate-400">{g.unit1 || '-'}</td>
-                                <td className="p-2 text-center text-slate-400">{g.qty2 || '-'}</td>
-                                <td className="p-2 text-center text-slate-400">{g.unit2 || '-'}</td>
-                                <td className="p-2 text-right font-mono text-amber-400">${g.unit_price ? g.unit_price.toFixed(2) : '-'}</td>
-                                <td className="p-2 text-right font-mono font-bold text-emerald-400">${g.sale_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                <td className="p-2 text-center space-x-1">
-                                  <button onClick={(e) => startEditGoods(g, e)} className="text-blue-400 hover:underline text-xs">Sửa</button>
-                                  <button onClick={(e) => triggerDeleteGoodsConfirm(g.id, e)} className="text-rose-500 hover:underline text-xs">Xóa</button>
+                              <tr key={g.id} className="hover:bg-slate-850/30">
+                                <td className="p-3 text-center font-mono text-slate-500">{g.goods_item}</td>
+                                <td className="p-3 font-mono text-emerald-400 font-bold">{g.goods_no}</td>
+                                <td className="p-3 font-mono text-slate-400">{g.hs_code}</td>
+                                <td className="p-3 font-medium text-slate-200">{g.goods_name_en}</td>
+                                <td className="p-3 text-right text-amber-400 font-bold">${g.sale_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                <td className="p-3 text-center space-x-2">
+                                  <button onClick={(e) => startEditGoods(g, e)} className="text-blue-400 hover:underline">✏️</button>
+                                  <button onClick={(e) => triggerDeleteGoodsConfirm(g.id, e)} className="text-rose-500 hover:underline">🗑️</button>
                                 </td>
                               </tr>
                             ))}
                             {selectedInvoiceNo && currentGoods.length === 0 && (
-                              <tr><td colSpan="7" className="p-8 text-center text-slate-500 italic">Hóa đơn chưa có sản phẩm. Sử dụng nút <strong>"📥 Load Excel"</strong> để nhập danh sách hàng, hoặc click <strong>"➕ Khai Lô Mặt Hàng"</strong> để thêm từng sản phẩm.</td></tr>
+                              <tr><td colSpan="6" className="p-6 text-center text-slate-500 italic">Hóa đơn chưa có sản phẩm. Hãy chọn gõ tên tiếng Anh của mặt hàng ở nút "Sửa" hoặc "Khai Lô" để đồng bộ tự động.</td></tr>
                             )}
                           </tbody>
                         </table>
@@ -2230,57 +2083,9 @@
                           <input type="text" readOnly value={goodsForm.hs_code} className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-xs text-slate-400 font-mono focus:outline-none" />
                         </div>
                         <div>
-                          <label className="block text-[11px] text-slate-300 mb-1">Xuất Xứ</label>
-                          <input type="text" value={goodsForm.origin_country || ''} onChange={e => setGoodsForm({...goodsForm, origin_country: e.target.value})} placeholder="VD: TAIWAN, CHINA..." className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          <label className="block text-[11px] text-slate-300 mb-1">Trị Giá Khai Báo (USD) *</label>
+                          <input type="number" required value={goodsForm.sale_amount || ''} onChange={e => setGoodsForm({...goodsForm, sale_amount: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-amber-300 font-bold" />
                         </div>
-                      </div>
-
-                      {/* Số lượng và đơn vị */}
-                      <div className="bg-slate-950/40 p-4 border border-slate-800 rounded-xl space-y-3">
-                        <h4 className="text-[10px] font-bold text-slate-300 uppercase">📦 Số Lượng & Đơn Vị</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div>
-                            <label className="block text-[11px] text-slate-300 mb-1">Số Lượng 1 *</label>
-                            <input type="number" step="0.01" required value={goodsForm.qty1 || ''} onChange={e => setGoodsForm({...goodsForm, qty1: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-2 text-xs text-white font-bold" />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] text-slate-300 mb-1">Đơn Vị 1</label>
-                            <input type="text" value={goodsForm.unit1 || ''} onChange={e => setGoodsForm({...goodsForm, unit1: e.target.value})} placeholder="PCS, KGS..." className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-2 text-xs text-white" />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] text-slate-300 mb-1">Số Lượng 2 (Tùy chọn)</label>
-                            <input type="number" step="0.01" value={goodsForm.qty2 || ''} onChange={e => setGoodsForm({...goodsForm, qty2: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-2 text-xs text-white" />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] text-slate-300 mb-1">Đơn Vị 2</label>
-                            <input type="text" value={goodsForm.unit2 || ''} onChange={e => setGoodsForm({...goodsForm, unit2: e.target.value})} placeholder="BOXES..." className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-2 text-xs text-white" />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Đơn giá và thành tiền */}
-                      <div className="bg-blue-950/30 p-4 border border-blue-800 rounded-xl space-y-3">
-                        <h4 className="text-[10px] font-bold text-slate-300 uppercase">💰 Giá & Trị Giá</h4>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[11px] text-slate-300 mb-1">Đơn Giá (USD) *</label>
-                            <input type="number" step="0.01" required value={goodsForm.unit_price || ''} onChange={e => setGoodsForm({...goodsForm, unit_price: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-amber-400 font-bold" />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] text-slate-300 mb-1">Trị Giá Khai Báo (USD) *
-                              <span className="text-slate-600 text-[10px] normal-case ml-1">= Đơn Giá × Số Lượng 1</span>
-                            </label>
-                            <input type="number" step="0.01" required value={goodsForm.sale_amount || ''} onChange={e => setGoodsForm({...goodsForm, sale_amount: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-amber-300 font-bold" />
-                          </div>
-                        </div>
-                        {goodsForm.qty1 > 0 && goodsForm.unit_price > 0 && (
-                          <div className="flex justify-end pt-2 border-t border-slate-700">
-                            <div className="text-right">
-                              <p className="text-[10px] text-slate-500 uppercase">Gợi ý thành tiền</p>
-                              <p className="text-sm font-bold text-emerald-400">${(goodsForm.qty1 * goodsForm.unit_price).toFixed(2)}</p>
-                            </div>
-                          </div>
-                        )}
                       </div>
 
                       <div>
