@@ -2025,7 +2025,7 @@
                           <div className="text-right">
                             <p className="text-[10px] text-slate-500 uppercase">Tổng trị giá (khai báo HQ)</p>
                             <p className="text-base font-black text-amber-400 font-mono">
-                              ${((invoiceForm.total_amount||0) - (invoiceForm.foc_amount||0) + (invoiceForm.plus_sea_freight||0) + (invoiceForm.handling_charges||0) + (invoiceForm.other_charges||0)).toFixed(2)}
+                              {'$'}{((invoiceForm.total_amount||0) - (invoiceForm.foc_amount||0) + (invoiceForm.plus_sea_freight||0) + (invoiceForm.handling_charges||0) + (invoiceForm.other_charges||0)).toFixed(2)}
                             </p>
                           </div>
                         </div>
