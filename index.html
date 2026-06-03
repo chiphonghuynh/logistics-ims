@@ -641,7 +641,7 @@
         setSelectedLotNo(targetLotNo);
         setSelectedInvoiceNo(finalInvoice.invoice_no);
         showNotification(`Saved Invoice ${finalInvoice.invoice_no}`);
-      };
+      //};
 
       const handleSaveGoods = (e) => {
         e.preventDefault();
@@ -1013,7 +1013,7 @@
             showNotification(`Deleted ${selectedDictItems.size} items from ${dbSelectedTab}.`);
           }
         });
-     // };
+      };
 
       if (!dbReady) {
         return (
