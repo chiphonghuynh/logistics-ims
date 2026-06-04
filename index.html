@@ -1231,7 +1231,7 @@
                     </div>
                     <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
                       <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Trị giá hàng hóa đã nhập</p>
-                      <h3 className="text-xl font-black text-amber-400 font-mono mt-1">${totalImportValue.toLocaleString(undefined, {minimumFractionDigits: 2})}</h3>
+                      <h3 className="text-xl font-black text-amber-400 font-mono mt-1">{'$'}{totalImportValue.toLocaleString(undefined, {minimumFractionDigits: 2})}</h3>
                     </div>
                   </div>
                 </div>
@@ -1462,7 +1462,7 @@
                                 <td className="p-3">{lot.pol} ➔ {lot.pod}</td>
                                 <td className="p-3 text-center">{lot.is_cont ? `${lot.cont_no} (${lot.cont_type})` : 'LCL'}</td>
                                 <td className="p-3 text-right font-mono">{Number(lot.pkg_qty).toLocaleString()}</td>
-                                <td className="p-3 text-right font-mono text-amber-300 font-bold">${lotVal.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                <td className="p-3 text-right font-mono text-amber-300 font-bold">{'$'}{lotVal.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                                 <td className="p-3 text-center space-x-2">
                                   <button onClick={(e) => startEditLot(lot, e)} className="text-blue-400 hover:underline">Sửa</button>
                                   <button onClick={(e) => triggerDeleteLotConfirm(lot.lot_no, e)} className="text-rose-500 hover:underline">Xóa</button>
@@ -1501,7 +1501,7 @@
                                 <td className="p-3 font-bold font-mono text-indigo-400">{inv.invoice_no}</td>
                                 <td className="p-3">{inv.invoice_date}</td>
                                 <td className="p-3 font-bold text-pink-500">{inv.incoterm}</td>
-                                <td className="p-3 text-right text-amber-400 font-bold font-mono">${getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                <td className="p-3 text-right text-amber-400 font-bold font-mono">{'$'}{getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                                 <td className="p-3 text-center space-x-2">
                                   <button onClick={(e) => startEditInvoice(inv, e)} className="text-blue-400 hover:underline">Sửa</button>
                                   <button onClick={(e) => triggerDeleteInvoiceConfirm(inv.invoice_no, e)} className="text-rose-500 hover:underline">Xóa</button>
@@ -1540,7 +1540,7 @@
                                 <td className="p-3 font-mono text-emerald-400 font-bold text-[10px]">{(g.goods_no || '').split('*')[0].trim()}</td>
                                 <td className="p-3 font-mono text-slate-400">{g.hs_code}</td>
                                 <td className="p-3 font-medium text-slate-200">{g.goods_name_en}</td>
-                                <td className="p-3 text-right text-amber-400 font-bold">${Number(g.sale_amount||0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                <td className="p-3 text-right text-amber-400 font-bold">{'$'}{Number(g.sale_amount||0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                                 <td className="p-3 text-center space-x-2">
                                   <button onClick={(e) => startEditGoods(g, e)} className="text-blue-400 hover:underline">✏️</button>
                                   <button onClick={(e) => triggerDeleteGoodsConfirm(g.id, e)} className="text-rose-500 hover:underline">🗑️</button>
@@ -2044,7 +2044,7 @@
 
                   {/* TAB 3: GOODS */}
                   {modalTab === 'goods' && (
-                    <>
+                    <div>
                     <form onSubmit={handleSaveGoods} className="space-y-4">
 
                       {/* Invoice link + Excel batch */}
@@ -2276,7 +2276,7 @@
                                     <td className="px-3 py-2 text-right font-mono text-sky-400/70">{g.qty2 ? Number(g.qty2).toLocaleString() : '—'}</td>
                                     <td className="px-3 py-2 text-center text-slate-500">{g.unit2 || '—'}</td>
                                     <td className="px-3 py-2 text-right font-mono text-slate-400">{g.unit_price ? '$'+Number(g.unit_price).toFixed(4) : '—'}</td>
-                                    <td className="px-3 py-2 text-right font-mono text-amber-400 font-bold">${Number(g.sale_amount||0).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                                    <td className="px-3 py-2 text-right font-mono text-amber-400 font-bold">{'$'}{Number(g.sale_amount||0).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
                                     <td className="px-3 py-2 text-center">
                                       <button type="button" onClick={() => triggerDeleteGoodsConfirm(g.id, {stopPropagation:()=>{}})} className="text-rose-500 hover:text-rose-400 text-xs">🗑️</button>
                                     </td>
@@ -2297,7 +2297,7 @@
                         </div>
                       );
                     })()}
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -2347,12 +2347,12 @@
                           <td className="p-2 border-r border-slate-400 text-center">{index + 1}</td>
                           <td className="p-2 border-r border-slate-400 font-mono font-bold">{inv.invoice_no}</td>
                           <td className="p-2 border-r border-slate-400">{inv.invoice_date}</td>
-                          <td className="p-2 border-r border-slate-400 text-right font-mono">${getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                          <td className="p-2 border-r border-slate-400 text-right font-mono">{'$'}{getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                         </tr>
                       ))}
                       <tr className="bg-slate-100 font-bold text-xs">
                         <td colSpan="3" className="p-2.5 border-r border-slate-400 uppercase text-center">TỔNG TRỊ GIÁ TRÊN BẢNG KÊ</td>
-                        <td className="p-2.5 text-right font-mono">${getSelectedLotTotalValue().toLocaleString(undefined, {minimumFractionDigits: 2})} USD</td>
+                        <td className="p-2.5 text-right font-mono">{'$'}{getSelectedLotTotalValue().toLocaleString(undefined, {minimumFractionDigits: 2})} USD</td>
                       </tr>
                     </tbody>
                   </table>
