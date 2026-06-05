@@ -374,7 +374,7 @@
         transport_type: 'SEA_CONT', // AIR | EXPRESS | SEA_CONT | SEA_CFS
         is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC',
         pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '',
-        origin_country: 'TAIWAN', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', sale_qty: 0,
+        origin_country: 'TAIWAN', loai_hinh: 'NEUTRAL', loai_hinh_con: 'DEFAULT', sale_qty: 0,
         contract_start: '', contract_end: ''
       });
 
@@ -384,13 +384,15 @@
         incoterm: 'CIF', total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0,
         other_charges_note: '',
         is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT',
+        currency: 'USD',
         supplier: 'CHANG YANG MATERIAL CORP.',
         contract_start: '', contract_end: ''
       });
 
       const [goodsForm, setGoodsForm] = useState({
         invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '',
-        goods_name_local: '', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0
+        goods_name_local: '', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0,
+        origin_country: 'TAIWAN', qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: ''
       });
 
       const [selectedFactories, setSelectedFactories] = useState([]);
@@ -415,12 +417,23 @@
       // Hàm tự động phát sinh mã lô
       const generateLotNoString = (type, subType, sttNum) => {
         const yy = new Date().getFullYear().toString().slice(-2);
+        if (!type || type === 'NEUTRAL') return `CH${sttNum}-${yy}`;
         if (type === 'A12') {
           return subType === 'H11' ? `CH${sttNum}-${yy}PMD` : subType === 'DT' ? `CH${sttNum}DT-${yy}` : `CH${sttNum}KD-${yy}`;
         } else if (type === 'E21') {
           return subType === 'CHUYEN_TIEP' ? `CH${sttNum}-${yy}CT` : `CH${sttNum}-${yy}`;
         }
         return `CH${sttNum}-${yy}`;
+      };
+
+      // ── DISPLAY HELPERS ─────────────────────────────────────────────
+      const fmtDisplayDate = (d) => {
+        if (!d) return '—';
+        // Handle ISO timestamps like "2026-06-03T17:00:00.000Z"
+        const str = String(d);
+        const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+        return str;
       };
 
       const getUniqueSuppliers = () => Array.from(new Set(lots.map(l => l.supplier).filter(Boolean)));
@@ -432,7 +445,7 @@
       useEffect(() => {
         if (showAddModal && modalMode === 'add' && modalTab === 'lot') {
           const vacantStt = getFirstVacantSeq();
-          const calculatedLotNo = generateLotNoString(lotForm.loai_hinh, lotForm.loai_hinh_con, vacantStt);
+          const calculatedLotNo = generateLotNoString(lotForm.loai_hinh || 'NEUTRAL', lotForm.loai_hinh_con, vacantStt);
           setLotForm(prev => ({ ...prev, lot_no: calculatedLotNo, stt: vacantStt }));
         }
       }, [showAddModal, lotForm.loai_hinh, lotForm.loai_hinh_con, lots, modalMode, modalTab]);
@@ -442,30 +455,34 @@
       }, [selectedFactories]);
 
       // Phân tích Hàng Chung Bill
+      // ── SHARED BILL HELPER ───────────────────────────────────────────
+      // Logic mới: hàng chung bill chỉ cần link qua bill_no + is_hang_chung_bill=true
+      // Không cần cùng STT. Hệ thống tạo lô mới độc lập, chỉ hiển thị cảnh báo/gợi ý.
       const checkBillNoGroupingHelper = (typedBillNo, currentLoaiHinh, currentLoaiHinhCon, isHangChungBill) => {
         if (!typedBillNo || !isHangChungBill) return { matches: false, status: 'NORMAL' };
-        const matchingInvoices = invoices.filter(i => i.bill_no && String(i.bill_no).trim().toLowerCase() === String(typedBillNo).trim().toLowerCase());
+        const normBill = String(typedBillNo).trim().toLowerCase();
+        const matchingInvoices = invoices.filter(i => i.bill_no && String(i.bill_no).trim().toLowerCase() === normBill);
         if (matchingInvoices.length === 0) return { matches: false, status: 'NEW_BILL' };
-        
+
         const relatedLots = lots.filter(l => matchingInvoices.some(i => String(i.lot_no||'') === String(l.lot_no||'')));
         if (relatedLots.length === 0) return { matches: false, status: 'NEW_BILL' };
 
+        // Kiểm tra đã có lô cùng loại hình chưa → gộp vào đó
         const sameTypeLot = relatedLots.find(l => l.loai_hinh === currentLoaiHinh && l.loai_hinh_con === currentLoaiHinhCon);
         if (sameTypeLot) {
           return {
-            matches: true, status: 'SAME_BILL_SAME_TYPE', proposedLotNo: sameTypeLot.lot_no, stt: sameTypeLot.stt,
-            message: `Hàng chung Bill & Cùng loại hình với Lô [${sameTypeLot.lot_no}]. Hóa đơn này sẽ tự động ghép vào Lô hiện tại.`
-          };
-        } else {
-          const baseLot = relatedLots[0];
-          const sharedStt = baseLot.stt;
-          const computedLotNo = generateLotNoString(currentLoaiHinh, currentLoaiHinhCon, sharedStt);
-          const existingNewLot = lots.find(l => l.lot_no === computedLotNo);
-          return {
-            matches: true, status: 'SAME_BILL_DIFF_TYPE', proposedLotNo: computedLotNo, stt: sharedStt, existingNewLot: !!existingNewLot, baseLot,
-            message: `Trùng số Bill với Lô [${baseLot.lot_no}] nhưng KHÁC loại hình. Hệ thống sẽ tự tách thành Lô mới [${computedLotNo}] dùng chung Số Thứ Tự [STT: ${sharedStt}]!`
+            matches: true, status: 'SAME_BILL_SAME_TYPE',
+            proposedLotNo: sameTypeLot.lot_no, baseLot: sameTypeLot,
+            message: `✅ Cùng Bill & Cùng loại hình → Invoice sẽ ghép vào Lô [${sameTypeLot.lot_no}]`
           };
         }
+
+        // Khác loại hình → gợi ý tạo lô mới (STT tự do, user tự nhập lot_no)
+        const baseLot = relatedLots[0];
+        return {
+          matches: true, status: 'SAME_BILL_DIFF_TYPE', baseLot,
+          message: `⚡ Bill [${typedBillNo}] đã dùng cho Lô [${baseLot.lot_no}] (${baseLot.loai_hinh}). Invoice này KHÁC loại hình → sẽ tạo lô mới riêng, nhập Mã Lô bên dưới.`
+        };
       };
 
       const activeBillStatus = checkBillNoGroupingHelper(String(invoiceForm.bill_no||''), invoiceForm.loai_hinh, invoiceForm.loai_hinh_con, invoiceForm.is_hang_chung_bill);
@@ -500,22 +517,12 @@
         let targetLotNo = invoiceForm.lot_no;
 
         if (invoiceForm.is_hang_chung_bill && activeBillStatus.matches) {
-          targetLotNo = activeBillStatus.proposedLotNo;
-          if (activeBillStatus.status === 'SAME_BILL_DIFF_TYPE' && !activeBillStatus.existingNewLot) {
-            const baseLot = activeBillStatus.baseLot;
-            const newAutoLot = {
-              lot_no: activeBillStatus.proposedLotNo, stt: Number(activeBillStatus.stt), lot_date: invoiceForm.invoice_date || baseLot.lot_date,
-              get_docs_date: baseLot.get_docs_date || new Date().toISOString().substring(0, 10), factory_no: baseLot.factory_no, bill_no: invoiceForm.bill_no,
-              bill_date: baseLot.bill_date || '', pol: baseLot.pol || '', pod: baseLot.pod || '', bill_term: baseLot.bill_term || 'Freight Prepaid',
-              transport_type: baseLot.transport_type || 'SEA_CONT',
-              is_cont: baseLot.is_cont, cont_no: baseLot.cont_no || '', seal_no: baseLot.seal_no || '', cont_type: baseLot.cont_type || '40HC',
-              pkg_qty: Number(invoiceForm.inv_pkg_qty) || 0, gw: Number(invoiceForm.inv_gw) || 0, cbm: 0, eta: baseLot.eta || '', atc_date: '', origin_country: baseLot.origin_country || 'TAIWAN',
-              loai_hinh: invoiceForm.loai_hinh, loai_hinh_con: invoiceForm.loai_hinh_con, sale_qty: 0,
-              contract_start: '', contract_end: ''
-            };
-            saveLotsToStorage([newAutoLot, ...lots]);
-            showNotification(`Tách Lô mới tự động: [${newAutoLot.lot_no}] chung STT: ${newAutoLot.stt}`);
+          if (activeBillStatus.status === 'SAME_BILL_SAME_TYPE') {
+            // Gộp vào lô cùng loại hình hiện có
+            targetLotNo = activeBillStatus.proposedLotNo;
           }
+          // DIFF_TYPE: targetLotNo giữ nguyên invoiceForm.lot_no (user đã nhập)
+          // Invoice được đánh dấu is_hang_chung_bill=true để phân biệt
         }
 
         const finalInvoice = {
@@ -1455,9 +1462,9 @@
                                 <td className="p-3 font-mono font-bold text-amber-400">{lot.lot_no}</td>
                                 <td className="p-3 font-mono font-bold text-center">{lot.stt}</td>
                                 <td className="p-3">
-                                  {lot.atc_date ? <span className="bg-emerald-950 text-emerald-400 px-2 py-1 rounded font-mono font-bold">{lot.atc_date}</span> : <span className="bg-rose-950 text-rose-400 px-2 py-1 rounded font-mono font-bold">CHỜ NHẬP KHO</span>}
+                                  {lot.atc_date ? <span className="bg-emerald-950 text-emerald-400 px-2 py-1 rounded font-mono font-bold">{fmtDisplayDate(lot.atc_date)}</span> : <span className="bg-rose-950 text-rose-400 px-2 py-1 rounded font-mono font-bold">CHỜ NHẬP KHO</span>}
                                 </td>
-                                <td className="p-3 font-mono">{lot.lot_date}</td>
+                                <td className="p-3 font-mono">{fmtDisplayDate(lot.lot_date)}</td>
                                 <td className="p-3 font-bold text-slate-300">{lot.factory_no || '-'}</td>
                                 <td className="p-3 font-mono font-bold">{lot.bill_no || '-'}</td>
                                 <td className="p-3">{lot.pol} ➔ {lot.pod}</td>
@@ -1500,7 +1507,7 @@
                               <tr key={inv.invoice_no} onClick={() => setSelectedInvoiceNo(inv.invoice_no)} className={`cursor-pointer ${selectedInvoiceNo === inv.invoice_no ? 'bg-indigo-950/20 text-white border-l-2 border-indigo-500' : 'hover:bg-slate-850/30'}`}>
                                 <td className="p-3 text-center"><input type="radio" checked={selectedInvoiceNo === inv.invoice_no} readOnly className="accent-indigo-500" /></td>
                                 <td className="p-3 font-bold font-mono text-indigo-400">{inv.invoice_no}</td>
-                                <td className="p-3">{inv.invoice_date}</td>
+                                <td className="p-3">{fmtDisplayDate(inv.invoice_date)}</td>
                                 <td className="p-3 font-bold text-pink-500">{inv.incoterm}</td>
                                 <td className="p-3 text-right text-amber-400 font-bold font-mono">{'$'}{getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                                 <td className="p-3 text-center space-x-2">
@@ -1563,7 +1570,7 @@
                       Đang chọn Lô hàng: <strong className="text-white font-mono">{selectedLotNo || 'Chưa có'}</strong>
                     </span>
                     <div className="flex gap-2">
-                      <button onClick={() => { setModalMode('add'); setModalTab('lot'); setLotForm({ lot_no: '', stt: getFirstVacantSeq(), lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', carrier: '', transport_type: 'SEA_CONT', is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC', pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '', origin_country: 'TAIWAN', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', sale_qty: 0, contract_start: '', contract_end: '' }); setSelectedFactories([]); setShowAddModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">➕ Khai Lô Hàng Mới</button>
+                      <button onClick={() => { setModalMode('add'); setModalTab('lot'); setLotForm({ lot_no: '', stt: getFirstVacantSeq(), lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', carrier: '', transport_type: 'SEA_CONT', is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC', pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '', origin_country: 'TAIWAN', loai_hinh: 'NEUTRAL', loai_hinh_con: 'DEFAULT', sale_qty: 0, contract_start: '', contract_end: '' }); setSelectedFactories([]); setShowAddModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">➕ Khai Lô Hàng Mới</button>
                       <button onClick={() => { if(!selectedLotNo) return; setShowMasterInvoiceModal(true); }} disabled={!selectedLotNo} className={`px-4 py-2 rounded-lg text-xs font-bold ${selectedLotNo ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>Bảng Kê Hóa Đơn (Mẫu 02)</button>
                     </div>
                   </div>
@@ -1692,7 +1699,7 @@
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Số STT *</label>
-                          <input type="number" required value={lotForm.stt} onChange={(e) => { const stt = Number(e.target.value); setLotForm({...lotForm, stt, lot_no: generateLotNoString(lotForm.loai_hinh, lotForm.loai_hinh_con, stt)}); }} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          <input type="number" required value={lotForm.stt} onChange={(e) => { const stt = Number(e.target.value); setLotForm({...lotForm, stt, lot_no: generateLotNoString(lotForm.loai_hinh || 'NEUTRAL', lotForm.loai_hinh_con, stt)}); }} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Mã Lô Hàng (tự sinh)</label>
@@ -1908,21 +1915,28 @@
                               </div>
                             )}
 
-                            {/* Per-invoice pkg_qty + gw (chỉ khi DIFF_TYPE) */}
+                            {/* Per-invoice pkg_qty + gw + lot info (chỉ khi DIFF_TYPE) */}
                             {activeBillStatus.status === 'SAME_BILL_DIFF_TYPE' && activeBillStatus.matches && (
-                              <div className="bg-slate-900/60 rounded-lg p-3 space-y-2">
-                                <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">📦 Số Kiện &amp; Trọng Lượng Riêng Của Invoice Này</p>
-                                <p className="text-[10px] text-slate-500 italic">(Số kiện/kg của Bill gốc vẫn được giữ nguyên trên Tab 1)</p>
+                              <div className="bg-slate-900/60 rounded-lg p-3 space-y-3">
+                                <div>
+                                  <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">🆕 Lô Mới Cho Invoice Này (Khác Loại Hình)</p>
+                                  <p className="text-[10px] text-slate-500 italic mt-0.5">Điền Mã Lô và STT riêng ở ô bên dưới (Tab ROW 2). Invoice này chỉ cần đánh dấu chung Bill.</p>
+                                </div>
+                                <div className="bg-amber-950/30 border border-amber-800/50 rounded p-2 text-[10px] text-amber-300">
+                                  💡 <strong>Hướng dẫn:</strong> Số kiện + kg của 2 invoice cộng lại = tổng trên Bill.
+                                  Mỗi invoice có lô riêng (khác loại hình), cùng số Bill.
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase">📦 Số Kiện &amp; KG Riêng Của Invoice Này:</p>
                                 <div className="grid grid-cols-2 gap-3">
                                   <div>
-                                    <label className="block text-[11px] text-slate-400 mb-1">Số Kiện (Invoice)</label>
+                                    <label className="block text-[11px] text-slate-400 mb-1">Số Kiện (Invoice này)</label>
                                     <input type="number" step="1" min="0"
                                       value={invoiceForm.inv_pkg_qty || ''}
                                       onChange={e => setInvoiceForm(prev => ({...prev, inv_pkg_qty: Number(e.target.value)||0}))}
                                       className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-sky-300 font-bold" />
                                   </div>
                                   <div>
-                                    <label className="block text-[11px] text-slate-400 mb-1">Gross Weight kg (Invoice)</label>
+                                    <label className="block text-[11px] text-slate-400 mb-1">Gross Weight kg (Invoice này)</label>
                                     <input type="number" step="0.1" min="0"
                                       value={invoiceForm.inv_gw || ''}
                                       onChange={e => setInvoiceForm(prev => ({...prev, inv_gw: Number(e.target.value)||0}))}
@@ -2007,8 +2021,26 @@
                         </div>
                       </div>
 
-                      {/* ROW 3: Incoterm (full) + Số Bill */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* ROW 3: Currency + Incoterm + Số Bill */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-[11px] text-slate-400 mb-1">Currency</label>
+                          <select value={invoiceForm.currency || 'USD'}
+                            onChange={e => setInvoiceForm({...invoiceForm, currency: e.target.value})}
+                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-emerald-300 font-bold">
+                            <option value="USD">USD – US Dollar</option>
+                            <option value="EUR">EUR – Euro</option>
+                            <option value="JPY">JPY – Japanese Yen</option>
+                            <option value="CNY">CNY – Chinese Yuan</option>
+                            <option value="TWD">TWD – Taiwan Dollar</option>
+                            <option value="KRW">KRW – Korean Won</option>
+                            <option value="GBP">GBP – British Pound</option>
+                            <option value="SGD">SGD – Singapore Dollar</option>
+                            <option value="VND">VND – Vietnamese Dong</option>
+                            <option value="THB">THB – Thai Baht</option>
+                            <option value="MYR">MYR – Malaysian Ringgit</option>
+                          </select>
+                        </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Điều Khoản Incoterm</label>
                           <select value={invoiceForm.incoterm} onChange={(e) => setInvoiceForm({...invoiceForm, incoterm: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white">
@@ -2302,13 +2334,21 @@
                       {/* Unit Price + Amount */}
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[11px] text-slate-300 mb-1">Unit Price (USD)</label>
-                          <input type="number" step="0.0001" value={goodsForm.unit_price || ''}
-                            onChange={e => { const p = Number(e.target.value)||0; setGoodsForm({...goodsForm, unit_price: p, sale_amount: (Number(goodsForm.qty1)||0)*p}); }}
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-amber-300 font-bold" />
+                          <label className="block text-[11px] text-slate-300 mb-1">Unit Price ({invoiceForm.currency || 'USD'})</label>
+                          <input type="text" inputMode="decimal"
+                            value={goodsForm.unit_price_str !== undefined ? goodsForm.unit_price_str : (goodsForm.unit_price || '')}
+                            onChange={e => {
+                              const raw = e.target.value;
+                              // Allow typing: digits, dot, leading zero
+                              if (!/^[0-9]*\.?[0-9]*$/.test(raw) && raw !== '') return;
+                              const p = raw === '' || raw === '.' ? 0 : parseFloat(raw) || 0;
+                              setGoodsForm({...goodsForm, unit_price_str: raw, unit_price: p, sale_amount: (Number(goodsForm.qty1)||0)*p});
+                            }}
+                            placeholder="0.00"
+                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-amber-300 font-bold font-mono" />
                         </div>
                         <div>
-                          <label className="block text-[11px] text-emerald-400 mb-1 font-bold">Amount (USD) = Qty 1 × Unit Price</label>
+                          <label className="block text-[11px] text-emerald-400 mb-1 font-bold">Amount ({invoiceForm.currency || 'USD'}) = Qty 1 × Unit Price</label>
                           <input type="number" step="0.01" value={goodsForm.sale_amount || ''}
                             onChange={e => setGoodsForm({...goodsForm, sale_amount: Number(e.target.value)})}
                             className="w-full bg-emerald-950/30 border border-emerald-800/50 rounded px-3 py-2 text-xs text-emerald-300 font-black font-mono" />
@@ -2403,62 +2443,127 @@
             </div>
           )}
 
-          {/* --- BẢNG KÊ PREVIEW IN (PRINT MODAL) --- */}
-          {showMasterInvoiceModal && selectedLotNo && (
-            <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col my-8">
-                <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex justify-between items-center shrink-0">
-                  <h3 className="font-bold text-xs uppercase text-amber-400">📋 Xem trước bản in Bảng kê hóa đơn (Mẫu 02)</h3>
-                  <div className="flex gap-2">
-                    <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">🖨️ In Bảng Kê</button>
-                    <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-800 text-slate-300 font-bold px-3 py-2 rounded text-xs">Đóng</button>
+          {/* --- BẢNG KÊ PREVIEW IN (Mẫu 02/BKHĐ/GSQL) --- */}
+          {showMasterInvoiceModal && selectedLotNo && (() => {
+            const printLot = lots.find(l => l.lot_no === selectedLotNo);
+            const printInvoices = currentInvoices;
+            // Chỉ hiện nếu lô có nhiều invoice cùng loại hình
+            if (!printLot || printInvoices.length < 2) {
+              return (
+                <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 max-w-md text-center">
+                    <p className="text-amber-400 font-bold text-sm mb-2">⚠️ Bảng kê chỉ áp dụng khi lô có nhiều hóa đơn cùng loại hình</p>
+                    <p className="text-slate-400 text-xs mb-4">Lô <strong>{selectedLotNo}</strong> hiện có {printInvoices.length} hóa đơn.</p>
+                    <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-700 text-white px-4 py-2 rounded text-xs font-bold">Đóng</button>
                   </div>
                 </div>
-
-                <div className="p-8 bg-white text-slate-950 font-serif text-sm overflow-y-auto print-area max-h-[75vh]" id="printable-master-invoice">
-                  <div className="flex justify-between items-start text-xs border-b border-slate-300 pb-3">
-                    <div>
-                      <h1 className="font-bold text-sm uppercase">CÔNG TY TNHH CHANG YANG VIỆT NAM</h1>
-                      <p>Mã xưởng liên kết: {lots.find(l => l.lot_no === selectedLotNo)?.factory_no}</p>
-                    </div>
-                    <div className="text-right">
-                      <h3 className="font-bold">Mẫu số 02/BKHĐ/GSQL</h3>
-                      <p className="text-[10px]">TT 39/2018/TT-BTC</p>
+              );
+            }
+            const firstInv = printInvoices[0];
+            const supplier = firstInv?.supplier || printLot?.supplier || 'CHANG YANG MATERIAL CORP.';
+            const totalVal = printInvoices.reduce((s, inv) => s + getInvoiceValueSum(inv), 0);
+            const currency = firstInv?.currency || 'USD';
+            const fmtDate = (d) => d ? d.replace(/-/g, '/') : '';
+            return (
+              <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+                <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col my-8">
+                  <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex justify-between items-center shrink-0">
+                    <h3 className="font-bold text-xs uppercase text-amber-400">📋 Bảng Kê Hóa Đơn – Mẫu 02/BKHĐ/GSQL</h3>
+                    <div className="flex gap-2">
+                      <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">🖨️ In Bảng Kê</button>
+                      <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-800 text-slate-300 font-bold px-3 py-2 rounded text-xs">Đóng</button>
                     </div>
                   </div>
-                  <div className="text-center my-6">
-                    <h2 className="text-base font-bold uppercase">BẢNG KÊ HÓA ĐƠN THƯƠNG MẠI HÀNG HÓA NHẬP KHẨU</h2>
-                    <p className="text-xs font-semibold mt-1">SỐ LÔ QUẢN LÝ: {selectedLotNo}</p>
-                  </div>
 
-                  <table className="w-full text-left text-xs border-collapse border border-slate-400 mt-4">
-                    <thead>
-                      <tr className="bg-slate-150 border-b border-slate-400 font-bold">
-                        <th className="p-2 border-r border-slate-400 text-center w-10">STT</th>
-                        <th className="p-2 border-r border-slate-400">Số HĐ (Invoice No)</th>
-                        <th className="p-2 border-r border-slate-400">Ngày HĐ</th>
-                        <th className="p-2 border-r border-slate-400 text-right">Trị Giá (USD)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {currentInvoices.map((inv, index) => (
-                        <tr key={inv.invoice_no} className="border-b border-slate-400">
-                          <td className="p-2 border-r border-slate-400 text-center">{index + 1}</td>
-                          <td className="p-2 border-r border-slate-400 font-mono font-bold">{inv.invoice_no}</td>
-                          <td className="p-2 border-r border-slate-400">{inv.invoice_date}</td>
-                          <td className="p-2 border-r border-slate-400 text-right font-mono">{'$'}{getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <div className="p-10 bg-white text-black font-serif text-sm overflow-y-auto max-h-[80vh]" id="printable-master-invoice">
+
+                    {/* Header: Company + Mẫu số */}
+                    <div className="flex justify-between items-start border-b border-black pb-2 mb-1">
+                      <div>
+                        <p className="font-bold text-[13px] uppercase">CÔNG TY TNHH CHANG YANG VIỆT NAM</p>
+                        <p className="text-[10px] text-gray-600 italic">Mẫu số 02/BKHĐ/GSQL</p>
+                      </div>
+                      <div className="text-right text-[11px]">
+                        <p className="font-bold">Mẫu số 02/BKHĐ/GSQL</p>
+                        <p className="text-[10px]">(Ban hành kèm TT 39/2018/TT-BTC)</p>
+                      </div>
+                    </div>
+
+                    {/* Title */}
+                    <div className="text-center my-4">
+                      <h2 className="text-[15px] font-black uppercase tracking-wide">BẢNG KÊ HÓA ĐƠN THƯƠNG MẠI HÀNG HÓA XUẤT KHẨU, NHẬP KHẨU</h2>
+                    </div>
+
+                    {/* Số + Ngày */}
+                    <div className="flex justify-between text-[12px] mb-4">
+                      <p><strong>Số :</strong> {selectedLotNo}</p>
+                      <p><strong>Ngày :</strong> {fmtDate(firstInv?.invoice_date)}</p>
+                    </div>
+
+                    {/* Người bán */}
+                    <div className="mb-3 text-[12px]">
+                      <p><strong>Người bán:</strong> {supplier}</p>
+                      <p className="ml-16 text-[11px] text-gray-600">
+                        {printLot?.pol ? `Port of Loading: ${printLot.pol}` : 'NO. 16, LN. 267, SEC. 1, ZHANGNAN RD., CHANGHUA CITY, CHANGHUA COUNTY, TAIWAN.'}
+                      </p>
+                    </div>
+
+                    {/* Người mua */}
+                    <div className="mb-4 text-[12px]">
+                      <p><strong>Người mua:</strong> CHANGYANG VIETNAM LTD</p>
+                      <p className="ml-16 text-[11px] text-gray-600">D10/89Q, LE DUC ANH ROAD, TAN TAO WARD, HO CHI MINH CITY, VIET NAM</p>
+                    </div>
+
+                    {/* Sub-header */}
+                    <p className="text-[12px] font-bold mb-2">Danh mục hóa đơn thương mại:</p>
+
+                    {/* Invoice table */}
+                    <table className="w-full text-left text-[12px] border-collapse border border-black">
+                      <thead>
+                        <tr className="bg-gray-100 font-bold border-b border-black">
+                          <th className="p-2 border-r border-black text-center w-10">STT</th>
+                          <th className="p-2 border-r border-black">Số hóa đơn (Invoice No.)</th>
+                          <th className="p-2 border-r border-black text-center">Ngày hóa đơn</th>
+                          <th className="p-2 border-r border-black text-right">Thành tiền ({currency})</th>
+                          <th className="p-2 text-center">Ghi chú</th>
                         </tr>
-                      ))}
-                      <tr className="bg-slate-100 font-bold text-xs">
-                        <td colSpan="3" className="p-2.5 border-r border-slate-400 uppercase text-center">TỔNG TRỊ GIÁ TRÊN BẢNG KÊ</td>
-                        <td className="p-2.5 text-right font-mono">{'$'}{getSelectedLotTotalValue().toLocaleString(undefined, {minimumFractionDigits: 2})} USD</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {printInvoices.map((inv, idx) => (
+                          <tr key={inv.invoice_no} className="border-b border-black">
+                            <td className="p-2 border-r border-black text-center">{idx + 1}</td>
+                            <td className="p-2 border-r border-black font-bold">{inv.invoice_no}</td>
+                            <td className="p-2 border-r border-black text-center">{fmtDate(inv.invoice_date)}</td>
+                            <td className="p-2 border-r border-black text-right font-mono">
+                              {getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                            </td>
+                            <td className="p-2 text-center text-gray-500 text-[11px]">{inv.incoterm || ''}</td>
+                          </tr>
+                        ))}
+                        <tr className="font-bold bg-gray-50 border-t-2 border-black">
+                          <td colSpan="3" className="p-2 border-r border-black text-center uppercase text-[11px]">
+                            Tổng giá trị hóa đơn
+                          </td>
+                          <td className="p-2 border-r border-black text-right font-mono font-black">
+                            {totalVal.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    {/* Signature */}
+                    <div className="mt-10 text-right text-[12px]">
+                      <p className="font-bold uppercase">Đại Diện Doanh Nghiệp</p>
+                      <p className="text-[10px] text-gray-500 italic mt-1">(Ký, ghi rõ họ tên, đóng dấu)</p>
+                      <div className="mt-16 border-t border-black w-40 ml-auto"></div>
+                    </div>
+
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
         </div>
       );
