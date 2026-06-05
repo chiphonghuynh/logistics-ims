@@ -380,6 +380,7 @@
 
       const [invoiceForm, setInvoiceForm] = useState({
         invoice_no: '', lot_no: '', bill_no: '', invoice_date: new Date().toISOString().substring(0, 10),
+        inv_pkg_qty: 0, inv_gw: 0,
         incoterm: 'CIF', total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0,
         other_charges_note: '',
         is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT',
@@ -443,10 +444,10 @@
       // Phân tích Hàng Chung Bill
       const checkBillNoGroupingHelper = (typedBillNo, currentLoaiHinh, currentLoaiHinhCon, isHangChungBill) => {
         if (!typedBillNo || !isHangChungBill) return { matches: false, status: 'NORMAL' };
-        const matchingInvoices = invoices.filter(i => i.bill_no && i.bill_no.trim().toLowerCase() === typedBillNo.trim().toLowerCase());
+        const matchingInvoices = invoices.filter(i => i.bill_no && String(i.bill_no).trim().toLowerCase() === String(typedBillNo).trim().toLowerCase());
         if (matchingInvoices.length === 0) return { matches: false, status: 'NEW_BILL' };
         
-        const relatedLots = lots.filter(l => matchingInvoices.some(i => i.lot_no === l.lot_no));
+        const relatedLots = lots.filter(l => matchingInvoices.some(i => String(i.lot_no||'') === String(l.lot_no||'')));
         if (relatedLots.length === 0) return { matches: false, status: 'NEW_BILL' };
 
         const sameTypeLot = relatedLots.find(l => l.loai_hinh === currentLoaiHinh && l.loai_hinh_con === currentLoaiHinhCon);
@@ -467,13 +468,13 @@
         }
       };
 
-      const activeBillStatus = checkBillNoGroupingHelper(invoiceForm.bill_no, invoiceForm.loai_hinh, invoiceForm.loai_hinh_con, invoiceForm.is_hang_chung_bill);
+      const activeBillStatus = checkBillNoGroupingHelper(String(invoiceForm.bill_no||''), invoiceForm.loai_hinh, invoiceForm.loai_hinh_con, invoiceForm.is_hang_chung_bill);
 
       // --- CÁC HÀM LƯU DỮ LIỆU CHÍNH (MASTER - DETAIL) ---
       const handleSaveLot = (e) => {
         e.preventDefault();
         if (!lotForm.lot_no.trim()) return showNotification("Mã lô hàng không được trống", "error");
-        if (modalMode === 'add' && lots.some(l => l.lot_no.toLowerCase() === lotForm.lot_no.trim().toLowerCase())) {
+        if (modalMode === 'add' && lots.some(l => String(l.lot_no||'').toLowerCase() === lotForm.lot_no.trim().toLowerCase())) {
           return showNotification("Mã lô hàng này đã tồn tại trên thiết bị!", "error");
         }
 
@@ -508,7 +509,7 @@
               bill_date: baseLot.bill_date || '', pol: baseLot.pol || '', pod: baseLot.pod || '', bill_term: baseLot.bill_term || 'Freight Prepaid',
               transport_type: baseLot.transport_type || 'SEA_CONT',
               is_cont: baseLot.is_cont, cont_no: baseLot.cont_no || '', seal_no: baseLot.seal_no || '', cont_type: baseLot.cont_type || '40HC',
-              pkg_qty: 0, gw: 0, cbm: 0, eta: baseLot.eta || '', atc_date: '', origin_country: baseLot.origin_country || 'TAIWAN',
+              pkg_qty: Number(invoiceForm.inv_pkg_qty) || 0, gw: Number(invoiceForm.inv_gw) || 0, cbm: 0, eta: baseLot.eta || '', atc_date: '', origin_country: baseLot.origin_country || 'TAIWAN',
               loai_hinh: invoiceForm.loai_hinh, loai_hinh_con: invoiceForm.loai_hinh_con, sale_qty: 0,
               contract_start: '', contract_end: ''
             };
@@ -1864,24 +1865,75 @@
                   {modalTab === 'invoice' && (
                     <form onSubmit={handleSaveInvoice} className="space-y-5">
 
-                      {/* Hàng chung Bill toggle */}
-                      <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${invoiceForm.is_hang_chung_bill ? 'bg-amber-950/30 border-amber-700' : 'bg-slate-950/40 border-slate-800'}`}>
-                        <div>
-                          <p className="text-xs font-bold text-white">🔗 Hàng chung Bill (Shared B/L)</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Bật nếu hóa đơn này dùng chung số Bill với lô hàng khác loại hình → hệ thống tự tách lô mới</p>
+                      {/* ── HÀNG CHUNG BILL TOGGLE ─────────────────────────── */}
+                      <div className={`rounded-xl border transition-all ${invoiceForm.is_hang_chung_bill ? 'bg-amber-950/20 border-amber-700' : 'bg-slate-950/40 border-slate-800'}`}>
+                        <div className="flex items-center justify-between p-4">
+                          <div>
+                            <p className="text-xs font-bold text-white">🔗 Hàng Chung Bill (Shared B/L)</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              Bật khi invoice này <span className="text-amber-400 font-bold">chung số Bill</span> với lô khác loại hình
+                              → hệ thống tự tách thành 2 số lô (vd: CH5-26 &amp; CH5KD-26)
+                            </p>
+                          </div>
+                          <button type="button"
+                            onClick={() => setInvoiceForm(prev => ({...prev, is_hang_chung_bill: !prev.is_hang_chung_bill, inv_pkg_qty: 0, inv_gw: 0}))}
+                            className={`relative flex-shrink-0 w-12 h-6 rounded-full transition-all ${invoiceForm.is_hang_chung_bill ? 'bg-amber-500' : 'bg-slate-700'}`}>
+                            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${invoiceForm.is_hang_chung_bill ? 'left-7' : 'left-1'}`}></span>
+                          </button>
                         </div>
-                        <button type="button" onClick={() => setInvoiceForm(prev => ({...prev, is_hang_chung_bill: !prev.is_hang_chung_bill}))}
-                          className={`relative w-12 h-6 rounded-full transition-all ${invoiceForm.is_hang_chung_bill ? 'bg-amber-500' : 'bg-slate-700'}`}>
-                          <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${invoiceForm.is_hang_chung_bill ? 'left-7' : 'left-1'}`}></span>
-                        </button>
-                      </div>
 
-                      {/* Thông báo bill status */}
-                      {invoiceForm.is_hang_chung_bill && invoiceForm.bill_no && activeBillStatus.matches && (
-                        <div className={`p-3 rounded-lg text-[11px] border ${activeBillStatus.status === 'SAME_BILL_SAME_TYPE' ? 'bg-emerald-950/40 border-emerald-700 text-emerald-300' : 'bg-amber-950/40 border-amber-700 text-amber-300'}`}>
-                          ⚡ {activeBillStatus.message}
-                        </div>
-                      )}
+                        {/* ── CHI TIẾT KHI BẬT HÀNG CHUNG BILL ─────────────── */}
+                        {invoiceForm.is_hang_chung_bill && (
+                          <div className="border-t border-amber-800/40 px-4 pb-4 pt-3 space-y-3">
+
+                            {/* Status message */}
+                            {invoiceForm.bill_no && activeBillStatus.matches ? (
+                              <div className={`p-3 rounded-lg text-[11px] border font-medium ${
+                                activeBillStatus.status === 'SAME_BILL_SAME_TYPE'
+                                  ? 'bg-emerald-950/40 border-emerald-700 text-emerald-300'
+                                  : 'bg-amber-950/40 border-amber-700 text-amber-300'
+                              }`}>
+                                {activeBillStatus.status === 'SAME_BILL_SAME_TYPE'
+                                  ? <span>✅ Same Bill &amp; Same Type → Invoice will be added to Lot <strong className="font-mono">{activeBillStatus.proposedLotNo}</strong></span>
+                                  : <span>⚡ Bill trùng với Lot <strong className="font-mono">{activeBillStatus.baseLot?.lot_no}</strong> nhưng KHÁC loại hình → Tự tách Lot mới: <strong className="font-mono text-white">{activeBillStatus.proposedLotNo}</strong></span>
+                                }
+                              </div>
+                            ) : invoiceForm.bill_no ? (
+                              <div className="p-3 rounded-lg text-[11px] border bg-slate-900 border-slate-700 text-slate-400">
+                                🔍 Bill No. <strong className="font-mono text-white">{invoiceForm.bill_no}</strong> chưa tìm thấy trong hệ thống — sẽ tạo lô mới bình thường.
+                              </div>
+                            ) : (
+                              <div className="p-3 rounded-lg text-[11px] border bg-slate-900 border-slate-700 text-slate-500 italic">
+                                Nhập Số Bill (ROW 3) để hệ thống kiểm tra tự động.
+                              </div>
+                            )}
+
+                            {/* Per-invoice pkg_qty + gw (chỉ khi DIFF_TYPE) */}
+                            {activeBillStatus.status === 'SAME_BILL_DIFF_TYPE' && activeBillStatus.matches && (
+                              <div className="bg-slate-900/60 rounded-lg p-3 space-y-2">
+                                <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">📦 Số Kiện &amp; Trọng Lượng Riêng Của Invoice Này</p>
+                                <p className="text-[10px] text-slate-500 italic">(Số kiện/kg của Bill gốc vẫn được giữ nguyên trên Tab 1)</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-[11px] text-slate-400 mb-1">Số Kiện (Invoice)</label>
+                                    <input type="number" step="1" min="0"
+                                      value={invoiceForm.inv_pkg_qty || ''}
+                                      onChange={e => setInvoiceForm(prev => ({...prev, inv_pkg_qty: Number(e.target.value)||0}))}
+                                      className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-sky-300 font-bold" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[11px] text-slate-400 mb-1">Gross Weight kg (Invoice)</label>
+                                    <input type="number" step="0.1" min="0"
+                                      value={invoiceForm.inv_gw || ''}
+                                      onChange={e => setInvoiceForm(prev => ({...prev, inv_gw: Number(e.target.value)||0}))}
+                                      className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-sky-300 font-bold" />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
 
                       {/* ROW 1: Loại hình + Sub + Nhà cung ứng */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1937,7 +1989,21 @@
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Ngày Hóa Đơn</label>
-                          <input type="date" value={invoiceForm.invoice_date} onChange={(e) => setInvoiceForm({...invoiceForm, invoice_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          <input type="date" value={invoiceForm.invoice_date} onChange={(e) => {
+                            const d = e.target.value;
+                            if (!d) { setInvoiceForm({...invoiceForm, invoice_date: d}); return; }
+                            const startD = new Date(d);
+                            startD.setDate(startD.getDate() - 10);
+                            const endD = new Date(startD);
+                            endD.setDate(endD.getDate() + 180);
+                            const fmt = dt => dt.toISOString().substring(0,10);
+                            setInvoiceForm(prev => ({
+                              ...prev,
+                              invoice_date: d,
+                              contract_start: prev.contract_start || fmt(startD),
+                              contract_end: prev.contract_end || fmt(endD),
+                            }));
+                          }} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
                         </div>
                       </div>
 
@@ -1983,17 +2049,50 @@
                         </div>
                       </div>
 
-                      {/* Ngày hợp đồng nếu A12 */}
+                      {/* Ngày hợp đồng — CHỈ hiện khi loại hình A12 */}
                       {invoiceForm.loai_hinh === 'A12' && (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[11px] text-amber-400 mb-1">📋 Ngày bắt đầu hợp đồng (A12)</label>
-                            <input type="date" value={invoiceForm.contract_start} onChange={(e) => setInvoiceForm({...invoiceForm, contract_start: e.target.value})} className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
+                        <div className="bg-amber-950/20 border border-amber-800/40 rounded-xl p-4 space-y-3">
+                          <div className="flex justify-between items-center">
+                            <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">📋 Contract Dates (A12 only)</p>
+                            <button type="button" className="text-[10px] text-slate-500 hover:text-amber-400"
+                              onClick={() => {
+                                if (!invoiceForm.invoice_date) return;
+                                const s = new Date(invoiceForm.invoice_date);
+                                s.setDate(s.getDate() - 10);
+                                const e2 = new Date(s);
+                                e2.setDate(e2.getDate() + 180);
+                                const fmt = dt => dt.toISOString().substring(0,10);
+                                setInvoiceForm(prev => ({...prev, contract_start: fmt(s), contract_end: fmt(e2)}));
+                              }}>
+                              🔄 Reset to auto-calc
+                            </button>
                           </div>
-                          <div>
-                            <label className="block text-[11px] text-amber-400 mb-1">📋 Ngày kết thúc hợp đồng (A12)</label>
-                            <input type="date" value={invoiceForm.contract_end} onChange={(e) => setInvoiceForm({...invoiceForm, contract_end: e.target.value})} className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[11px] text-amber-300 mb-1">
+                                Start Date <span className="text-amber-700 font-normal">(Invoice − 10 days)</span>
+                              </label>
+                              <input type="date" value={invoiceForm.contract_start}
+                                onChange={(e) => {
+                                  const s = e.target.value;
+                                  const endD = new Date(s);
+                                  endD.setDate(endD.getDate() + 180);
+                                  setInvoiceForm(prev => ({...prev, contract_start: s, contract_end: endD.toISOString().substring(0,10)}));
+                                }}
+                                className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-amber-300 mb-1">
+                                End Date <span className="text-amber-700 font-normal">(Start + 180 days)</span>
+                              </label>
+                              <input type="date" value={invoiceForm.contract_end}
+                                onChange={(e) => setInvoiceForm({...invoiceForm, contract_end: e.target.value})}
+                                className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
+                            </div>
                           </div>
+                          {invoiceForm.invoice_date && !invoiceForm.contract_start && (
+                            <p className="text-[10px] text-amber-700 italic">Dates will auto-fill when you set the Invoice Date above.</p>
+                          )}
                         </div>
                       )}
 
