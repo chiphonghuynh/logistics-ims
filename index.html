@@ -397,6 +397,8 @@
       });
 
       const [selectedFactories, setSelectedFactories] = useState([]);
+      // Danh sách invoice tạm thời cho lô đang tạo (Tab 2 preview)
+      const [draftInvoiceNos, setDraftInvoiceNos] = useState([]);
       // Tab 4: Tạo Mã Lô — state gắn invoice vào lô
       const [lotAssignForm, setLotAssignForm] = useState({
         loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [], stt: 1
@@ -516,7 +518,8 @@
         setLotForm(draftLot);
         // Pre-fill lotAssignForm STT from lotForm
         setLotAssignForm(prev => ({...prev, stt: draftLot.stt || getFirstVacantSeq()}));
-        setInvoiceForm(prev => ({ ...prev, lot_no: '', bill_no: draftLot.bill_no, is_hang_chung_bill: draftLot.is_hang_chung_bill || false }));
+        setInvoiceForm(prev => ({ ...prev, lot_no: '', bill_stt: draftLot.stt, bill_no: draftLot.bill_no, is_hang_chung_bill: draftLot.is_hang_chung_bill || false }));
+        setDraftInvoiceNos([]); // Reset draft list for new lot
         setModalTab('invoice');
         showNotification('Thông tin Bill đã lưu — tiếp tục nhập Invoice');
       };
@@ -591,6 +594,7 @@
             return showNotification("Invoice No. already exists!", "error");
           }
           newInvoices = [finalInvoice, ...invoices];
+          setDraftInvoiceNos(prev => prev.includes(finalInvoice.invoice_no) ? prev : [...prev, finalInvoice.invoice_no]);
           setGoodsForm(prev => ({ ...prev, invoice_no: finalInvoice.invoice_no, goods_no: '', goods_name_en: '', goods_name_local: '', hs_code: '', sale_amount: 0 }));
           setModalTab('goods');
         } else {
@@ -1904,11 +1908,16 @@
                             <label className="block text-[11px] text-slate-400 mb-1">
                               CBM (m³){(lotForm.transport_type === 'AIR' || lotForm.transport_type === 'EXPRESS') ? ' — N/A' : ''}
                             </label>
-                            <input type="number" step="0.001" min="0"
+                            <input type="text" inputMode="decimal"
                               disabled={lotForm.transport_type === 'AIR' || lotForm.transport_type === 'EXPRESS'}
-                              value={lotForm.cbm || ''}
-                              onChange={(e) => setLotForm({...lotForm, cbm: parseFloat(e.target.value)||0})}
-                              className={`w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white ${(lotForm.transport_type === 'AIR' || lotForm.transport_type === 'EXPRESS') ? 'opacity-30 cursor-not-allowed' : ''}`} />
+                              value={lotForm.cbm_str !== undefined ? lotForm.cbm_str : (lotForm.cbm || '')}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                if (!/^[0-9]*\.?[0-9]*$/.test(raw) && raw !== '') return;
+                                setLotForm(prev => ({...prev, cbm_str: raw, cbm: raw === '' || raw === '.' ? 0 : parseFloat(raw)||0}));
+                              }}
+                              placeholder="0.000"
+                              className={`w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white font-mono ${(lotForm.transport_type === 'AIR' || lotForm.transport_type === 'EXPRESS') ? 'opacity-30 cursor-not-allowed' : ''}`} />
                           </div>
                         </div>
                       </div>
@@ -2188,6 +2197,42 @@
                         </div>
                       </div>
 
+                      {/* ── DANH SÁCH INVOICE TẠM (Draft) ── */}
+                      {draftInvoiceNos.length > 0 && (() => {
+                        const draftInvs = invoices.filter(i => draftInvoiceNos.includes(i.invoice_no));
+                        if (draftInvs.length === 0) return null;
+                        return (
+                          <div className="bg-slate-900/50 border border-indigo-900/40 rounded-xl overflow-hidden">
+                            <div className="bg-indigo-950/40 px-4 py-2 flex justify-between items-center border-b border-indigo-900/30">
+                              <p className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">📋 Invoice Đã Lưu Tạm — STT {lotForm.stt} / Bill: {lotForm.bill_no || '—'}</p>
+                              <span className="text-[10px] text-indigo-600">{draftInvs.length} invoice(s)</span>
+                            </div>
+                            <table className="w-full text-[11px] border-collapse">
+                              <thead>
+                                <tr className="bg-slate-950 text-slate-500 border-b border-slate-800">
+                                  <th className="px-3 py-2 text-left">Invoice No.</th>
+                                  <th className="px-3 py-2 text-center">Loại Hình</th>
+                                  <th className="px-3 py-2 text-center">Ngày HĐ</th>
+                                  <th className="px-3 py-2 text-right">Trị Giá</th>
+                                  <th className="px-3 py-2 text-center">Kiện / GW</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-900">
+                                {draftInvs.map(inv => (
+                                  <tr key={inv.invoice_no} className="hover:bg-slate-900/40">
+                                    <td className="px-3 py-2 font-mono font-bold text-amber-300">{inv.invoice_no}</td>
+                                    <td className="px-3 py-2 text-center text-slate-400">{inv.loai_hinh}/{inv.loai_hinh_con}</td>
+                                    <td className="px-3 py-2 text-center text-slate-400">{fmtDisplayDate(inv.invoice_date)}</td>
+                                    <td className="px-3 py-2 text-right font-mono text-emerald-400">{inv.currency||'USD'} {Number(inv.total_amount||0).toLocaleString()}</td>
+                                    <td className="px-3 py-2 text-center text-slate-500">{inv.inv_pkg_qty||'—'} / {inv.inv_gw||'—'}kg</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
+
                       <div className="pt-4 border-t border-slate-800 flex flex-wrap gap-3 justify-between items-center">
                         <button type="button"
                           onClick={() => {
@@ -2197,13 +2242,17 @@
                             }
                             const finalInv = {
                               ...invoiceForm, invoice_no: invoiceForm.invoice_no.trim(),
+                              bill_stt: Number(invoiceForm.bill_stt || lotForm.stt || 0),
+                              bill_no: invoiceForm.bill_no || lotForm.bill_no,
                               total_amount: Number(invoiceForm.total_amount)||0, foc_amount: Number(invoiceForm.foc_amount)||0,
                               plus_sea_freight: Number(invoiceForm.plus_sea_freight)||0,
                               handling_charges: Number(invoiceForm.handling_charges)||0, other_charges: Number(invoiceForm.other_charges)||0,
                               is_hang_chung_bill: lotForm.is_hang_chung_bill || false,
                               inv_pkg_qty: Number(invoiceForm.inv_pkg_qty)||0, inv_gw: Number(invoiceForm.inv_gw)||0,
                             };
-                            saveInvoicesToStorage([finalInv, ...invoices]);
+                            const newInvoices = [finalInv, ...invoices];
+                            saveInvoicesToStorage(newInvoices);
+                            setDraftInvoiceNos(prev => [...prev, finalInv.invoice_no]);
                             setSelectedInvoiceNo(finalInv.invoice_no);
                             showNotification(`Đã lưu Invoice ${finalInv.invoice_no} — nhập tiếp invoice khác`);
                             setInvoiceForm(prev => ({
@@ -2517,167 +2566,106 @@
                   )}
 
                   {/* ════════════════════════════════════════════
-                      TAB 4: TẠO MÃ LÔ
+                      TAB 4: TẠO MÃ LÔ — Fully auto from invoice data
                       ════════════════════════════════════════════ */}
                   {modalTab === 'assign' && (() => {
-                    // Invoices cho phép gán vào lô:
-                    // 1. Invoices chưa có lô (lot_no rỗng hoặc lô không exist) 
-                    // 2. Invoices đã có lô nhưng cùng STT → cho phép add thêm vào lô đó (nhiều invoice cùng loại hình)
-                    const sttFilter = Number(lotAssignForm.stt || lotForm.stt || 0);
-                    const allPendingInvoices = [...invoices]
+                    // Chỉ hiện invoice CHƯA được gán vào mã lô hợp lệ nào
+                    const unassignedInvoices = [...invoices]
                       .filter(inv => {
                         if (!inv.invoice_no) return false;
-                        const invStt = Number(inv.bill_stt || 0);
-                        // If STT selected: show only invoices matching that STT or no STT
-                        if (sttFilter > 0 && invStt > 0 && invStt !== sttFilter) return false;
-                        return true;
+                        // Đã có mã lô thật (tồn tại trong lots) → không hiện
+                        const hasRealLot = inv.lot_no && lots.some(l => String(l.lot_no||'') === String(inv.lot_no||''));
+                        return !hasRealLot;
                       })
-                      .sort((a,b) => (b.invoice_date||'').localeCompare(a.invoice_date||''));
+                      .sort((a,b) => {
+                        // Sắp xếp: STT tăng dần, rồi loại hình
+                        const sttDiff = (Number(a.bill_stt)||0) - (Number(b.bill_stt)||0);
+                        if (sttDiff !== 0) return sttDiff;
+                        return (a.loai_hinh||'').localeCompare(b.loai_hinh||'');
+                      });
+
+                    // Group by STT + loai_hinh + loai_hinh_con → các lô sẽ được tạo
+                    const lotGroups = [];
+                    unassignedInvoices.forEach(inv => {
+                      const key = `${inv.bill_stt||0}_${inv.loai_hinh||'A12'}_${inv.loai_hinh_con||'DEFAULT'}`;
+                      let grp = lotGroups.find(g => g.key === key);
+                      if (!grp) {
+                        const stt = Number(inv.bill_stt) || Number(lotForm.stt) || 1;
+                        const lotNo = generateLotNoString(inv.loai_hinh||'A12', inv.loai_hinh_con||'DEFAULT', stt);
+                        grp = {
+                          key, stt, loai_hinh: inv.loai_hinh||'A12', loai_hinh_con: inv.loai_hinh_con||'DEFAULT',
+                          lotNo, invoices: [], alreadyExists: lots.some(l => String(l.lot_no||'').toLowerCase() === lotNo.toLowerCase())
+                        };
+                        lotGroups.push(grp);
+                      }
+                      grp.invoices.push(inv);
+                    });
 
                     return (
-                      <div className="space-y-6">
+                      <div className="space-y-5">
                         {/* Header */}
                         <div className="bg-amber-950/20 border border-amber-800/40 rounded-xl p-4">
                           <h4 className="text-sm font-black text-amber-400 uppercase tracking-wide">✦ Tạo Mã Lô Hàng</h4>
                           <p className="text-[11px] text-slate-400 mt-1">
-                            Chọn loại hình hải quan → hệ thống tự sinh mã lô theo công thức →
-                            chọn các invoice muốn gán vào lô này → bấm Tạo Lô.
+                            Hệ thống tự động nhóm invoice theo STT và loại hình → tạo các mã lô tương ứng.
+                            Tick chọn invoice → bấm <strong className="text-amber-400">Tạo Lô Từ Invoice Đã Chọn</strong>.
                           </p>
                           <div className="mt-2 text-[10px] text-amber-700 space-y-0.5">
-                            <p>A12 (KD mặc định) → <span className="font-mono text-amber-400">CH{"{stt}"}KD-{"{yy}"}</span></p>
-                            <p>A12 H11 → <span className="font-mono text-amber-400">CH{"{stt}"}-{"{yy}"}PMD</span> &nbsp;|&nbsp; A12 DT → <span className="font-mono text-amber-400">CH{"{stt}"}DT-{"{yy}"}</span></p>
-                            <p>E21 (mặc định) → <span className="font-mono text-amber-400">CH{"{stt}"}-{"{yy}"}</span> &nbsp;|&nbsp; E21 Chuyển tiếp → <span className="font-mono text-amber-400">CH{"{stt}"}-{"{yy}"}CT</span></p>
+                            <p>A12 KD → <span className="font-mono text-amber-400">CH[stt]KD-[yy]</span> &nbsp;|&nbsp;
+                               A12 H11 → <span className="font-mono text-amber-400">CH[stt]-[yy]PMD</span> &nbsp;|&nbsp;
+                               A12 DT → <span className="font-mono text-amber-400">CH[stt]DT-[yy]</span></p>
+                            <p>E21 → <span className="font-mono text-amber-400">CH[stt]-[yy]</span> &nbsp;|&nbsp;
+                               E21 CT → <span className="font-mono text-amber-400">CH[stt]-[yy]CT</span></p>
                           </div>
                         </div>
 
-                        {/* Form tạo mã lô */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {/* STT selector — chỉ hiện các STT chưa có mã lô */}
-                          <div>
-                            <label className="block text-[11px] text-slate-400 mb-1">Chọn Số STT (từ Bill đã nhập) *</label>
-                            <select value={lotAssignForm.stt || ''}
-                              onChange={e => {
-                                const stt = Number(e.target.value);
-                                // Auto-detect loai_hinh from invoices with this STT
-                                const invForStt = invoices.filter(i => Number(i.bill_stt||0) === stt || Number(i.lot_no?.match(/\d+/)?.[0]||0) === stt);
-                                const detectedLoaiHinh = invForStt[0]?.loai_hinh || lotAssignForm.loai_hinh;
-                                const detectedLoaiHinhCon = invForStt[0]?.loai_hinh_con || lotAssignForm.loai_hinh_con;
-                                setLotAssignForm(prev => ({...prev, stt, loai_hinh: detectedLoaiHinh, loai_hinh_con: detectedLoaiHinhCon}));
-                              }}
-                              className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-amber-400 font-bold font-mono">
-                              <option value="">— Chọn STT —</option>
-                              {/* Current draft STT */}
-                              {(() => {
-                                const draftStt = lotForm.stt;
-                                const draftAlreadyLot = lots.some(l => Number(l.stt) === draftStt && l.lot_no);
-                                return draftStt > 0 ? (
-                                  <option key={draftStt} value={draftStt} disabled={false}>
-                                    STT {draftStt} — Bill: {lotForm.bill_no || 'N/A'}{draftAlreadyLot ? ' [có lô rồi]' : ' [draft]'}
-                                  </option>
-                                ) : null;
-                              })()}
-                            </select>
-                            <p className="text-[10px] text-slate-600 mt-1">STT từ thông tin Bill ở Tab 1</p>
+                        {/* Mã xưởng + Bill info */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-slate-900/40 border border-slate-800 rounded-lg px-4 py-2.5 flex items-center gap-2">
+                            <span className="text-[10px] text-slate-500 uppercase font-bold">Mã Xưởng:</span>
+                            <span className="text-xs font-bold text-emerald-400 font-mono">{selectedFactories.join(', ') || lotForm.factory_no || '—'}</span>
                           </div>
-                          <div>
-                            <label className="block text-[11px] text-slate-400 mb-1">Loại Hình Hải Quan *
-                              <span className="text-slate-600 font-normal ml-1">(từ Invoice)</span>
-                            </label>
-                            <select value={lotAssignForm.loai_hinh}
-                              onChange={e => setLotAssignForm(prev => ({...prev, loai_hinh: e.target.value, loai_hinh_con: 'DEFAULT'}))}
-                              className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200">
-                              <option value="A12">A12 – Kinh doanh</option>
-                              <option value="E21">E21 – Gia công</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[11px] text-slate-400 mb-1">Loại Hình Con</label>
-                            <select value={lotAssignForm.loai_hinh_con}
-                              onChange={e => setLotAssignForm(prev => ({...prev, loai_hinh_con: e.target.value}))}
-                              className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200">
-                              {lotAssignForm.loai_hinh === 'A12' ? (
-                                <React.Fragment>
-                                  <option value="DEFAULT">KD – Kinh doanh (mặc định)</option>
-                                  <option value="H11">H11 – Hàng phi mậu dịch (PMD)</option>
-                                  <option value="DT">DT – Đầu tư</option>
-                                </React.Fragment>
-                              ) : (
-                                <React.Fragment>
-                                  <option value="DEFAULT">E21 – Mặc định</option>
-                                  <option value="CHUYEN_TIEP">Chuyển tiếp (CT)</option>
-                                </React.Fragment>
-                              )}
-                            </select>
+                          <div className="bg-slate-900/40 border border-slate-800 rounded-lg px-4 py-2.5 flex items-center gap-2">
+                            <span className="text-[10px] text-slate-500 uppercase font-bold">Bill:</span>
+                            <span className="text-xs font-mono text-slate-300">{lotForm.bill_no || '—'}</span>
+                            <span className="text-[10px] text-slate-600 ml-2">STT: {lotForm.stt}</span>
                           </div>
                         </div>
 
-                        {/* Preview mã lô sẽ được tạo */}
-                        {(() => {
-                          const previewStt = lotAssignForm.stt || lotForm.stt || 1;
-                          const previewLotNo = generateLotNoString(lotAssignForm.loai_hinh, lotAssignForm.loai_hinh_con, previewStt);
-                          const exists = lots.some(l => String(l.lot_no||'').toLowerCase() === previewLotNo.toLowerCase());
-                          return (
-                            <div className={`p-4 rounded-xl border flex items-center gap-4 ${exists ? 'bg-rose-950/30 border-rose-700' : 'bg-emerald-950/20 border-emerald-700'}`}>
-                              <div>
-                                <p className="text-[10px] text-slate-400 mb-1">Mã lô sẽ được tạo:</p>
-                                <p className={`text-xl font-black font-mono ${exists ? 'text-rose-400' : 'text-amber-400'}`}>{previewLotNo}</p>
-                              </div>
-                              {exists
-                                ? <p className="text-xs text-rose-400 font-bold">⚠️ Mã lô này đã tồn tại! Thay đổi STT hoặc loại hình.</p>
-                                : <p className="text-xs text-emerald-400">✅ Mã lô hợp lệ, sẵn sàng tạo</p>
-                              }
+                        {/* Danh sách invoice chưa có lô */}
+                        {unassignedInvoices.length === 0 ? (
+                          <div className="p-6 bg-slate-900 rounded-xl text-center space-y-2">
+                            <p className="text-emerald-400 font-bold text-sm">✅ Tất cả invoice đã được gán vào lô!</p>
+                            <p className="text-slate-500 text-xs">Bấm nút Kết Thúc để xem danh sách lô.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                              <label className="text-[11px] text-slate-400 font-bold uppercase">Chọn Invoice Để Tạo Lô</label>
+                              <button type="button"
+                                onClick={() => setLotAssignForm(prev => ({
+                                  ...prev,
+                                  selectedInvoiceNos: prev.selectedInvoiceNos.length === unassignedInvoices.length
+                                    ? [] : unassignedInvoices.map(i => i.invoice_no)
+                                }))}
+                                className="text-[10px] text-blue-400 hover:text-blue-300">
+                                {lotAssignForm.selectedInvoiceNos.length === unassignedInvoices.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                              </button>
                             </div>
-                          );
-                        })()}
 
-                        {/* Mã xưởng từ Tab 1 */}
-                        <div className="bg-slate-900/40 border border-slate-800 rounded-lg px-4 py-2.5 flex items-center gap-3">
-                          <span className="text-[10px] text-slate-500 uppercase font-bold">Mã Xưởng (từ Tab 1):</span>
-                          <span className="text-xs font-bold text-emerald-400 font-mono">{selectedFactories.join(', ') || lotForm.factory_no || '—'}</span>
-                        </div>
-
-                        {/* Chọn Invoice gán vào lô */}
-                        <div>
-                          <div className="flex justify-between items-center mb-2">
-                            <label className="block text-[11px] text-slate-400 font-bold uppercase">Chọn Invoice Gán Vào Lô Này *</label>
-                            <button type="button" onClick={() => {
-                              const allNos = allPendingInvoices.map(i => i.invoice_no);
-                              setLotAssignForm(prev => ({
-                                ...prev,
-                                selectedInvoiceNos: prev.selectedInvoiceNos.length === allNos.length ? [] : allNos
-                              }));
-                            }} className="text-[10px] text-blue-400 hover:text-blue-300">
-                              {lotAssignForm.selectedInvoiceNos.length === allPendingInvoices.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
-                            </button>
-                          </div>
-
-                          {allPendingInvoices.length === 0 ? (
-                            <div className="p-4 bg-slate-900 rounded-xl text-center text-slate-500 text-xs italic">
-                              Chưa có invoice nào. Hãy nhập invoice ở Tab 2 trước.
-                            </div>
-                          ) : (
-                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                              {allPendingInvoices.map(inv => {
+                            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                              {unassignedInvoices.map(inv => {
                                 const checked = lotAssignForm.selectedInvoiceNos.includes(inv.invoice_no);
-                                const alreadyHasLot = lots.some(l => String(l.lot_no||'') === String(inv.lot_no||'') && inv.lot_no);
+                                const stt = Number(inv.bill_stt) || Number(lotForm.stt) || 1;
+                                const previewLot = generateLotNoString(inv.loai_hinh||'A12', inv.loai_hinh_con||'DEFAULT', stt);
                                 return (
                                   <div key={inv.invoice_no}
-                                    onClick={() => {
-                                      setLotAssignForm(prev => {
-                                        const wasSelected = prev.selectedInvoiceNos.includes(inv.invoice_no);
-                                        const newSel = wasSelected
-                                          ? prev.selectedInvoiceNos.filter(n => n !== inv.invoice_no)
-                                          : [...prev.selectedInvoiceNos, inv.invoice_no];
-                                        // Auto-detect loai_hinh from first selected invoice
-                                        const firstInv = invoices.find(i => newSel.includes(i.invoice_no));
-                                        return {
-                                          ...prev,
-                                          selectedInvoiceNos: newSel,
-                                          loai_hinh: firstInv?.loai_hinh || prev.loai_hinh,
-                                          loai_hinh_con: firstInv?.loai_hinh_con || prev.loai_hinh_con,
-                                        };
-                                      });
-                                    }}
+                                    onClick={() => setLotAssignForm(prev => ({
+                                      ...prev,
+                                      selectedInvoiceNos: prev.selectedInvoiceNos.includes(inv.invoice_no)
+                                        ? prev.selectedInvoiceNos.filter(n => n !== inv.invoice_no)
+                                        : [...prev.selectedInvoiceNos, inv.invoice_no]
+                                    }))}
                                     className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
                                       checked ? 'bg-amber-950/30 border-amber-600' : 'bg-slate-950/40 border-slate-800 hover:border-slate-600'
                                     }`}>
@@ -2687,70 +2675,126 @@
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 flex-wrap">
                                         <span className="font-mono font-bold text-xs text-amber-300">{inv.invoice_no}</span>
-                                        <span className="text-[10px] text-slate-500">{inv.loai_hinh} / {inv.loai_hinh_con}</span>
-                                        {inv.bill_stt > 0 && <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">STT: {inv.bill_stt}</span>}
-                                        {alreadyHasLot && <span className="text-[10px] bg-blue-900/50 text-blue-300 px-1.5 py-0.5 rounded">Lô: {inv.lot_no}</span>}
+                                        <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{inv.loai_hinh}/{inv.loai_hinh_con}</span>
+                                        <span className="text-[10px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded font-mono">STT:{stt}</span>
                                         {inv.is_hang_chung_bill && <span className="text-[10px] bg-amber-900/50 text-amber-300 px-1.5 py-0.5 rounded">Chung Bill</span>}
+                                        <span className="text-[10px] text-slate-600">→ <span className="font-mono text-amber-500">{previewLot}</span></span>
                                       </div>
                                       <div className="text-[10px] text-slate-500 mt-0.5">
-                                        Ngày: {fmtDisplayDate(inv.invoice_date)} &nbsp;|&nbsp;
-                                        Trị giá: {(inv.currency||'USD')} {Number(inv.total_amount||0).toLocaleString()}
-                                        {inv.inv_pkg_qty ? ` | ${inv.inv_pkg_qty} kiện, ${inv.inv_gw}kg` : ''}
+                                        {fmtDisplayDate(inv.invoice_date)} | {inv.currency||'USD'} {Number(inv.total_amount||0).toLocaleString()}
+                                        {inv.inv_pkg_qty ? ` | ${inv.inv_pkg_qty} kiện / ${inv.inv_gw}kg` : ''}
                                       </div>
                                     </div>
                                   </div>
                                 );
                               })}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
-                        {/* Tổng hợp invoices đã chọn */}
+                        {/* Preview: các lô sẽ được tạo từ invoices đã chọn */}
                         {lotAssignForm.selectedInvoiceNos.length > 0 && (() => {
                           const selInvs = invoices.filter(i => lotAssignForm.selectedInvoiceNos.includes(i.invoice_no));
-                          const totalVal = selInvs.reduce((s, i) => s + Number(i.total_amount||0), 0);
-                          const totalPkg = selInvs.reduce((s, i) => s + Number(i.inv_pkg_qty||0), 0);
-                          const totalGw  = selInvs.reduce((s, i) => s + Number(i.inv_gw||0), 0);
+                          // Group selected by STT + loai_hinh
+                          const previewGroups = [];
+                          selInvs.forEach(inv => {
+                            const stt = Number(inv.bill_stt) || Number(lotForm.stt) || 1;
+                            const key = `${stt}_${inv.loai_hinh||'A12'}_${inv.loai_hinh_con||'DEFAULT'}`;
+                            let g = previewGroups.find(x => x.key === key);
+                            if (!g) {
+                              const lotNo = generateLotNoString(inv.loai_hinh||'A12', inv.loai_hinh_con||'DEFAULT', stt);
+                              const exists = lots.some(l => String(l.lot_no||'').toLowerCase() === lotNo.toLowerCase());
+                              g = { key, stt, loai_hinh: inv.loai_hinh, loai_hinh_con: inv.loai_hinh_con, lotNo, exists, invs: [] };
+                              previewGroups.push(g);
+                            }
+                            g.invs.push(inv);
+                          });
+
                           return (
-                            <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-3 text-xs grid grid-cols-3 gap-3">
-                              <div className="text-center">
-                                <p className="text-slate-500 text-[10px]">Số Invoice</p>
-                                <p className="font-black text-white text-sm">{selInvs.length}</p>
+                            <div className="bg-slate-900/50 border border-amber-900/30 rounded-xl overflow-hidden">
+                              <div className="bg-amber-950/30 px-4 py-2 border-b border-amber-900/30">
+                                <p className="text-[11px] font-bold text-amber-400">📦 Các Mã Lô Sẽ Được Tạo ({previewGroups.length} lô)</p>
                               </div>
-                              <div className="text-center">
-                                <p className="text-slate-500 text-[10px]">Tổng Trị Giá</p>
-                                <p className="font-black text-amber-300 text-sm">{totalVal.toLocaleString(undefined,{minimumFractionDigits:2})}</p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-slate-500 text-[10px]">Tổng Kiện / GW</p>
-                                <p className="font-black text-sky-300 text-sm">
-                                  {totalPkg > 0 ? totalPkg + ' / ' + totalGw + 'kg' : '—'}
-                                </p>
+                              <div className="divide-y divide-slate-800">
+                                {previewGroups.map(grp => (
+                                  <div key={grp.key} className={`px-4 py-3 flex items-center justify-between gap-4 ${grp.exists ? 'bg-rose-950/20' : ''}`}>
+                                    <div>
+                                      <p className={`text-base font-black font-mono ${grp.exists ? 'text-rose-400' : 'text-amber-400'}`}>{grp.lotNo}</p>
+                                      <p className="text-[10px] text-slate-500">{grp.loai_hinh} / {grp.loai_hinh_con} — STT {grp.stt}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-[11px] text-slate-300">{grp.invs.length} invoice(s)</p>
+                                      <p className="text-[10px] text-slate-500">{grp.invs.map(i=>i.invoice_no).join(', ')}</p>
+                                      {grp.exists && <p className="text-[10px] text-rose-400 font-bold">⚠️ Mã lô đã tồn tại!</p>}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           );
                         })()}
 
                         {/* Action buttons */}
-                        <div className="pt-4 border-t border-slate-800 space-y-3">
-                          <div className="flex justify-between items-center text-[10px] text-slate-600 italic">
-                            <span>Bill: <strong className="text-slate-400 font-mono">{lotForm.bill_no || '—'}</strong></span>
-                            <span>POL: {lotForm.pol||'—'} → POD: {lotForm.pod||'—'}</span>
-                            <span>Xưởng: {selectedFactories.join(', ') || lotForm.factory_no || '—'}</span>
-                          </div>
-                          <div className="flex gap-3 justify-end">
-                            <button type="button"
-                              onClick={handleFinalizeLot}
-                              disabled={lotAssignForm.selectedInvoiceNos.length === 0 || !lotAssignForm.stt}
-                              className="bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-black px-5 py-2.5 rounded-lg text-xs transition-all">
-                              ✦ Tạo Mã Lô &amp; Gán Invoice
-                            </button>
-                            <button type="button"
-                              onClick={() => { setShowAddModal(false); setActiveMenu('E010'); }}
-                              className="bg-emerald-700 hover:bg-emerald-600 text-white font-black px-5 py-2.5 rounded-lg text-xs transition-all">
-                              ✅ Kết Thúc — Xem Danh Sách Lô
-                            </button>
-                          </div>
+                        <div className="pt-4 border-t border-slate-800 flex gap-3 justify-end">
+                          <button type="button"
+                            onClick={() => {
+                              if (lotAssignForm.selectedInvoiceNos.length === 0) return showNotification("Chọn ít nhất 1 invoice!", "error");
+                              const selInvs = invoices.filter(i => lotAssignForm.selectedInvoiceNos.includes(i.invoice_no));
+                              // Group by STT + loai_hinh + loai_hinh_con
+                              const groups = {};
+                              selInvs.forEach(inv => {
+                                const stt = Number(inv.bill_stt) || Number(lotForm.stt) || 1;
+                                const key = `${stt}_${inv.loai_hinh||'A12'}_${inv.loai_hinh_con||'DEFAULT'}`;
+                                if (!groups[key]) groups[key] = { stt, loai_hinh: inv.loai_hinh||'A12', loai_hinh_con: inv.loai_hinh_con||'DEFAULT', invs: [] };
+                                groups[key].invs.push(inv);
+                              });
+                              let createdLots = [...lots];
+                              let updatedInvoices = [...invoices];
+                              let lotNames = [];
+                              let hasError = false;
+
+                              Object.values(groups).forEach(grp => {
+                                const lot_no = generateLotNoString(grp.loai_hinh, grp.loai_hinh_con, grp.stt);
+                                if (createdLots.some(l => String(l.lot_no||'').toLowerCase() === lot_no.toLowerCase())) {
+                                  showNotification(`Mã lô [${lot_no}] đã tồn tại!`, "error");
+                                  hasError = true; return;
+                                }
+                                const grpPkg = grp.invs.reduce((s,i) => s + Number(i.inv_pkg_qty||0), 0);
+                                const grpGw  = grp.invs.reduce((s,i) => s + Number(i.inv_gw||0), 0);
+                                const newLot = {
+                                  ...lotForm, lot_no, stt: grp.stt, loai_hinh: grp.loai_hinh, loai_hinh_con: grp.loai_hinh_con,
+                                  factory_no: selectedFactories.join(', ') || lotForm.factory_no,
+                                  pkg_qty: grpPkg > 0 ? grpPkg : Number(lotForm.pkg_qty)||0,
+                                  gw: grpGw > 0 ? grpGw : Number(lotForm.gw)||0,
+                                };
+                                if (newLot.carrier) addCarrierHistory(newLot.carrier.trim());
+                                createdLots = [newLot, ...createdLots];
+                                updatedInvoices = updatedInvoices.map(inv =>
+                                  grp.invs.some(gi => gi.invoice_no === inv.invoice_no)
+                                    ? { ...inv, lot_no, loai_hinh: grp.loai_hinh, loai_hinh_con: grp.loai_hinh_con }
+                                    : inv
+                                );
+                                lotNames.push(lot_no);
+                              });
+
+                              if (!hasError) {
+                                saveLotsToStorage(createdLots);
+                                saveInvoicesToStorage(updatedInvoices);
+                                if (lotNames.length > 0) setSelectedLotNo(lotNames[lotNames.length - 1]);
+                                setLotAssignForm(prev => ({...prev, selectedInvoiceNos: []}));
+                                setDraftInvoiceNos([]);
+                                showNotification(`✅ Đã tạo ${lotNames.length} lô: ${lotNames.join(', ')}`);
+                              }
+                            }}
+                            disabled={lotAssignForm.selectedInvoiceNos.length === 0}
+                            className="bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-black px-6 py-2.5 rounded-lg text-xs transition-all">
+                            ✦ Tạo Lô Từ Invoice Đã Chọn
+                          </button>
+                          <button type="button"
+                            onClick={() => { setShowAddModal(false); setActiveMenu('E010'); setDraftInvoiceNos([]); }}
+                            className="bg-emerald-700 hover:bg-emerald-600 text-white font-black px-5 py-2.5 rounded-lg text-xs transition-all">
+                            ✅ Kết Thúc — Xem Danh Sách Lô
+                          </button>
                         </div>
                       </div>
                     );
@@ -2870,11 +2914,33 @@
                       </tbody>
                     </table>
 
-                    {/* Signature */}
-                    <div className="mt-10 text-right text-[12px]">
-                      <p className="font-bold uppercase">Đại Diện Doanh Nghiệp</p>
-                      <p className="text-[10px] text-gray-500 italic mt-1">(Ký, ghi rõ họ tên, đóng dấu)</p>
-                      <div className="mt-16 border-t border-black w-40 ml-auto"></div>
+                    {/* Signature + Stamp */}
+                    <div className="mt-10 flex justify-between items-end">
+                      <div className="text-[11px] text-gray-500">
+                        <p className="italic">Chứng từ được lập bởi hệ thống Chang Yang IMS</p>
+                      </div>
+                      <div className="text-right text-[12px]">
+                        <p className="font-bold uppercase">Đại Diện Doanh Nghiệp</p>
+                        <p className="text-[10px] text-gray-500 italic mt-1">(Ký, ghi rõ họ tên, đóng dấu)</p>
+                        {/* Stamp area — company seal overlay */}
+                        <div className="relative mt-4 h-28 w-48 ml-auto flex items-center justify-center">
+                          {/* Decorative stamp circle */}
+                          <div style={{
+                            position:'absolute', left:'50%', top:'50%', transform:'translate(-60%,-60%)',
+                            width:80, height:80, borderRadius:'50%',
+                            border:'3px solid #1a3a5c', opacity:0.18,
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                            fontSize:7, color:'#1a3a5c', textAlign:'center', fontWeight:'bold',
+                            letterSpacing:1, padding:8, boxSizing:'border-box'
+                          }}>
+                            CÔNG TY TNHH CHANG YANG VIỆT NAM
+                          </div>
+                          <div className="absolute bottom-0 right-0 text-right">
+                            <p className="text-[11px] font-bold border-t border-black pt-1 w-36 text-center">Ngô Thanh Hoàng</p>
+                            <p className="text-[10px] text-gray-500">Giám Đốc</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                   </div>
