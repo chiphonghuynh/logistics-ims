@@ -520,7 +520,8 @@
         if (lotForm.bill_no && !lotForm.is_hang_chung_bill) {
           const existingBill = lots.find(l => l.bill_no && l.bill_no.trim().toUpperCase() === lotForm.bill_no.trim().toUpperCase());
           if (existingBill) {
-            const proceed = window.confirm(\`⚠️ Số Bill [${lotForm.bill_no}] đã tồn tại trong Lô [${existingBill.lot_no}].\n\nNếu đây là hàng chung Bill, hãy bật toggle "Hàng Chung Bill".\nNhấn OK để tiếp tục, Hủy để quay lại sửa.\`);
+            const msg = '⚠️ Số Bill [' + lotForm.bill_no + '] đã tồn tại trong Lô [' + existingBill.lot_no + '].\n\nNếu đây là hàng chung Bill, hãy bật toggle "Hàng Chung Bill".\nNhấn OK để tiếp tục, Hủy để quay lại sửa.';
+            const proceed = window.confirm(msg);
             if (!proceed) return;
           }
         }
@@ -901,7 +902,7 @@
         setConfirmState({
           isOpen: true,
           title: 'Xác nhận Sửa Lô Hàng',
-          message: \`Bạn muốn chỉnh sửa toàn bộ thông tin Lô hàng [${lot.lot_no}]? Mọi thay đổi sẽ được lưu lại.\`,
+          message: 'Bạn muốn chỉnh sửa toàn bộ thông tin Lô hàng [' + lot.lot_no + ']? Mọi thay đổi sẽ được lưu lại.',
           onConfirm: () => {
             setConfirmState(prev => ({...prev, isOpen: false}));
             setModalMode('edit');
@@ -966,7 +967,7 @@
         setConfirmState({
           isOpen: true,
           title: '⚠️ Xóa Lô Hàng — Thao tác không thể hoàn tác',
-          message: `Lô hàng [${lotNo}] chứa ${lotInvCount} hóa đơn và ${lotGoodsCount} mặt hàng sẽ bị xóa vĩnh viễn theo cơ chế Cascading. Bạn có chắc chắn?`,
+          message: 'Lô hàng [' + lotNo + '] chứa ' + lotInvCount + ' hóa đơn và ' + lotGoodsCount + ' mặt hàng sẽ bị xóa vĩnh viễn theo cơ chế Cascading. Bạn có chắc chắn?',
           onConfirm: () => executeDeleteLot(lotNo)
         });
       };
@@ -1145,7 +1146,7 @@
         const printLot = lots.find(l => l.lot_no === lotNo);
         const latestDate = printInvoices.map(i => i.invoice_date||'').filter(Boolean).sort().reverse()[0] || '';
         const fmtDate = d => d ? d.replace(/-/g, '/') : '';
-        const htmlContent = \`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+        const htmlContent = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
           body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000; margin: 2cm; }
           h2 { font-size: 14pt; font-weight: bold; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0; }
           table { width: 100%; border-collapse: collapse; font-size: 12pt; }
@@ -1163,10 +1164,10 @@
           </div>
           <h2>BẢNG KÊ HÓA ĐƠN THƯƠNG MẠI HÀNG HÓA XUẤT KHẨU, NHẬP KHẨU</h2>
           <div style="display:flex;justify-content:space-between;margin-bottom:12px">
-            <span><strong>Số:</strong> \${lotNo}</span>
-            <span><strong>Ngày:</strong> \${fmtDate(latestDate)}</span>
+            <span><strong>Số:</strong> ${lotNo}</span>
+            <span><strong>Ngày:</strong> ${fmtDate(latestDate)}</span>
           </div>
-          <p><strong>Người bán:</strong> \${supplier}</p>
+          <p><strong>Người bán:</strong> ${supplier}</p>
           <p style="margin-left:64px;font-size:11pt">NO. 16, LN. 267, SEC. 1, ZHANGNAN RD., CHANGHUA CITY, CHANGHUA COUNTY, TAIWAN.</p>
           <p><strong>Người mua:</strong> CHANGYANG VIETNAM LTD</p>
           <p style="margin-left:64px;font-size:11pt">D10/89Q, LE DUC ANH ROAD, TAN TAO WARD, HO CHI MINH CITY, VIET NAM</p>
@@ -1176,18 +1177,18 @@
               <th class="center" style="width:40px">STT</th>
               <th>Số hóa đơn (Invoice No.)</th>
               <th class="center">Ngày hóa đơn</th>
-              <th class="right">Thành tiền (\${currency})</th>
+              <th class="right">Thành tiền (${currency})</th>
             </tr></thead>
             <tbody>
-              \${printInvoices.map((inv, idx) => \`<tr>
-                <td class="center">\${idx+1}</td>
-                <td class="bold">\${inv.invoice_no}</td>
-                <td class="center">\${fmtDate(inv.invoice_date)}</td>
-                <td class="right" style="font-family:monospace">\${(() => { const base = goods.filter(g => g.invoice_no === inv.invoice_no).reduce((s,g) => s+Number(g.sale_amount||0),0); return (base + Number(inv.plus_sea_freight||0) + Number(inv.handling_charges||0) + Number(inv.other_charges||0) - Number(inv.foc_amount||0)).toLocaleString(undefined,{minimumFractionDigits:2}); })()}</td>
-              </tr>\`).join('')}
+              ${printInvoices.map((inv, idx) => `<tr>
+                <td class="center">${idx+1}</td>
+                <td class="bold">${inv.invoice_no}</td>
+                <td class="center">${fmtDate(inv.invoice_date)}</td>
+                <td class="right" style="font-family:monospace">${(() => { const base = goods.filter(g => g.invoice_no === inv.invoice_no).reduce((s,g) => s+Number(g.sale_amount||0),0); return (base + Number(inv.plus_sea_freight||0) + Number(inv.handling_charges||0) + Number(inv.other_charges||0) - Number(inv.foc_amount||0)).toLocaleString(undefined,{minimumFractionDigits:2}); })()}</td>
+              </tr>`).join('')}
               <tr class="bold" style="background:#f9fafb;border-top:2px solid #000">
                 <td colspan="3" class="center" style="text-transform:uppercase;font-size:11pt">Tổng giá trị hóa đơn</td>
-                <td class="right" style="font-family:monospace">\${totalVal.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                <td class="right" style="font-family:monospace">${totalVal.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
               </tr>
             </tbody>
           </table>
@@ -1199,12 +1200,12 @@
               <p>Giám Đốc</p>
             </div>
           </div>
-        </body></html>\`;
+        </body></html>`;
         const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = \`BangKe_\${lotNo}_\${new Date().toISOString().slice(0,10)}.doc\`;
+        a.download = `BangKe_${lotNo}_${new Date().toISOString().slice(0,10)}.doc`;
         a.click();
         URL.revokeObjectURL(url);
         showNotification('Đã tải xuống file Word thành công!');
@@ -1747,7 +1748,7 @@
                         setConfirmState({
                           isOpen: true,
                           title: `Xóa ${selectedLotNos.size} lô hàng`,
-                          message: `Bạn chắc chắn muốn xóa ${selectedLotNos.size} lô hàng đã chọn? Tất cả invoice và hàng hóa liên quan sẽ bị xóa vĩnh viễn.`,
+                          message: 'Bạn chắc chắn muốn xóa ' + selectedLotNos.size + ' lô hàng đã chọn? Tất cả invoice và hàng hóa liên quan sẽ bị xóa vĩnh viễn.',
                           onConfirm: () => {
                             let remainLots = lots.filter(l => !selectedLotNos.has(l.lot_no));
                             let remainInvs = invoices;
