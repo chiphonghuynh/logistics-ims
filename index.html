@@ -1431,7 +1431,7 @@
               </div>
             </div>
             <div className="p-3 text-center border-t border-slate-800 bg-slate-950/60 text-[10px] text-slate-500">
-              {menuExpanded ? <span>Version: <strong className="text-blue-500">v2.0.0-pro</strong></span> : <span>v2.0</span>}
+              {menuExpanded ? <span>Version: <strong className="text-blue-500">v2.0.0-pro [20260608_080337]</strong></span> : <span>v2.0</span>}
             </div>
           </div>
 
@@ -2049,24 +2049,25 @@
 
               {/* --- NO_ATC VIEW --- */}
               {activeMenu === 'NO_ATC' && (
-                <div className="space-y-6">
+                <div className="space-y-4">
                   <div className="bg-rose-950/20 border border-rose-900/60 p-4 rounded-xl text-xs text-rose-300">
                     🚚 <strong>Lưu ý nghiệp vụ điều xe:</strong> Đây là danh sách các lô hàng đang chờ điền ngày thực tế nhận hàng tại xưởng (ATC Date).
                   </div>
-                  
-                  {/* Transport filter */}
-                  {(() => {
-                    const transportTypes = ['ALL', 'SEA_CONT', 'SEA_CFS', 'AIR', 'EXPRESS', 'BY_TRUCK', 'NGOAI_QUAN'];
-                    const transportLabels = { ALL: '📋 Tất cả', SEA_CONT: '🚢 SEA Cont', SEA_CFS: '⚓ SEA CFS', AIR: '✈ Air', EXPRESS: '📦 Express', BY_TRUCK: '🚛 Truck', NGOAI_QUAN: '🏭 Ngoại Quan' };
-                    const filteredPending = atcTransportFilter === 'ALL' ? pendingAtcLots : pendingAtcLots.filter(l => (l.transport_type || 'SEA_CONT') === atcTransportFilter);
-                    return (
-                      <>
-                        <div className="flex gap-2 flex-wrap">
-                          {transportTypes.map(t => (
-                            <button key={t} onClick={() => setAtcTransportFilter(t)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${atcTransportFilter === t ? 'bg-rose-600 border-rose-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-600'}`}>{transportLabels[t]}</button>
-                          ))}
-                        </div>
 
+                  {/* Transport filter buttons */}
+                  <div className="flex gap-2 flex-wrap">
+                    {['ALL','SEA_CONT','SEA_CFS','AIR','EXPRESS','BY_TRUCK','NGOAI_QUAN'].map(t => {
+                      const labels = { ALL: '📋 Tất cả', SEA_CONT: '🚢 SEA Cont', SEA_CFS: '⚓ SEA CFS', AIR: '✈ Air', EXPRESS: '📦 Express', BY_TRUCK: '🚛 Truck', NGOAI_QUAN: '🏭 Ngoại Quan' };
+                      return (
+                        <button key={t} onClick={() => setAtcTransportFilter(t)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${atcTransportFilter === t ? 'bg-rose-600 border-rose-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-600'}`}>
+                          {labels[t]}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Table */}
                   <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
@@ -2080,7 +2081,7 @@
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-855">
-                        {filteredPending.map(lot => (
+                        {(atcTransportFilter === 'ALL' ? pendingAtcLots : pendingAtcLots.filter(l => (l.transport_type || 'SEA_CONT') === atcTransportFilter)).map(lot => (
                           <tr key={lot.lot_no} className="hover:bg-slate-850/40 text-slate-300">
                             <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
                             <td className="p-3.5 font-semibold">{lot.supplier}</td>
@@ -2100,47 +2101,8 @@
                             </td>
                           </tr>
                         ))}
-                        {filteredPending.length === 0 && (
-                          <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">🎉 Không có lô hàng nào trong bộ lọc này.</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                      </>
-                    );
-                  })()}
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
-                          <th className="p-3.5">Mã Lô Hàng</th>
-                          <th className="p-3.5">Nhà Cung Cấp</th>
-                          <th className="p-3.5">Số Vận Đơn (Bill)</th>
-                          <th className="p-3.5">Ngày Dự Kiến ETA</th>
-                          <th className="p-3.5 text-center">Xác nhận Ngày Thực Nhập Xưởng (ATC)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-855">
-                        {pendingAtcLots.map(lot => (
-                          <tr key={lot.lot_no} className="hover:bg-slate-850/40 text-slate-300">
-                            <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
-                            <td className="p-3.5 font-semibold">{lot.supplier}</td>
-                            <td className="p-3.5 font-mono">{lot.bill_no || '-'}</td>
-                            <td className="p-3.5 text-cyan-400 font-mono">{lot.eta || 'Chưa rõ'}</td>
-                            <td className="p-3.5 text-center">
-                              {inlineAtcLotNo === lot.lot_no ? (
-                                <div className="flex gap-2 justify-center items-center">
-                                  <input type="date" value={inlineAtcDate} onChange={e => setInlineAtcDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded p-1 text-white font-mono" />
-                                  <button onClick={() => handleInlineAtcUpdate(lot.lot_no, inlineAtcDate)} className="bg-emerald-600 px-3 py-1 rounded text-white font-bold text-[11px]">Lưu</button>
-                                  <button onClick={() => setInlineAtcLotNo(null)} className="bg-slate-800 px-2 py-1 rounded text-slate-300 text-[11px]">Hủy</button>
-                                </div>
-                              ) : (
-                                <button onClick={() => { setInlineAtcLotNo(lot.lot_no); setInlineAtcDate(new Date().toISOString().substring(0, 10)); }} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-1.5 rounded text-xs shadow-sm">Xác nhận ngày thực nhập</button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
                         {pendingAtcLots.length === 0 && (
-                          <tr><td colSpan="5" className="p-8 text-center text-slate-500 italic">🎉 Tuyệt vời! Hiện tại không có lô hàng nào chờ nhập xưởng.</td></tr>
+                          <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">🎉 Tuyệt vời! Hiện tại không có lô hàng nào chờ nhập xưởng.</td></tr>
                         )}
                       </tbody>
                     </table>
