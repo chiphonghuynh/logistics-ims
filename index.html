@@ -2,8 +2,14 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chang Yang Logistics IMS - Premium Pro</title>
+  <title>Chang Yang Logistics IMS v2.0 [20260608_033300]</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -520,7 +526,7 @@
         if (lotForm.bill_no && !lotForm.is_hang_chung_bill) {
           const existingBill = lots.find(l => l.bill_no && l.bill_no.trim().toUpperCase() === lotForm.bill_no.trim().toUpperCase());
           if (existingBill) {
-            const msg = '⚠️ Số Bill [' + lotForm.bill_no + '] đã tồn tại trong Lô [' + existingBill.lot_no + '].\n\nNếu đây là hàng chung Bill, hãy bật toggle "Hàng Chung Bill".\nNhấn OK để tiếp tục, Hủy để quay lại sửa.';
+            const msg = 'Bill [' + lotForm.bill_no + '] da ton tai trong Lo [' + existingBill.lot_no + ']. Neu day la hang chung Bill, bat toggle Hang Chung Bill. Nhan OK de tiep tuc.';
             const proceed = window.confirm(msg);
             if (!proceed) return;
           }
