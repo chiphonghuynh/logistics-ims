@@ -63,6 +63,9 @@
         color: #000 !important;
         background: #fff !important;
       }
+      @media print {
+        .no-print { display: none !important; }
+      }
     }
   </style>
 </head>
@@ -305,6 +308,8 @@
       // Quản lý trạng thái dòng click
       const [selectedLotNo, setSelectedLotNo] = useState(null);
       const [selectedInvoiceNo, setSelectedInvoiceNo] = useState(null);
+      const [selectedLotNos, setSelectedLotNos] = useState(new Set()); // for bulk delete
+      const [atcTransportFilter, setAtcTransportFilter] = useState('ALL'); // for pending storage filter
 
       // Advanced Filters
       const [filterFromDate, setFilterFromDate] = useState('');
@@ -511,6 +516,14 @@
           return;
         }
 
+        // ADD mode: check bill_no uniqueness (warn but don't block - hàng chung bill is valid)
+        if (lotForm.bill_no && !lotForm.is_hang_chung_bill) {
+          const existingBill = lots.find(l => l.bill_no && l.bill_no.trim().toUpperCase() === lotForm.bill_no.trim().toUpperCase());
+          if (existingBill) {
+            const proceed = window.confirm(\`⚠️ Số Bill [${lotForm.bill_no}] đã tồn tại trong Lô [${existingBill.lot_no}].\n\nNếu đây là hàng chung Bill, hãy bật toggle "Hàng Chung Bill".\nNhấn OK để tiếp tục, Hủy để quay lại sửa.\`);
+            if (!proceed) return;
+          }
+        }
         // ADD mode: Save bill/transport info (no lot_no yet), move to invoice tab
         // Store in a temporary "draft" state keyed by stt
         const draftLot = { ...lotForm, lot_no: '', stt: Number(lotForm.stt), pkg_qty: Number(lotForm.pkg_qty)||0, gw: Number(lotForm.gw)||0, cbm: Number(lotForm.cbm)||0 };
@@ -578,6 +591,18 @@
           // Invoice được đánh dấu is_hang_chung_bill=true để phân biệt
         }
 
+        // Bill term vs Incoterm validation
+        const prepaidTerms = ['CIF','CFR','CIP','CPT'];
+        const collectTerms = ['FOB','FCA','EXW','FAS'];
+        const lotForInv = lots.find(l => l.bill_no === (invoiceForm.bill_no || lotForm.bill_no));
+        const billTerm = lotForInv?.bill_term || lotForm.bill_term || '';
+        const incoterm = invoiceForm.incoterm || '';
+        if (billTerm === 'Freight Prepaid' && collectTerms.includes(incoterm)) {
+          return showNotification(`⚠️ Không hợp lệ: Bill [Freight Prepaid] không phù hợp với Incoterm [${incoterm}]. Nên dùng: CIF, C&F, CIP, CPT`, 'error');
+        }
+        if (billTerm === 'Freight Collect' && prepaidTerms.includes(incoterm)) {
+          return showNotification(`⚠️ Không hợp lệ: Bill [Freight Collect] không phù hợp với Incoterm [${incoterm}]. Nên dùng: FOB, FCA, EXW, FAS`, 'error');
+        }
         const finalInvoice = {
           ...invoiceForm, invoice_no: invoiceForm.invoice_no.trim(), lot_no: targetLotNo,
           bill_stt: Number(invoiceForm.bill_stt || lotForm.stt || 0),
@@ -604,7 +629,20 @@
         saveInvoicesToStorage(newInvoices);
         setSelectedLotNo(targetLotNo);
         setSelectedInvoiceNo(finalInvoice.invoice_no);
-        showNotification(`Đã lưu Hóa đơn ${finalInvoice.invoice_no}`);
+        // Check invoice total vs goods total
+        const invGoods = goods.filter(g => g.invoice_no === finalInvoice.invoice_no);
+        if (invGoods.length > 0) {
+          const goodsTotal = invGoods.reduce((s, g) => s + Number(g.sale_amount||0), 0);
+          const invTotal = Number(finalInvoice.total_amount)||0;
+          const diff = Math.abs(goodsTotal - invTotal);
+          if (diff > 0.01) {
+            showNotification(`⚠️ Trị giá Invoice (${invTotal.toFixed(2)}) ≠ Tổng hàng hóa (${goodsTotal.toFixed(2)}). Chênh lệch: ${diff.toFixed(2)}`, 'error');
+          } else {
+            showNotification(`Đã lưu Hóa đơn ${finalInvoice.invoice_no}`);
+          }
+        } else {
+          showNotification(`Đã lưu Hóa đơn ${finalInvoice.invoice_no}`);
+        }
       };
 
       const handleSaveGoods = (e) => {
@@ -857,11 +895,81 @@
       };
 
       // Mở nhanh Edit modal
-      const startEditLot = (lot, e) => { if(e) e.stopPropagation(); setModalMode('edit'); setLotForm(lot); setSelectedFactories(lot.factory_no ? lot.factory_no.split(',').map(s=>s.trim()) : []); setModalTab('lot'); setShowAddModal(true); };
-      const startEditInvoice = (inv, e) => { if(e) e.stopPropagation(); setModalMode('edit'); setInvoiceForm(inv); setModalTab('invoice'); setShowAddModal(true); };
-      const startEditGoods = (item, e) => { if(e) e.stopPropagation(); setModalMode('edit'); setGoodsForm(item); setModalTab('goods'); setShowAddModal(true); };
+      const startEditLot = (lot, e) => {
+        if(e) e.stopPropagation();
+        // Confirm before editing
+        setConfirmState({
+          isOpen: true,
+          title: 'Xác nhận Sửa Lô Hàng',
+          message: \`Bạn muốn chỉnh sửa toàn bộ thông tin Lô hàng [${lot.lot_no}]? Mọi thay đổi sẽ được lưu lại.\`,
+          onConfirm: () => {
+            setConfirmState(prev => ({...prev, isOpen: false}));
+            setModalMode('edit');
+            // Load ALL lot data including transport details
+            setLotForm({
+              lot_no: lot.lot_no || '',
+              stt: lot.stt || 1,
+              lot_date: lot.lot_date || '',
+              get_docs_date: lot.get_docs_date || '',
+              factory_no: lot.factory_no || '',
+              bill_no: lot.bill_no || '',
+              bill_date: lot.bill_date || '',
+              pol: lot.pol || '',
+              pod: lot.pod || '',
+              bill_term: lot.bill_term || 'Freight Prepaid',
+              carrier: lot.carrier || '',
+              transport_type: lot.transport_type || 'SEA_CONT',
+              is_cont: lot.is_cont !== undefined ? lot.is_cont : true,
+              cont_no: lot.cont_no || '',
+              seal_no: lot.seal_no || '',
+              cont_type: lot.cont_type || '40HC',
+              pkg_qty: lot.pkg_qty || 0,
+              gw: lot.gw || 0,
+              cbm: lot.cbm || 0,
+              cbm_str: lot.cbm ? String(lot.cbm) : '',
+              eta: lot.eta || '',
+              atc_date: lot.atc_date || '',
+              origin_country: lot.origin_country || 'TAIWAN',
+              loai_hinh: lot.loai_hinh || 'NEUTRAL',
+              loai_hinh_con: lot.loai_hinh_con || 'DEFAULT',
+              sale_qty: lot.sale_qty || 0,
+              is_hang_chung_bill: lot.is_hang_chung_bill || false,
+              contract_start: lot.contract_start || '',
+              contract_end: lot.contract_end || '',
+              supplier: lot.supplier || '',
+            });
+            setSelectedFactories(lot.factory_no ? lot.factory_no.split(',').map(s=>s.trim()).filter(Boolean) : []);
+            setModalTab('lot');
+            setShowAddModal(true);
+          }
+        });
+      };
+      const startEditInvoice = (inv, e) => {
+        if(e) e.stopPropagation();
+        setModalMode('edit');
+        setInvoiceForm({...inv});
+        setModalTab('invoice');
+        setShowAddModal(true);
+      };
+      const startEditGoods = (item, e) => {
+        if(e) e.stopPropagation();
+        setModalMode('edit');
+        setGoodsForm({...item, unit_price_str: item.unit_price ? String(item.unit_price) : ''});
+        setModalTab('goods');
+        setShowAddModal(true);
+      };
 
-      const triggerDeleteLotConfirm = (lotNo, e) => { if(e) e.stopPropagation(); setConfirmState({ isOpen: true, title: 'Xóa Lô Hàng', message: `Mọi tài liệu hóa đơn và chi tiết hàng hóa thuộc Lô [${lotNo}] sẽ bị xóa vĩnh viễn theo cơ chế Cascading.`, onConfirm: () => executeDeleteLot(lotNo) }); };
+      const triggerDeleteLotConfirm = (lotNo, e) => {
+        if(e) e.stopPropagation();
+        const lotInvCount = invoices.filter(i => i.lot_no === lotNo).length;
+        const lotGoodsCount = goods.filter(g => invoices.filter(i => i.lot_no === lotNo).map(i => i.invoice_no).includes(g.invoice_no)).length;
+        setConfirmState({
+          isOpen: true,
+          title: '⚠️ Xóa Lô Hàng — Thao tác không thể hoàn tác',
+          message: `Lô hàng [${lotNo}] chứa ${lotInvCount} hóa đơn và ${lotGoodsCount} mặt hàng sẽ bị xóa vĩnh viễn theo cơ chế Cascading. Bạn có chắc chắn?`,
+          onConfirm: () => executeDeleteLot(lotNo)
+        });
+      };
       const triggerDeleteInvoiceConfirm = (invNo, e) => { if(e) e.stopPropagation(); setConfirmState({ isOpen: true, title: 'Xóa Hóa Đơn', message: `Hóa đơn thương mại [${invNo}] và các mặt hàng bên trong sẽ bị xóa khỏi hệ thống.`, onConfirm: () => executeDeleteInvoice(invNo) }); };
       const triggerDeleteGoodsConfirm = (gId, e) => { if(e) e.stopPropagation(); setConfirmState({ isOpen: true, title: 'Xóa Chi Tiết Mặt Hàng', message: `Xác nhận xóa mặt hàng này khỏi hóa đơn?`, onConfirm: () => executeDeleteGoods(gId) }); };
 
@@ -878,6 +986,20 @@
         return true;
       });
 
+      // Shared container detection
+      const sharedContNos = (() => {
+        const contMap = {};
+        lots.forEach(l => {
+          if (l.cont_no && l.cont_no.trim()) {
+            const key = l.cont_no.trim().toUpperCase();
+            if (!contMap[key]) contMap[key] = [];
+            contMap[key].push(l.lot_no);
+          }
+        });
+        const shared = new Set();
+        Object.values(contMap).forEach(arr => { if (arr.length > 1) arr.forEach(n => shared.add(n)); });
+        return shared;
+      })();
       const currentInvoices = invoices.filter(inv => inv.lot_no === selectedLotNo);
       const currentGoods = goods.filter(g => g.invoice_no === selectedInvoiceNo);
       const pendingAtcLots = lots.filter(lot => !lot.atc_date || lot.atc_date.trim() === '');
@@ -1014,6 +1136,78 @@
             showNotification(`Đã xóa ${selectedDictItems.size} sản phẩm khỏi danh mục ${dbSelectedTab}.`);
           }
         });
+      };
+
+      // ============================================================
+      // EXPORT BẢNG KÊ HÓA ĐƠN SANG WORD (docx via HTML blob)
+      // ============================================================
+      const exportBangKeWord = (lotNo, printInvoices, totalVal, currency, supplier) => {
+        const printLot = lots.find(l => l.lot_no === lotNo);
+        const latestDate = printInvoices.map(i => i.invoice_date||'').filter(Boolean).sort().reverse()[0] || '';
+        const fmtDate = d => d ? d.replace(/-/g, '/') : '';
+        const htmlContent = \`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+          body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000; margin: 2cm; }
+          h2 { font-size: 14pt; font-weight: bold; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0; }
+          table { width: 100%; border-collapse: collapse; font-size: 12pt; }
+          th { border: 1px solid #000; padding: 6px 8px; background: #f0f0f0; font-weight: bold; }
+          td { border: 1px solid #000; padding: 6px 8px; }
+          .right { text-align: right; }
+          .center { text-align: center; }
+          .bold { font-weight: bold; }
+          .header-row { display: flex; justify-content: space-between; margin-bottom: 12px; }
+          .sig-block { margin-top: 60px; text-align: right; }
+        </style></head><body>
+          <div class="header-row">
+            <div><strong>CÔNG TY TNHH CHANG YANG VIỆT NAM</strong></div>
+            <div class="right"><strong>Mẫu số 02/BKHĐ/GSQL</strong><br><small>(Ban hành kèm TT 39/2018/TT-BTC)</small></div>
+          </div>
+          <h2>BẢNG KÊ HÓA ĐƠN THƯƠNG MẠI HÀNG HÓA XUẤT KHẨU, NHẬP KHẨU</h2>
+          <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+            <span><strong>Số:</strong> \${lotNo}</span>
+            <span><strong>Ngày:</strong> \${fmtDate(latestDate)}</span>
+          </div>
+          <p><strong>Người bán:</strong> \${supplier}</p>
+          <p style="margin-left:64px;font-size:11pt">NO. 16, LN. 267, SEC. 1, ZHANGNAN RD., CHANGHUA CITY, CHANGHUA COUNTY, TAIWAN.</p>
+          <p><strong>Người mua:</strong> CHANGYANG VIETNAM LTD</p>
+          <p style="margin-left:64px;font-size:11pt">D10/89Q, LE DUC ANH ROAD, TAN TAO WARD, HO CHI MINH CITY, VIET NAM</p>
+          <p class="bold" style="margin:12px 0 8px">Danh mục hóa đơn thương mại:</p>
+          <table>
+            <thead><tr>
+              <th class="center" style="width:40px">STT</th>
+              <th>Số hóa đơn (Invoice No.)</th>
+              <th class="center">Ngày hóa đơn</th>
+              <th class="right">Thành tiền (\${currency})</th>
+            </tr></thead>
+            <tbody>
+              \${printInvoices.map((inv, idx) => \`<tr>
+                <td class="center">\${idx+1}</td>
+                <td class="bold">\${inv.invoice_no}</td>
+                <td class="center">\${fmtDate(inv.invoice_date)}</td>
+                <td class="right" style="font-family:monospace">\${(() => { const base = goods.filter(g => g.invoice_no === inv.invoice_no).reduce((s,g) => s+Number(g.sale_amount||0),0); return (base + Number(inv.plus_sea_freight||0) + Number(inv.handling_charges||0) + Number(inv.other_charges||0) - Number(inv.foc_amount||0)).toLocaleString(undefined,{minimumFractionDigits:2}); })()}</td>
+              </tr>\`).join('')}
+              <tr class="bold" style="background:#f9fafb;border-top:2px solid #000">
+                <td colspan="3" class="center" style="text-transform:uppercase;font-size:11pt">Tổng giá trị hóa đơn</td>
+                <td class="right" style="font-family:monospace">\${totalVal.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="sig-block">
+            <p class="bold" style="text-transform:uppercase">ĐẠI DIỆN DOANH NGHIỆP</p>
+            <p style="font-size:10pt;color:#6b7280">(Ký, ghi rõ họ tên, đóng dấu)</p>
+            <div style="margin-top:60px;border-top:1px solid #000;padding-top:4px;min-width:200px;display:inline-block;text-align:center">
+              <p class="bold">Ngô Thanh Hoàng</p>
+              <p>Giám Đốc</p>
+            </div>
+          </div>
+        </body></html>\`;
+        const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = \`BangKe_\${lotNo}_\${new Date().toISOString().slice(0,10)}.doc\`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showNotification('Đã tải xuống file Word thành công!');
       };
 
       // Màn hình chờ khởi tạo
@@ -1199,7 +1393,16 @@
                         <span>📦</span> Shipment Profiles
                       </button>
 
-                      {/* 3.2 Pending Storage */}
+                      {/* 3.2 ETA Management */}
+                      <button
+                        onClick={() => setActiveMenu('ETA_MGMT')}
+                        className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
+                          ${activeMenu === 'ETA_MGMT' ? 'bg-cyan-950/40 text-cyan-400 font-bold border border-cyan-900' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                      >
+                        <span>🛬</span> Nhập ETA
+                      </button>
+
+                      {/* 3.3 Pending Storage */}
                       <button
                         onClick={() => setActiveMenu('NO_ATC')}
                         className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center justify-between
@@ -1221,7 +1424,7 @@
               </div>
             </div>
             <div className="p-3 text-center border-t border-slate-800 bg-slate-950/60 text-[10px] text-slate-500">
-              {menuExpanded ? <span>Version: <strong className="text-blue-500">v1.5.0-pro</strong></span> : <span>v1.5</span>}
+              {menuExpanded ? <span>Version: <strong className="text-blue-500">v2.0.0-pro</strong></span> : <span>v2.0</span>}
             </div>
           </div>
 
@@ -1233,6 +1436,7 @@
                 {activeMenu === 'DATABASE_VIEW' && '🏷 MASTER DATA — HS CODE CATEGORY'}
                 {activeMenu === 'E010' && '📦 OPERATIONS — SHIPMENT PROFILES'}
                 {activeMenu === 'NO_ATC' && '⏳ OPERATIONS — PENDING STORAGE'}
+                {activeMenu === 'ETA_MGMT' && '🛬 OPERATIONS — NHẬP ETA HÀNG ĐẾN'}
               </h2>
               <div className="flex items-center gap-2">
                 {isConnected ? (
@@ -1283,6 +1487,18 @@
                       />
                       <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 rounded-xl transition-colors">Truy Vấn</button>
                     </form>
+                    <div className="flex gap-2 justify-center flex-wrap mt-2">
+                      <span className="text-[10px] text-slate-500 self-center">Lọc nhanh:</span>
+                      {[
+                        { label: '📅 Hôm nay', fn: () => { const d = new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setActiveMenu('E010'); }},
+                        { label: '📆 Tháng này', fn: () => { const n = new Date(); const from = new Date(n.getFullYear(), n.getMonth(), 1).toISOString().slice(0,10); const to = new Date(n.getFullYear(), n.getMonth()+1, 0).toISOString().slice(0,10); setFilterFromDate(from); setFilterToDate(to); setActiveMenu('E010'); }},
+                        { label: '🗓 Năm nay', fn: () => { const y = new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setActiveMenu('E010'); }},
+                        { label: '🗓 Năm trước', fn: () => { const y = new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setActiveMenu('E010'); }},
+                        { label: '📋 Tất cả', fn: () => { setFilterFromDate(''); setFilterToDate(''); setActiveMenu('E010'); }},
+                      ].map((btn, i) => (
+                        <button key={i} onClick={btn.fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] px-3 py-1.5 rounded-lg border border-slate-700 transition-colors font-bold">{btn.label}</button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1523,6 +1739,37 @@
                     );
                   })()}
 
+                  {/* BULK DELETE FOR LOTS */}
+                  {selectedLotNos.size > 0 && (
+                    <div className="bg-rose-950/20 border border-rose-800/40 rounded-xl p-3 flex justify-between items-center">
+                      <span className="text-xs text-rose-400 font-bold">Đã chọn {selectedLotNos.size} lô hàng</span>
+                      <button onClick={() => {
+                        setConfirmState({
+                          isOpen: true,
+                          title: `Xóa ${selectedLotNos.size} lô hàng`,
+                          message: `Bạn chắc chắn muốn xóa ${selectedLotNos.size} lô hàng đã chọn? Tất cả invoice và hàng hóa liên quan sẽ bị xóa vĩnh viễn.`,
+                          onConfirm: () => {
+                            let remainLots = lots.filter(l => !selectedLotNos.has(l.lot_no));
+                            let remainInvs = invoices;
+                            let remainGoods = goods;
+                            selectedLotNos.forEach(lotNo => {
+                              const relInvNos = invoices.filter(i => i.lot_no === lotNo).map(i => i.invoice_no);
+                              remainInvs = remainInvs.filter(i => i.lot_no !== lotNo);
+                              remainGoods = remainGoods.filter(g => !relInvNos.includes(g.invoice_no));
+                            });
+                            saveLotsToStorage(remainLots);
+                            saveInvoicesToStorage(remainInvs);
+                            saveGoodsToStorage(remainGoods);
+                            setSelectedLotNos(new Set());
+                            setSelectedLotNo(null);
+                            setConfirmState(prev => ({...prev, isOpen: false}));
+                            showNotification(`Đã xóa ${selectedLotNos.size} lô hàng`);
+                          }
+                        });
+                      }} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-1.5 rounded text-xs">🗑 Xóa {selectedLotNos.size} lô đã chọn</button>
+                    </div>
+                  )}
+
                   {/* BỘ LỌC TÌM KIẾM LÔ HÀNG */}
                   <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex flex-wrap gap-4 items-end shadow-md">
                     <div className="flex-1 min-w-[150px]">
@@ -1548,7 +1795,12 @@
                       <table className="w-full text-left text-xs border-collapse min-w-[1500px]">
                         <thead>
                           <tr className="bg-slate-950 text-slate-400 uppercase border-b border-slate-850">
-                            <th className="p-3 w-12 text-center">Chọn</th>
+                            <th className="p-3 w-10 text-center">
+                              <input type="checkbox" className="accent-rose-500 w-3.5 h-3.5 cursor-pointer"
+                                checked={filteredLots.length > 0 && filteredLots.every(l => selectedLotNos.has(l.lot_no))}
+                                onChange={e => { const next = new Set(selectedLotNos); if (e.target.checked) filteredLots.forEach(l => next.add(l.lot_no)); else filteredLots.forEach(l => next.delete(l.lot_no)); setSelectedLotNos(next); }} />
+                            </th>
+                            <th className="p-3 w-12 text-center">Radio</th>
                             <th className="p-3">Mã Lô Hàng</th>
                             <th className="p-3 text-center">STT</th>
                             <th className="p-3 text-rose-400">Ngày ATC</th>
@@ -1567,7 +1819,12 @@
                             const isSelected = selectedLotNo === lot.lot_no;
                             const lotVal = invoices.filter(i => i.lot_no === lot.lot_no).reduce((sum, inv) => sum + getInvoiceValueSum(inv), 0);
                             return (
-                              <tr key={lot.lot_no} onClick={() => { setSelectedLotNo(lot.lot_no); setSelectedInvoiceNo(null); }} className={`cursor-pointer ${isSelected ? 'bg-blue-950/20 text-white border-l-2 border-blue-500' : 'hover:bg-slate-850/40 text-slate-300'}`}>
+                              <tr key={lot.lot_no} onClick={() => { setSelectedLotNo(lot.lot_no); setSelectedInvoiceNo(null); }} className={`cursor-pointer ${isSelected ? 'bg-blue-950/20 text-white border-l-2 border-blue-500' : sharedContNos.has(lot.lot_no) ? 'bg-purple-950/10 hover:bg-purple-950/20 text-slate-300' : 'hover:bg-slate-850/40 text-slate-300'}`}>
+                                <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
+                                  <input type="checkbox" className="accent-rose-500 w-3.5 h-3.5 cursor-pointer"
+                                    checked={selectedLotNos.has(lot.lot_no)}
+                                    onChange={e => { const next = new Set(selectedLotNos); if (e.target.checked) next.add(lot.lot_no); else next.delete(lot.lot_no); setSelectedLotNos(next); }} />
+                                </td>
                                 <td className="p-3 text-center"><input type="radio" checked={isSelected} readOnly className="accent-blue-500" /></td>
                                 <td className="p-3 font-mono font-bold text-amber-400">{lot.lot_no}</td>
                                 <td className="p-3 font-mono font-bold text-center">{lot.stt}</td>
@@ -1578,7 +1835,13 @@
                                 <td className="p-3 font-bold text-slate-300">{lot.factory_no || '-'}</td>
                                 <td className="p-3 font-mono font-bold">{lot.bill_no || '-'}</td>
                                 <td className="p-3">{lot.pol} ➔ {lot.pod}</td>
-                                <td className="p-3 text-center">{lot.is_cont ? `${lot.cont_no} (${lot.cont_type})` : 'LCL'}</td>
+                                <td className="p-3 text-center">
+                                  {lot.is_cont ? (
+                                    <span className={sharedContNos.has(lot.lot_no) ? 'bg-purple-900/40 text-purple-300 border border-purple-700 px-2 py-0.5 rounded font-mono font-bold text-[10px]' : ''} title={sharedContNos.has(lot.lot_no) ? '⚠️ Chung Container với lô khác' : ''}>
+                                      {sharedContNos.has(lot.lot_no) ? '🔗 ' : ''}{lot.cont_no} ({lot.cont_type})
+                                    </span>
+                                  ) : 'LCL'}
+                                </td>
                                 <td className="p-3 text-right font-mono">{Number(lot.pkg_qty).toLocaleString()}</td>
                                 <td className="p-3 text-right font-mono text-amber-300 font-bold">{'$'}{lotVal.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                                 <td className="p-3 text-center space-x-2">
@@ -1616,7 +1879,18 @@
                             {currentInvoices.map((inv) => (
                               <tr key={inv.invoice_no} onClick={() => setSelectedInvoiceNo(inv.invoice_no)} className={`cursor-pointer ${selectedInvoiceNo === inv.invoice_no ? 'bg-indigo-950/20 text-white border-l-2 border-indigo-500' : 'hover:bg-slate-850/30'}`}>
                                 <td className="p-3 text-center"><input type="radio" checked={selectedInvoiceNo === inv.invoice_no} readOnly className="accent-indigo-500" /></td>
-                                <td className="p-3 font-bold font-mono text-indigo-400">{inv.invoice_no}</td>
+                                <td className="p-3 font-bold font-mono text-indigo-400">
+                                  {inv.invoice_no}
+                                  {(() => {
+                                    const invGoods = goods.filter(g => g.invoice_no === inv.invoice_no);
+                                    if (invGoods.length === 0) return null;
+                                    const gTotal = invGoods.reduce((s,g) => s+Number(g.sale_amount||0),0);
+                                    const iTotal = Number(inv.total_amount)||0;
+                                    const diff = Math.abs(gTotal - iTotal);
+                                    if (diff > 0.01) return <span className="ml-1 text-[9px] bg-rose-900 text-rose-300 px-1 rounded" title={`HĐ: ${iTotal.toFixed(2)} ≠ Hàng: ${gTotal.toFixed(2)}`}>⚠️ Lệch</span>;
+                                    return null;
+                                  })()}
+                                </td>
                                 <td className="p-3">{fmtDisplayDate(inv.invoice_date)}</td>
                                 <td className="p-3 font-bold text-pink-500">{inv.incoterm}</td>
                                 <td className="p-3 text-right text-amber-400 font-bold font-mono">{'$'}{getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
@@ -1697,14 +1971,137 @@
                 </div>
               )}
 
+              {/* --- ETA MANAGEMENT VIEW --- */}
+              {activeMenu === 'ETA_MGMT' && (
+                <div className="space-y-6 max-w-5xl mx-auto">
+                  <div className="bg-cyan-950/20 border border-cyan-900/40 p-4 rounded-xl text-xs text-cyan-300">
+                    🛬 <strong>Quản lý ETA:</strong> Nhập/cập nhật ngày dự kiến hàng đến cho từng lô hàng chưa có ETA hoặc ETA sắp đến trong 7 ngày tới.
+                  </div>
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                    <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
+                      <h3 className="font-bold text-xs uppercase tracking-wide text-cyan-400">📋 Danh sách Lô Hàng — Cập nhật ETA</h3>
+                      <span className="text-[10px] text-slate-500">{lots.filter(l => !l.atc_date).length} lô chưa nhập kho</span>
+                    </div>
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
+                          <th className="p-3.5">Mã Lô</th>
+                          <th className="p-3.5">Số Bill</th>
+                          <th className="p-3.5">Hãng Tàu/FWD</th>
+                          <th className="p-3.5">Phương thức</th>
+                          <th className="p-3.5 text-center text-cyan-400">ETA Hiện tại</th>
+                          <th className="p-3.5 text-center">Cập nhật ETA</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-855">
+                        {lots.filter(l => !l.atc_date).map(lot => {
+                          const today = new Date().toISOString().slice(0,10);
+                          const etaDays = lot.eta ? Math.ceil((new Date(lot.eta) - new Date(today)) / 86400000) : null;
+                          const isUrgent = etaDays !== null && etaDays <= 7;
+                          const isOverdue = etaDays !== null && etaDays < 0;
+                          return (
+                            <tr key={lot.lot_no} className={`hover:bg-slate-850/40 ${isOverdue ? 'bg-rose-950/10' : isUrgent ? 'bg-amber-950/10' : ''}`}>
+                              <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
+                              <td className="p-3.5 font-mono text-slate-300">{lot.bill_no || '—'}</td>
+                              <td className="p-3.5 text-slate-300">{lot.carrier || '—'}</td>
+                              <td className="p-3.5">
+                                <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300">{lot.transport_type || 'SEA_CONT'}</span>
+                              </td>
+                              <td className="p-3.5 text-center">
+                                {lot.eta ? (
+                                  <div>
+                                    <span className={`font-mono font-bold ${isOverdue ? 'text-rose-400' : isUrgent ? 'text-amber-400' : 'text-cyan-400'}`}>{fmtDisplayDate(lot.eta)}</span>
+                                    {etaDays !== null && <span className={`ml-2 text-[10px] ${isOverdue ? 'text-rose-500' : isUrgent ? 'text-amber-500' : 'text-slate-500'}`}>{isOverdue ? `Quá ${-etaDays} ngày` : etaDays === 0 ? 'Hôm nay!' : `Còn ${etaDays} ngày`}</span>}
+                                  </div>
+                                ) : <span className="text-slate-600 italic">Chưa có ETA</span>}
+                              </td>
+                              <td className="p-3.5 text-center">
+                                <div className="flex gap-2 justify-center items-center">
+                                  <input type="date" id={`eta-input-${lot.lot_no}`} defaultValue={lot.eta || ''} className="bg-slate-950 border border-slate-700 rounded p-1 text-white font-mono text-[11px]" />
+                                  <button onClick={() => {
+                                    const inp = document.getElementById(`eta-input-${lot.lot_no}`);
+                                    if (!inp) return;
+                                    const newEta = inp.value;
+                                    const newLots = lots.map(l => l.lot_no === lot.lot_no ? {...l, eta: newEta} : l);
+                                    saveLotsToStorage(newLots);
+                                    showNotification(`Đã cập nhật ETA cho lô ${lot.lot_no}: ${newEta}`);
+                                  }} className="bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-1 rounded text-[11px] font-bold">Lưu ETA</button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {lots.filter(l => !l.atc_date).length === 0 && (
+                          <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">🎉 Tất cả lô hàng đã nhập kho!</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {/* --- NO_ATC VIEW --- */}
               {activeMenu === 'NO_ATC' && (
                 <div className="space-y-6">
                   <div className="bg-rose-950/20 border border-rose-900/60 p-4 rounded-xl text-xs text-rose-300">
                     🚚 <strong>Lưu ý nghiệp vụ điều xe:</strong> Đây là danh sách các lô hàng đang chờ điền ngày thực tế nhận hàng tại xưởng (ATC Date).
                   </div>
+                  
+                  {/* Transport filter */}
+                  {(() => {
+                    const transportTypes = ['ALL', 'SEA_CONT', 'SEA_CFS', 'AIR', 'EXPRESS', 'BY_TRUCK', 'NGOAI_QUAN'];
+                    const transportLabels = { ALL: '📋 Tất cả', SEA_CONT: '🚢 SEA Cont', SEA_CFS: '⚓ SEA CFS', AIR: '✈ Air', EXPRESS: '📦 Express', BY_TRUCK: '🚛 Truck', NGOAI_QUAN: '🏭 Ngoại Quan' };
+                    const filteredPending = atcTransportFilter === 'ALL' ? pendingAtcLots : pendingAtcLots.filter(l => (l.transport_type || 'SEA_CONT') === atcTransportFilter);
+                    return (
+                      <>
+                        <div className="flex gap-2 flex-wrap">
+                          {transportTypes.map(t => (
+                            <button key={t} onClick={() => setAtcTransportFilter(t)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${atcTransportFilter === t ? 'bg-rose-600 border-rose-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-600'}`}>{transportLabels[t]}</button>
+                          ))}
+                        </div>
 
                   <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
+                          <th className="p-3.5">Mã Lô Hàng</th>
+                          <th className="p-3.5">Nhà Cung Cấp</th>
+                          <th className="p-3.5">Số Vận Đơn (Bill)</th>
+                          <th className="p-3.5">Phương thức</th>
+                          <th className="p-3.5">Ngày Dự Kiến ETA</th>
+                          <th className="p-3.5 text-center">Xác nhận Ngày Thực Nhập Xưởng (ATC)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-855">
+                        {filteredPending.map(lot => (
+                          <tr key={lot.lot_no} className="hover:bg-slate-850/40 text-slate-300">
+                            <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
+                            <td className="p-3.5 font-semibold">{lot.supplier}</td>
+                            <td className="p-3.5 font-mono">{lot.bill_no || '-'}</td>
+                            <td className="p-3.5"><span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded">{lot.transport_type || 'SEA_CONT'}</span></td>
+                            <td className="p-3.5 text-cyan-400 font-mono">{lot.eta || 'Chưa rõ'}</td>
+                            <td className="p-3.5 text-center">
+                              {inlineAtcLotNo === lot.lot_no ? (
+                                <div className="flex gap-2 justify-center items-center">
+                                  <input type="date" value={inlineAtcDate} onChange={e => setInlineAtcDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded p-1 text-white font-mono" />
+                                  <button onClick={() => handleInlineAtcUpdate(lot.lot_no, inlineAtcDate)} className="bg-emerald-600 px-3 py-1 rounded text-white font-bold text-[11px]">Lưu</button>
+                                  <button onClick={() => setInlineAtcLotNo(null)} className="bg-slate-800 px-2 py-1 rounded text-slate-300 text-[11px]">Hủy</button>
+                                </div>
+                              ) : (
+                                <button onClick={() => { setInlineAtcLotNo(lot.lot_no); setInlineAtcDate(new Date().toISOString().substring(0, 10)); }} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-1.5 rounded text-xs shadow-sm">Xác nhận ngày thực nhập</button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                        {filteredPending.length === 0 && (
+                          <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">🎉 Không có lô hàng nào trong bộ lọc này.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                      </>
+                    );
+                  })()}
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
@@ -2528,7 +2925,7 @@
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Qty 1</label>
                           <input type="number" step="0.001" value={goodsForm.qty1 || ''}
-                            onChange={e => { const q = Number(e.target.value)||0; setGoodsForm({...goodsForm, qty1: q, sale_amount: q*(Number(goodsForm.unit_price)||0)}); }}
+                            onChange={e => { const q = Number(e.target.value)||0; const p = Number(goodsForm.unit_price)||0; setGoodsForm({...goodsForm, qty1: q, sale_amount: Math.round(q*p*100000)/100000}); }}
                             className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-sky-300 font-bold" />
                         </div>
                         <div>
@@ -2562,7 +2959,8 @@
                               // Allow typing: digits, dot, leading zero
                               if (!/^[0-9]*\.?[0-9]*$/.test(raw) && raw !== '') return;
                               const p = raw === '' || raw === '.' ? 0 : parseFloat(raw) || 0;
-                              setGoodsForm({...goodsForm, unit_price_str: raw, unit_price: p, sale_amount: (Number(goodsForm.qty1)||0)*p});
+                              const q2 = Number(goodsForm.qty1)||0;
+                              setGoodsForm({...goodsForm, unit_price_str: raw, unit_price: p, sale_amount: Math.round(q2*p*100000)/100000});
                             }}
                             placeholder="0.00"
                             className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-amber-300 font-bold font-mono" />
@@ -2947,6 +3345,7 @@
                     <h3 className="font-bold text-xs uppercase text-amber-400">📋 Bảng Kê Hóa Đơn – Mẫu 02/BKHĐ/GSQL</h3>
                     <div className="flex gap-2">
                       <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">🖨️ In Bảng Kê</button>
+                      <button onClick={() => exportBangKeWord(selectedLotNo, printInvoices, totalVal, currency, supplier)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">📄 Tải Word</button>
                       <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-800 text-slate-300 font-bold px-3 py-2 rounded text-xs">Đóng</button>
                     </div>
                   </div>
