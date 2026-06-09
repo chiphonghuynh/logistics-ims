@@ -246,6 +246,26 @@
         }
       };
 
+      // ── DATA MIGRATION: backfill missing fields in old goods records ──
+      const migrateGoods = (rawGoods) => {
+        if (!rawGoods || !Array.isArray(rawGoods)) return rawGoods;
+        return rawGoods.map(g => ({
+          origin_country: 'TAIWAN',
+          qty1: 0, unit1: g.goods_unit_en || 'PCS',
+          qty2: 0, unit2: g.goods_unit_en2 || '',
+          unit_price: 0, unit_price_str: '',
+          ...g,
+          // Ensure unit1 fallback for old records that have goods_unit_en but no unit1
+          unit1: g.unit1 || g.goods_unit_en || 'PCS',
+          unit2: g.unit2 !== undefined ? g.unit2 : (g.goods_unit_en2 || ''),
+          origin_country: g.origin_country || 'TAIWAN',
+          qty1: Number(g.qty1) || 0,
+          qty2: Number(g.qty2) || 0,
+          unit_price: Number(g.unit_price) || 0,
+          sale_amount: Number(g.sale_amount) || 0,
+        }));
+      };
+
       // Khởi tạo: load từ Google Sheets, fallback sang cache offline
       useEffect(() => {
         async function initData() {
@@ -257,7 +277,7 @@
             ]);
             setLots(l || SAMPLE_LOTS);
             setInvoices(i || SAMPLE_INVOICES);
-            setGoods(g || SAMPLE_GOODS);
+            setGoods(migrateGoods(g) || SAMPLE_GOODS);
             setDictA12(a12 || INITIAL_DICTIONARY_A12);
             setDictE21(e21 || INITIAL_DICTIONARY_E21);
             setDbReady(true);
@@ -269,7 +289,7 @@
             const all = await window.cyLoadAll();
             setLots(all.lots?.length ? all.lots : SAMPLE_LOTS);
             setInvoices(all.invoices?.length ? all.invoices : SAMPLE_INVOICES);
-            setGoods(all.goods?.length ? all.goods : SAMPLE_GOODS);
+            setGoods(all.goods?.length ? migrateGoods(all.goods) : SAMPLE_GOODS);
             setDictA12(all.dict_a12?.length ? all.dict_a12 : INITIAL_DICTIONARY_A12);
             setDictE21(all.dict_e21?.length ? all.dict_e21 : INITIAL_DICTIONARY_E21);
             setSyncStatus('ok');
@@ -627,7 +647,7 @@
           }
           newInvoices = [finalInvoice, ...invoices];
           setDraftInvoiceNos(prev => prev.includes(finalInvoice.invoice_no) ? prev : [...prev, finalInvoice.invoice_no]);
-          setGoodsForm(prev => ({ ...prev, invoice_no: finalInvoice.invoice_no, goods_no: '', goods_name_en: '', goods_name_local: '', hs_code: '', sale_amount: 0 }));
+          setGoodsForm(prev => ({ ...prev, invoice_no: finalInvoice.invoice_no, goods_no: '', goods_name_en: '', goods_name_local: '', hs_code: '', sale_amount: 0, qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: '' }));
           setModalTab('goods');
         } else {
           newInvoices = invoices.map(i => i.invoice_no === finalInvoice.invoice_no ? finalInvoice : i);
@@ -659,7 +679,21 @@
 
         const isEditing = modalMode === 'edit' && goodsForm.id;
         const goodsId = isEditing ? goodsForm.id : "goods_" + Date.now();
-        const finalGoods = { ...goodsForm, id: goodsId, goods_no: goodsForm.goods_no.trim(), goods_item: Number(goodsForm.goods_item) || 1, sale_amount: Number(goodsForm.sale_amount) || 0 };
+        const qty1Val = Number(goodsForm.qty1) || 0;
+        const unit_priceVal = Number(goodsForm.unit_price) || 0;
+        const finalGoods = {
+          ...goodsForm,
+          id: goodsId,
+          goods_no: goodsForm.goods_no.trim(),
+          goods_item: Number(goodsForm.goods_item) || 1,
+          origin_country: goodsForm.origin_country || 'TAIWAN',
+          qty1: qty1Val,
+          unit1: goodsForm.unit1 || goodsForm.goods_unit_en || 'PCS',
+          qty2: Number(goodsForm.qty2) || 0,
+          unit2: goodsForm.unit2 || goodsForm.goods_unit_en2 || '',
+          unit_price: unit_priceVal,
+          sale_amount: Number(goodsForm.sale_amount) || (qty1Val * unit_priceVal),
+        };
 
         let newGoods = [];
         if (isEditing) {
@@ -670,7 +704,10 @@
           newGoods = [...goods, finalGoods];
           setGoodsForm({
             invoice_no: finalGoods.invoice_no, goods_no: '', goods_item: finalGoods.goods_item + 1, goods_name_en: '',
-            goods_unit_en: 'PCS', goods_unit_en2: '', goods_name_local: 'Hàng hóa nhập khẩu mới', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0
+            goods_unit_en: 'PCS', goods_unit_en2: '', goods_name_local: '', goods_unit_local: 'Cái', goods_unit_local2: '',
+            hs_code: '', invoice_description: '', sale_amount: 0,
+            origin_country: finalGoods.origin_country || 'TAIWAN',
+            qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: ''
           });
         }
         saveGoodsToStorage(newGoods);
@@ -2108,11 +2145,11 @@
                               const firstInv = invoices.find(i => i.lot_no === selectedLotNo);
                               const isA12 = (firstInv?.loai_hinh || 'A12') === 'A12';
 
-                              // Build header row
+                              // Build header row: Mã Hàng | Tên Hàng | HS Code (A12 only) | ...rest
                               const header = [
                                 'Mã Hàng',
-                                ...(isA12 ? ['HS Code'] : []),
                                 'Tên Hàng',
+                                ...(isA12 ? ['HS Code'] : []),
                                 'Xuất Xứ',
                                 'Số Lượng 1', 'ĐVT 1',
                                 'Số Lượng 2', 'ĐVT 2',
@@ -2122,20 +2159,20 @@
 
                               // Build data rows
                               const dataRows = lotGoods.map(g => {
-                                const maHang   = (g.goods_no || '').split('*')[0].trim();
-                                const tenHang  = [g.goods_name_local, g.goods_name_en].filter(Boolean).join(' / ');
-                                const xuatXu   = g.origin_country || '';
-                                const qty1     = g.qty1 || 0;
-                                const dvt1     = g.unit1 || g.goods_unit_en || '';
-                                const qty2     = g.qty2 || 0;
-                                const dvt2     = g.unit2 || g.goods_unit_en2 || '';
-                                const donGia   = g.unit_price || 0;
+                                const maHang    = (g.goods_no || '').split('*')[0].trim();
+                                const tenHang   = [g.goods_name_local, g.goods_name_en].filter(Boolean).join(' / ');
+                                const xuatXu    = g.origin_country || '';
+                                const qty1      = g.qty1 || 0;
+                                const dvt1      = g.unit1 || g.goods_unit_en || '';
+                                const qty2      = g.qty2 || 0;
+                                const dvt2      = g.unit2 || g.goods_unit_en2 || '';
+                                const donGia    = g.unit_price || 0;
                                 const thanhTien = g.sale_amount || 0;
 
                                 return [
                                   maHang,
-                                  ...(isA12 ? [g.hs_code || ''] : []),
                                   tenHang,
+                                  ...(isA12 ? [g.hs_code || ''] : []),
                                   xuatXu,
                                   qty1, dvt1,
                                   qty2, dvt2,
