@@ -2910,80 +2910,82 @@
                         );
                       })()}
 
-                      <div className="pt-4 border-t border-slate-800 space-y-3">
-                        {modalMode === 'edit' ? (
+
+                      <div className="pt-4 border-t border-slate-800">
+                        {modalMode === 'edit' && (
                           <div className="flex justify-between items-center bg-amber-950/20 border border-amber-800/40 rounded-xl px-4 py-2.5">
                             <p className="text-[10px] text-amber-400 italic">⚠️ Chế độ Sửa — nhấn Cập Nhật để ghi đè dữ liệu cũ</p>
                             <button type="submit" className="bg-amber-600 hover:bg-amber-500 text-white px-5 py-2 rounded-lg text-xs font-bold">✔ Cập Nhật Hóa Đơn</button>
                           </div>
-                        ) : (
-                        <div className="flex flex-wrap gap-3 justify-between items-center">
-                        <button type="button"
-                          onClick={() => {
-                            if (!invoiceForm.invoice_no.trim()) return showNotification("Nhập Số Hóa Đơn!", "error");
-                            if (invoices.some(i => String(i.invoice_no||'').toLowerCase() === invoiceForm.invoice_no.trim().toLowerCase())) {
-                              return showNotification("Số hóa đơn đã tồn tại!", "error");
-                            }
-                            const finalInv = {
-                              ...invoiceForm, invoice_no: invoiceForm.invoice_no.trim(),
-                              bill_stt: Number(invoiceForm.bill_stt || lotForm.stt || 0),
-                              bill_no: invoiceForm.bill_no || lotForm.bill_no,
-                              total_amount: Number(invoiceForm.total_amount)||0, foc_amount: Number(invoiceForm.foc_amount)||0,
-                              plus_sea_freight: Number(invoiceForm.plus_sea_freight)||0,
-                              handling_charges: Number(invoiceForm.handling_charges)||0, other_charges: Number(invoiceForm.other_charges)||0,
-                              is_hang_chung_bill: lotForm.is_hang_chung_bill || false,
-                              inv_pkg_qty: Number(invoiceForm.inv_pkg_qty)||0, inv_gw: Number(invoiceForm.inv_gw)||0,
-                            };
-                            const newInvoices = [finalInv, ...invoices];
-                            saveInvoicesToStorage(newInvoices);
-                            setDraftInvoiceNos(prev => [...prev, finalInv.invoice_no]);
-                            setSelectedInvoiceNo(finalInv.invoice_no);
-                            showNotification(`Đã lưu Invoice ${finalInv.invoice_no} — nhập tiếp invoice khác`);
-                            setInvoiceForm(prev => ({
-                              ...prev, invoice_no: '', total_amount: 0, foc_amount: 0,
-                              plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '',
-                              contract_start: '', contract_end: '', inv_pkg_qty: 0, inv_gw: 0,
-                              invoice_date: new Date().toISOString().substring(0,10)
-                            }));
-                          }}
-                          className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-xs font-bold border border-slate-600">
-                          ➕ Lưu &amp; Thêm Invoice Khác
-                        </button>
-                        <div className="flex gap-2">
-                          <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-bold">
-                            Lưu → Nhập Hàng Hóa ➔
-                          </button>
-                          <button type="button"
-                            onClick={() => {
-                              if (!invoiceForm.invoice_no.trim()) return showNotification("Nhập Số Hóa Đơn!", "error");
-                              if (!invoices.some(i => String(i.invoice_no||'').toLowerCase() === invoiceForm.invoice_no.trim().toLowerCase())) {
+                        )}
+                        {modalMode === 'add' && (
+                          <div className="flex flex-wrap gap-3 justify-between items-center">
+                            <button type="button"
+                              onClick={() => {
+                                if (!invoiceForm.invoice_no.trim()) return showNotification("Nhập Số Hóa Đơn!", "error");
+                                if (invoices.some(i => String(i.invoice_no||'').toLowerCase() === invoiceForm.invoice_no.trim().toLowerCase())) {
+                                  return showNotification("Số hóa đơn đã tồn tại!", "error");
+                                }
                                 const finalInv = {
                                   ...invoiceForm, invoice_no: invoiceForm.invoice_no.trim(),
                                   bill_stt: Number(invoiceForm.bill_stt || lotForm.stt || 0),
                                   bill_no: invoiceForm.bill_no || lotForm.bill_no,
-                                  is_hang_chung_bill: lotForm.is_hang_chung_bill || false,
                                   total_amount: Number(invoiceForm.total_amount)||0, foc_amount: Number(invoiceForm.foc_amount)||0,
                                   plus_sea_freight: Number(invoiceForm.plus_sea_freight)||0,
                                   handling_charges: Number(invoiceForm.handling_charges)||0, other_charges: Number(invoiceForm.other_charges)||0,
+                                  is_hang_chung_bill: lotForm.is_hang_chung_bill || false,
                                   inv_pkg_qty: Number(invoiceForm.inv_pkg_qty)||0, inv_gw: Number(invoiceForm.inv_gw)||0,
                                 };
-                                saveInvoicesToStorage([finalInv, ...invoices]);
-                                showNotification(`Invoice ${finalInv.invoice_no} saved`);
-                              }
-                              // Sync STT to lotAssignForm
-                              const stt = Number(invoiceForm.bill_stt || lotForm.stt || 0);
-                              if (stt) setLotAssignForm(prev => ({...prev, stt}));
-                              setModalTab('assign');
-                            }}
-                            className="bg-amber-600 hover:bg-amber-500 text-white px-5 py-2 rounded-lg text-xs font-bold">
-                            Lưu → Tạo Mã Lô ✦
-                          </button>
-                        </div>
-                        </div>
-                        )}{/* end edit/add mode buttons */}
+                                const newInvoices = [finalInv, ...invoices];
+                                saveInvoicesToStorage(newInvoices);
+                                setDraftInvoiceNos(prev => [...prev, finalInv.invoice_no]);
+                                setSelectedInvoiceNo(finalInv.invoice_no);
+                                showNotification(`Đã lưu Invoice ${finalInv.invoice_no} — nhập tiếp invoice khác`);
+                                setInvoiceForm(prev => ({
+                                  ...prev, invoice_no: '', total_amount: 0, foc_amount: 0,
+                                  plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '',
+                                  contract_start: '', contract_end: '', inv_pkg_qty: 0, inv_gw: 0,
+                                  invoice_date: new Date().toISOString().substring(0,10)
+                                }));
+                              }}
+                              className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-xs font-bold border border-slate-600">
+                              ➕ Lưu &amp; Thêm Invoice Khác
+                            </button>
+                            <div className="flex gap-2">
+                              <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-bold">
+                                Lưu → Nhập Hàng Hóa ➔
+                              </button>
+                              <button type="button"
+                                onClick={() => {
+                                  if (!invoiceForm.invoice_no.trim()) return showNotification("Nhập Số Hóa Đơn!", "error");
+                                  if (!invoices.some(i => String(i.invoice_no||'').toLowerCase() === invoiceForm.invoice_no.trim().toLowerCase())) {
+                                    const finalInv = {
+                                      ...invoiceForm, invoice_no: invoiceForm.invoice_no.trim(),
+                                      bill_stt: Number(invoiceForm.bill_stt || lotForm.stt || 0),
+                                      bill_no: invoiceForm.bill_no || lotForm.bill_no,
+                                      is_hang_chung_bill: lotForm.is_hang_chung_bill || false,
+                                      total_amount: Number(invoiceForm.total_amount)||0, foc_amount: Number(invoiceForm.foc_amount)||0,
+                                      plus_sea_freight: Number(invoiceForm.plus_sea_freight)||0,
+                                      handling_charges: Number(invoiceForm.handling_charges)||0, other_charges: Number(invoiceForm.other_charges)||0,
+                                      inv_pkg_qty: Number(invoiceForm.inv_pkg_qty)||0, inv_gw: Number(invoiceForm.inv_gw)||0,
+                                    };
+                                    saveInvoicesToStorage([finalInv, ...invoices]);
+                                    showNotification(`Invoice ${finalInv.invoice_no} saved`);
+                                  }
+                                  const stt = Number(invoiceForm.bill_stt || lotForm.stt || 0);
+                                  if (stt) setLotAssignForm(prev => ({...prev, stt}));
+                                  setModalTab('assign');
+                                }}
+                                className="bg-amber-600 hover:bg-amber-500 text-white px-5 py-2 rounded-lg text-xs font-bold">
+                                Lưu → Tạo Mã Lô ✦
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </form>
                   )}
+
 
                   {/* TAB 3: GOODS */}
                   {modalTab === 'goods' && (
