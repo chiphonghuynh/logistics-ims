@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chang Yang Logistics IMS v2.0 [20260608_033300]</title>
+  <title>Chang Yang Logistics IMS v2.1 [20260608_033300]</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -524,7 +524,7 @@
 
         // ADD mode: check bill_no uniqueness (warn but don't block - hàng chung bill is valid)
         if (lotForm.bill_no && !lotForm.is_hang_chung_bill) {
-          const existingBill = lots.find(l => l.bill_no && l.bill_no.trim().toUpperCase() === lotForm.bill_no.trim().toUpperCase());
+          const existingBill = lots.find(l => l.bill_no && String(l.bill_no).trim().toUpperCase() === String(lotForm.bill_no).trim().toUpperCase());
           if (existingBill) {
             const msg = 'Bill [' + lotForm.bill_no + '] da ton tai trong Lo [' + existingBill.lot_no + ']. Neu day la hang chung Bill, bat toggle Hang Chung Bill. Nhan OK de tiep tuc.';
             const proceed = window.confirm(msg);
@@ -1146,75 +1146,186 @@
       };
 
       // ============================================================
-      // EXPORT BẢNG KÊ HÓA ĐƠN SANG WORD (docx via HTML blob)
+      // EXPORT BẢNG KÊ HÓA ĐƠN SANG WORD - Mẫu 02/BKHĐ/GSQL
       // ============================================================
-      const exportBangKeWord = (lotNo, printInvoices, totalVal, currency, supplier) => {
-        const printLot = lots.find(l => l.lot_no === lotNo);
-        const latestDate = printInvoices.map(i => i.invoice_date||'').filter(Boolean).sort().reverse()[0] || '';
-        const fmtDate = d => d ? d.replace(/-/g, '/') : '';
-        const htmlContent = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-          body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000; margin: 2cm; }
-          h2 { font-size: 14pt; font-weight: bold; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0; }
-          table { width: 100%; border-collapse: collapse; font-size: 12pt; }
-          th { border: 1px solid #000; padding: 6px 8px; background: #f0f0f0; font-weight: bold; }
-          td { border: 1px solid #000; padding: 6px 8px; }
-          .right { text-align: right; }
-          .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .header-row { display: flex; justify-content: space-between; margin-bottom: 12px; }
-          .sig-block { margin-top: 60px; text-align: right; }
-        </style></head><body>
-          <div class="header-row">
-            <div><strong>CÔNG TY TNHH CHANG YANG VIỆT NAM</strong></div>
-            <div class="right"><strong>Mẫu số 02/BKHĐ/GSQL</strong><br><small>(Ban hành kèm TT 39/2018/TT-BTC)</small></div>
-          </div>
-          <h2>BẢNG KÊ HÓA ĐƠN THƯƠNG MẠI HÀNG HÓA XUẤT KHẨU, NHẬP KHẨU</h2>
-          <div style="display:flex;justify-content:space-between;margin-bottom:12px">
-            <span><strong>Số:</strong> ${lotNo}</span>
-            <span><strong>Ngày:</strong> ${fmtDate(latestDate)}</span>
-          </div>
-          <p><strong>Người bán:</strong> ${supplier}</p>
-          <p style="margin-left:64px;font-size:11pt">NO. 16, LN. 267, SEC. 1, ZHANGNAN RD., CHANGHUA CITY, CHANGHUA COUNTY, TAIWAN.</p>
-          <p><strong>Người mua:</strong> CHANGYANG VIETNAM LTD</p>
-          <p style="margin-left:64px;font-size:11pt">D10/89Q, LE DUC ANH ROAD, TAN TAO WARD, HO CHI MINH CITY, VIET NAM</p>
-          <p class="bold" style="margin:12px 0 8px">Danh mục hóa đơn thương mại:</p>
-          <table>
-            <thead><tr>
-              <th class="center" style="width:40px">STT</th>
-              <th>Số hóa đơn (Invoice No.)</th>
-              <th class="center">Ngày hóa đơn</th>
-              <th class="right">Thành tiền (${currency})</th>
-            </tr></thead>
-            <tbody>
-              ${printInvoices.map((inv, idx) => `<tr>
-                <td class="center">${idx+1}</td>
-                <td class="bold">${inv.invoice_no}</td>
-                <td class="center">${fmtDate(inv.invoice_date)}</td>
-                <td class="right" style="font-family:monospace">${(() => { const base = goods.filter(g => g.invoice_no === inv.invoice_no).reduce((s,g) => s+Number(g.sale_amount||0),0); return (base + Number(inv.plus_sea_freight||0) + Number(inv.handling_charges||0) + Number(inv.other_charges||0) - Number(inv.foc_amount||0)).toLocaleString(undefined,{minimumFractionDigits:2}); })()}</td>
-              </tr>`).join('')}
-              <tr class="bold" style="background:#f9fafb;border-top:2px solid #000">
-                <td colspan="3" class="center" style="text-transform:uppercase;font-size:11pt">Tổng giá trị hóa đơn</td>
-                <td class="right" style="font-family:monospace">${totalVal.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="sig-block">
-            <p class="bold" style="text-transform:uppercase">ĐẠI DIỆN DOANH NGHIỆP</p>
-            <p style="font-size:10pt;color:#6b7280">(Ký, ghi rõ họ tên, đóng dấu)</p>
-            <div style="margin-top:60px;border-top:1px solid #000;padding-top:4px;min-width:200px;display:inline-block;text-align:center">
-              <p class="bold">Ngô Thanh Hoàng</p>
-              <p>Giám Đốc</p>
-            </div>
-          </div>
-        </body></html>`;
+      const exportBangKeWord = (lotNo, printInvoices, totalVal, currency, supplierName) => {
+        const printLot = lots.find(l => l.lot_no === lotNo) || {};
+        const latestDate = printInvoices.map(i => i.invoice_date||'').filter(Boolean).sort().reverse()[0] || new Date().toISOString().slice(0,10);
+        const fmtDate = d => {
+          if (!d) return '';
+          const parts = d.split('-');
+          if (parts.length === 3) return `ngày ${parts[2]} tháng ${parts[1]} năm ${parts[0]}`;
+          return d;
+        };
+        const fmtDateShort = d => {
+          if (!d) return '';
+          const parts = d.split('-');
+          if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+          return d;
+        };
+        
+        // Calculate each invoice total
+        const invRows = printInvoices.map((inv, idx) => {
+          const invGoods = goods.filter(g => g.invoice_no === inv.invoice_no);
+          const goodsBase = invGoods.reduce((s, g) => s + Number(g.sale_amount||0), 0);
+          const invTotal = goodsBase + Number(inv.plus_sea_freight||0) + Number(inv.handling_charges||0) + Number(inv.other_charges||0) - Number(inv.foc_amount||0);
+          return { ...inv, computedTotal: invTotal, idx: idx+1 };
+        });
+        
+        const grandTotal = invRows.reduce((s, r) => s + r.computedTotal, 0);
+        
+        // Number to words (simplified Vietnamese)
+        const numToWords = (n) => {
+          if (n === 0) return 'KHÔNG';
+          const units = ['','MỘT','HAI','BA','BỐN','NĂM','SÁU','BẢY','TÁM','CHÍN'];
+          const teens = ['MƯỜI','MƯỜI MỘT','MƯỜI HAI','MƯỜI BA','MƯỜI BỐN','MƯỜI LĂM','MƯỜI SÁU','MƯỜI BẢY','MƯỜI TÁM','MƯỜI CHÍN'];
+          const tens = ['','','HAI MƯƠI','BA MƯƠI','BỐN MƯƠI','NĂM MƯƠI','SÁU MƯƠI','BẢY MƯƠI','TÁM MƯƠI','CHÍN MƯƠI'];
+          const whole = Math.floor(n);
+          const dec = Math.round((n - whole) * 100);
+          let result = '';
+          if (whole >= 1000000) { result += units[Math.floor(whole/1000000)] + ' TRIỆU '; }
+          if (whole >= 1000) { const th = Math.floor((whole % 1000000)/1000); if (th) result += (th >= 100 ? units[Math.floor(th/100)] + ' TRĂM ' : '') + (th % 100 >= 20 ? tens[Math.floor((th%100)/10)] + ' ' + (th%10 ? units[th%10] : '') : th%100 >= 10 ? teens[th%100-10] : th%100 ? units[th%100] : '') + ' NGHÌN '; }
+          const rem = whole % 1000;
+          if (rem >= 100) result += units[Math.floor(rem/100)] + ' TRĂM ';
+          const rem2 = rem % 100;
+          if (rem2 >= 20) result += tens[Math.floor(rem2/10)] + ' ' + (rem2%10 ? units[rem2%10] : '');
+          else if (rem2 >= 10) result += teens[rem2-10];
+          else if (rem2 > 0) result += units[rem2];
+          result = result.trim();
+          if (dec > 0) result += ' PHẨY ' + dec + '/100';
+          return result.trim() || 'KHÔNG';
+        };
+        
+        const amountInWords = numToWords(grandTotal) + ' ' + (currency || 'USD');
+
+        const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 2cm 2.5cm 2cm 2.5cm; }
+  body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #000; margin: 0; }
+  .header-table { width: 100%; border-collapse: collapse; margin-bottom: 6pt; }
+  .header-table td { padding: 0; vertical-align: top; }
+  .company-name { font-size: 11pt; font-weight: bold; text-transform: uppercase; }
+  .mau-so { font-size: 11pt; text-align: right; }
+  h1 { font-size: 13pt; font-weight: bold; text-align: center; text-transform: uppercase; margin: 10pt 0 6pt 0; letter-spacing: 0.3px; }
+  .sub-title { font-size: 12pt; font-weight: bold; text-align: center; text-transform: uppercase; margin: 0 0 10pt 0; }
+  .info-row { margin: 4pt 0; font-size: 12pt; }
+  .info-label { font-weight: bold; display: inline; }
+  .info-indent { margin-left: 80pt; font-size: 11pt; }
+  .main-table { width: 100%; border-collapse: collapse; margin: 12pt 0; font-size: 12pt; }
+  .main-table th { border: 1px solid #000; padding: 5pt 4pt; text-align: center; font-weight: bold; background: #f5f5f5; }
+  .main-table td { border: 1px solid #000; padding: 4pt 5pt; }
+  .main-table td.center { text-align: center; }
+  .main-table td.right { text-align: right; font-family: 'Courier New', monospace; }
+  .main-table td.bold { font-weight: bold; }
+  .total-row td { font-weight: bold; background: #f9f9f9; }
+  .words-row td { font-style: italic; border-top: none; }
+  .sig-section { margin-top: 20pt; }
+  .sig-table { width: 100%; border-collapse: collapse; }
+  .sig-table td { padding: 4pt; vertical-align: top; text-align: center; font-size: 12pt; }
+  .sig-title { font-weight: bold; text-transform: uppercase; }
+  .sig-note { font-size: 10pt; font-style: italic; }
+  .sig-name { font-weight: bold; margin-top: 50pt; }
+  .sig-pos { font-size: 11pt; }
+  .date-line { text-align: right; font-style: italic; margin-bottom: 4pt; font-size: 12pt; }
+  .divider { border-top: 1px solid #999; margin: 6pt 0; }
+</style>
+</head>
+<body>
+  <table class="header-table">
+    <tr>
+      <td width="60%">
+        <div class="company-name">CÔNG TY TNHH CHANG YANG VIỆT NAM</div>
+        <div style="font-size:10pt;color:#555">MST: 0311234567 | ĐC: D10/89Q, Lê Đức Anh, Phường Tân Tạo, Q. Bình Tân, TP. HCM</div>
+      </td>
+      <td width="40%" style="text-align:right">
+        <div class="mau-so"><strong>Mẫu số 02/BKHĐ/GSQL</strong></div>
+        <div style="font-size:10pt;color:#555">(Ban hành kèm theo TT số 39/2018/TT-BTC)</div>
+      </td>
+    </tr>
+  </table>
+  
+  <div class="divider"></div>
+  
+  <h1>BẢNG KÊ HÓA ĐƠN THƯƠNG MẠI HÀNG HÓA XUẤT KHẨU, NHẬP KHẨU</h1>
+  
+  <table style="width:100%;border-collapse:collapse;margin-bottom:8pt">
+    <tr>
+      <td style="width:50%;font-size:12pt"><span class="info-label">Số: </span><span style="font-family:monospace;font-weight:bold">${lotNo}</span></td>
+      <td style="width:50%;font-size:12pt;text-align:right"><span class="info-label">Ngày: </span>${fmtDate(latestDate)}</td>
+    </tr>
+  </table>
+  
+  <div class="info-row"><span class="info-label">Người bán:</span> ${supplierName || printLot.supplier || ''}</div>
+  <div class="info-indent">NO. 16, LN. 267, SEC. 1, ZHANGNAN RD., CHANGHUA CITY, CHANGHUA COUNTY 500, TAIWAN (R.O.C.)</div>
+  
+  <div class="info-row" style="margin-top:6pt"><span class="info-label">Người mua:</span> CÔNG TY TNHH CHANG YANG VIỆT NAM (CHANG YANG VIETNAM LTD)</div>
+  <div class="info-indent">D10/89Q, ĐƯỜNG LÊ ĐỨC ANH, PHƯỜNG TÂN TẠO, QUẬN BÌNH TÂN, TP. HỒ CHÍ MINH, VIỆT NAM</div>
+  
+  <div class="info-row" style="margin-top:6pt"><span class="info-label">Danh mục hóa đơn thương mại:</span></div>
+  
+  <table class="main-table">
+    <thead>
+      <tr>
+        <th style="width:8%">STT</th>
+        <th style="width:35%">Số hóa đơn<br>(Commercial Invoice No.)</th>
+        <th style="width:22%">Ngày hóa đơn<br>(Invoice Date)</th>
+        <th style="width:35%">Trị giá hóa đơn<br>(Amount in ${currency || 'USD'})</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${invRows.map(r => `<tr>
+        <td class="center">${r.idx}</td>
+        <td class="bold center">${r.invoice_no}</td>
+        <td class="center">${fmtDateShort(r.invoice_date)}</td>
+        <td class="right">${r.computedTotal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+      </tr>`).join('')}
+      <tr class="total-row">
+        <td colspan="3" class="center bold" style="text-transform:uppercase;font-size:11pt;letter-spacing:0.2px">
+          TỔNG GIÁ TRỊ HÓA ĐƠN (TOTAL AMOUNT)
+        </td>
+        <td class="right bold" style="font-size:12pt">${currency || 'USD'} ${grandTotal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+      </tr>
+      <tr class="words-row">
+        <td colspan="4" style="font-style:italic;border:1px solid #000;padding:4pt 5pt;font-size:11pt">
+          <strong>Bằng chữ (In words):</strong> ${amountInWords}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  
+  <div class="date-line">TP. Hồ Chí Minh, ${fmtDate(latestDate)}</div>
+  
+  <table class="sig-table">
+    <tr>
+      <td width="50%">
+        <div class="sig-title">Người lập bảng kê</div>
+        <div class="sig-note">(Ký, ghi rõ họ tên)</div>
+        <div class="sig-name">&nbsp;</div>
+        <div class="sig-name" style="margin-top:48pt">IMPORT DEPT.</div>
+      </td>
+      <td width="50%">
+        <div class="sig-title">Đại diện Doanh nghiệp</div>
+        <div class="sig-note">(Ký, ghi rõ họ tên, đóng dấu)</div>
+        <div class="sig-name" style="margin-top:48pt">NGÔ THANH HOÀNG</div>
+        <div class="sig-pos">Giám Đốc</div>
+      </td>
+    </tr>
+  </table>
+  
+</body>
+</html>`;
+        
         const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `BangKe_${lotNo}_${new Date().toISOString().slice(0,10)}.doc`;
+        a.download = `BangKe_02_${lotNo}_${new Date().toISOString().slice(0,10)}.doc`;
         a.click();
-        URL.revokeObjectURL(url);
-        showNotification('Đã tải xuống file Word thành công!');
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+        showNotification('Đã tải xuống Bảng Kê Mẫu 02 thành công!');
       };
 
       // Màn hình chờ khởi tạo
@@ -1781,15 +1892,15 @@
                   <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex flex-wrap gap-4 items-end shadow-md">
                     <div className="flex-1 min-w-[150px]">
                       <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Ngày</label>
-                      <input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" />
+                      <input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                     </div>
                     <div className="flex-1 min-w-[150px]">
                       <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Đến Ngày</label>
-                      <input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" />
+                      <input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                     </div>
                     <div className="flex-1 min-w-[200px]">
                       <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Khóa Tra Cứu</label>
-                      <input type="text" placeholder="Tìm theo mã lô, số Bill..." value={filterLotNo} onChange={(e) => setFilterLotNo(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" />
+                      <input type="text" placeholder="Tìm theo mã lô, số Bill..." value={filterLotNo} onChange={(e) => setFilterLotNo(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                     </div>
                     <div className="flex gap-2">
                       <button onClick={handleExportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Xuất Excel CSV</button>
@@ -2024,7 +2135,7 @@
                               </td>
                               <td className="p-3.5 text-center">
                                 <div className="flex gap-2 justify-center items-center">
-                                  <input type="date" id={`eta-input-${lot.lot_no}`} defaultValue={lot.eta || ''} className="bg-slate-950 border border-slate-700 rounded p-1 text-white font-mono text-[11px]" />
+                                  <input type="date" id={`eta-input-${lot.lot_no}`} defaultValue={lot.eta || ''} className="bg-slate-950 border border-slate-700 rounded p-1 text-white font-mono text-[11px]" style={{colorScheme:"dark"}} />
                                   <button onClick={() => {
                                     const inp = document.getElementById(`eta-input-${lot.lot_no}`);
                                     if (!inp) return;
@@ -2091,7 +2202,7 @@
                             <td className="p-3.5 text-center">
                               {inlineAtcLotNo === lot.lot_no ? (
                                 <div className="flex gap-2 justify-center items-center">
-                                  <input type="date" value={inlineAtcDate} onChange={e => setInlineAtcDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded p-1 text-white font-mono" />
+                                  <input type="date" value={inlineAtcDate} onChange={e => setInlineAtcDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded p-1 text-white font-mono" style={{colorScheme:"dark"}} />
                                   <button onClick={() => handleInlineAtcUpdate(lot.lot_no, inlineAtcDate)} className="bg-emerald-600 px-3 py-1 rounded text-white font-bold text-[11px]">Lưu</button>
                                   <button onClick={() => setInlineAtcLotNo(null)} className="bg-slate-800 px-2 py-1 rounded text-slate-300 text-[11px]">Hủy</button>
                                 </div>
@@ -2188,7 +2299,7 @@
                           <label className="block text-[11px] text-slate-400 mb-1">Số STT (Số Thứ Tự Lô) *</label>
                           <input type="number" required value={lotForm.stt}
                             onChange={(e) => setLotForm({...lotForm, stt: Number(e.target.value)})}
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                           <p className="text-[10px] text-slate-600 mt-1">Mã lô sẽ được tạo ở Tab 4 sau khi nhập hết invoice</p>
                         </div>
                         <div>
@@ -2210,15 +2321,15 @@
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Ngày Mở Lô</label>
-                          <input type="date" value={lotForm.lot_date} onChange={(e) => setLotForm({...lotForm, lot_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          <input type="date" value={lotForm.lot_date || ''} onChange={(e) => setLotForm({...lotForm, lot_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">ETA – Ngày dự kiến hàng đến</label>
-                          <input type="date" value={lotForm.eta} onChange={(e) => setLotForm({...lotForm, eta: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          <input type="date" value={lotForm.eta || ''} onChange={(e) => setLotForm({...lotForm, eta: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Ngày Nhận Chứng Từ</label>
-                          <input type="date" value={lotForm.get_docs_date} onChange={(e) => setLotForm({...lotForm, get_docs_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          <input type="date" value={lotForm.get_docs_date || ''} onChange={(e) => setLotForm({...lotForm, get_docs_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                         </div>
                       </div>
 
@@ -2230,11 +2341,11 @@
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Ngày Bill</label>
-                          <input type="date" value={lotForm.bill_date} onChange={(e) => setLotForm({...lotForm, bill_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          <input type="date" value={lotForm.bill_date || ''} onChange={(e) => setLotForm({...lotForm, bill_date: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Điều kiện Bill</label>
-                          <select value={lotForm.bill_term} onChange={(e) => setLotForm({...lotForm, bill_term: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white">
+                          <select value={lotForm.bill_term} onChange={(e) => setLotForm({...lotForm, bill_term: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}}>
                             <option value="Freight Prepaid">Freight Prepaid (Người gửi trả cước)</option>
                             <option value="Freight Collect">Freight Collect (Người nhận trả cước)</option>
                           </select>
@@ -2244,7 +2355,7 @@
                           <input type="text" list="carrier-history-list" value={lotForm.carrier}
                             onChange={(e) => setLotForm({...lotForm, carrier: e.target.value})}
                             placeholder="VD: EVERGREEN, DHL, GEODIS..."
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                           <datalist id="carrier-history-list">
                             {carrierHistory.map((c, i) => <option key={i} value={c} />)}
                           </datalist>
@@ -2255,17 +2366,17 @@
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Cảng Đi (POL)</label>
-                          <input type="text" value={lotForm.pol} onChange={(e) => setLotForm({...lotForm, pol: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          <input type="text" value={lotForm.pol} onChange={(e) => setLotForm({...lotForm, pol: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Cảng Đến (POD)</label>
-                          <input type="text" value={lotForm.pod} onChange={(e) => setLotForm({...lotForm, pod: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          <input type="text" value={lotForm.pod} onChange={(e) => setLotForm({...lotForm, pod: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Xuất Xứ Hàng Hóa</label>
                           <input type="text" list="origin-country-list" value={lotForm.origin_country}
                             onChange={(e) => setLotForm({...lotForm, origin_country: e.target.value.toUpperCase()})}
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                           <datalist id="origin-country-list">
                             {getUniqueOrigins().map((o, i) => <option key={i} value={o} />)}
                             {/* Common defaults if history empty */}
@@ -2412,7 +2523,7 @@
                           <input type="text" list="supplier-history-list" value={invoiceForm.supplier}
                             onChange={(e) => setInvoiceForm({...invoiceForm, supplier: e.target.value})}
                             placeholder="Gõ hoặc chọn nhà cung ứng..."
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                           <datalist id="supplier-history-list">
                             {supplierHistory.map((s, i) => <option key={i} value={s} />)}
                           </datalist>
@@ -2446,7 +2557,7 @@
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Ngày Hóa Đơn</label>
-                          <input type="date" value={invoiceForm.invoice_date} onChange={(e) => {
+                          <input type="date" value={invoiceForm.invoice_date || ''} onChange={(e) => {
                             const d = e.target.value;
                             if (!d) { setInvoiceForm({...invoiceForm, invoice_date: d}); return; }
                             const startD = new Date(d);
@@ -2460,7 +2571,7 @@
                               contract_start: prev.contract_start || fmt(startD),
                               contract_end: prev.contract_end || fmt(endD),
                             }));
-                          }} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                          }} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                         </div>
                       </div>
 
@@ -2486,7 +2597,7 @@
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Điều Khoản Incoterm</label>
-                          <select value={invoiceForm.incoterm} onChange={(e) => setInvoiceForm({...invoiceForm, incoterm: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white">
+                          <select value={invoiceForm.incoterm} onChange={(e) => setInvoiceForm({...invoiceForm, incoterm: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}}>
                             <optgroup label="Nhóm E – EXW">
                               <option value="EXW">EXW – Ex Works</option>
                             </optgroup>
@@ -2547,7 +2658,7 @@
                               <label className="block text-[11px] text-amber-300 mb-1">
                                 Start Date <span className="text-amber-700 font-normal">(Invoice − 10 days)</span>
                               </label>
-                              <input type="date" value={invoiceForm.contract_start}
+                              <input type="date" value={invoiceForm.contract_start || ''}
                                 onChange={(e) => {
                                   const s = e.target.value;
                                   const endD = new Date(s);
@@ -2560,7 +2671,7 @@
                               <label className="block text-[11px] text-amber-300 mb-1">
                                 End Date <span className="text-amber-700 font-normal">(Start + 180 days)</span>
                               </label>
-                              <input type="date" value={invoiceForm.contract_end}
+                              <input type="date" value={invoiceForm.contract_end || ''}
                                 onChange={(e) => setInvoiceForm({...invoiceForm, contract_end: e.target.value})}
                                 className="w-full bg-slate-950 border border-amber-900/40 rounded px-3 py-2 text-xs text-white" />
                             </div>
@@ -2901,7 +3012,7 @@
                           <label className="block text-[11px] text-slate-400 mb-1">Unit 1</label>
                           <input type="text" value={goodsForm.unit1 || goodsForm.goods_unit_en || 'PCS'}
                             onChange={e => setGoodsForm({...goodsForm, unit1: e.target.value})}
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Qty 2</label>
@@ -2913,7 +3024,7 @@
                           <label className="block text-[11px] text-slate-400 mb-1">Unit 2</label>
                           <input type="text" value={goodsForm.unit2 || ''}
                             onChange={e => setGoodsForm({...goodsForm, unit2: e.target.value})}
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
+                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                         </div>
                       </div>
 
