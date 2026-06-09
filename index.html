@@ -2911,15 +2911,12 @@
                       })()}
 
                       <div className="pt-4 border-t border-slate-800 space-y-3">
-                        {/* EDIT MODE: show update warning + update button */}
-                        {modalMode === 'edit' && (
+                        {modalMode === 'edit' ? (
                           <div className="flex justify-between items-center bg-amber-950/20 border border-amber-800/40 rounded-xl px-4 py-2.5">
                             <p className="text-[10px] text-amber-400 italic">⚠️ Chế độ Sửa — nhấn Cập Nhật để ghi đè dữ liệu cũ</p>
                             <button type="submit" className="bg-amber-600 hover:bg-amber-500 text-white px-5 py-2 rounded-lg text-xs font-bold">✔ Cập Nhật Hóa Đơn</button>
                           </div>
-                        )}
-                        {/* ADD MODE: normal buttons */}
-                        {modalMode !== 'edit' && (
+                        ) : (
                         <div className="flex flex-wrap gap-3 justify-between items-center">
                         <button type="button"
                           onClick={() => {
@@ -2982,7 +2979,8 @@
                             Lưu → Tạo Mã Lô ✦
                           </button>
                         </div>
-                        )}
+                        </div>
+                        )}{/* end edit/add mode buttons */}
                       </div>
                     </form>
                   )}
