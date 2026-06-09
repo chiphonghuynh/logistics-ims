@@ -2099,22 +2099,67 @@
                         <div className="flex gap-2">
                           {selectedLotNo && (
                             <button onClick={() => {
-                              // Export ALL goods of the selected lot to Excel
+                              // Export goods of selected lot — columns depend on loai_hinh
                               const lotInvNos = invoices.filter(i => i.lot_no === selectedLotNo).map(i => i.invoice_no);
                               const lotGoods = goods.filter(g => lotInvNos.includes(g.invoice_no));
                               if (lotGoods.length === 0) return showNotification("Không có hàng hóa để xuất!", "error");
-                              const wsData = [
-                                ['Mã Lô', 'Invoice No.', 'STT', 'Mã Hàng', 'HS Code', 'Tên Tiếng Anh', 'Tên Tiếng Việt', 'Xuất Xứ', 'Số Lượng 1', 'ĐVT 1', 'Số Lượng 2', 'ĐVT 2', 'Đơn Giá', 'Thành Tiền'],
-                                ...lotGoods.map(g => {
-                                  const inv = invoices.find(i => i.invoice_no === g.invoice_no);
-                                  return [selectedLotNo, g.invoice_no, g.goods_item, (g.goods_no||'').split('*')[0].trim(), g.hs_code, g.goods_name_en, g.goods_name_local, g.origin_country||'', g.qty1||0, g.unit1||g.goods_unit_en||'', g.qty2||0, g.unit2||g.goods_unit_en2||'', g.unit_price||0, g.sale_amount||0];
-                                })
+
+                              // Detect loai_hinh from first invoice of this lot
+                              const firstInv = invoices.find(i => i.lot_no === selectedLotNo);
+                              const isA12 = (firstInv?.loai_hinh || 'A12') === 'A12';
+
+                              // Build header row
+                              const header = [
+                                'Mã Hàng',
+                                ...(isA12 ? ['HS Code'] : []),
+                                'Tên Hàng',
+                                'Xuất Xứ',
+                                'Số Lượng 1', 'ĐVT 1',
+                                'Số Lượng 2', 'ĐVT 2',
+                                'Đơn Giá', 'Thành Tiền',
+                                ...(isA12 ? ['Mã Biểu Thuế NK', 'Mã Biểu Thuế VAT'] : []),
                               ];
+
+                              // Build data rows
+                              const dataRows = lotGoods.map(g => {
+                                const maHang   = (g.goods_no || '').split('*')[0].trim();
+                                const tenHang  = [g.goods_name_local, g.goods_name_en].filter(Boolean).join(' / ');
+                                const xuatXu   = g.origin_country || '';
+                                const qty1     = g.qty1 || 0;
+                                const dvt1     = g.unit1 || g.goods_unit_en || '';
+                                const qty2     = g.qty2 || 0;
+                                const dvt2     = g.unit2 || g.goods_unit_en2 || '';
+                                const donGia   = g.unit_price || 0;
+                                const thanhTien = g.sale_amount || 0;
+
+                                return [
+                                  maHang,
+                                  ...(isA12 ? [g.hs_code || ''] : []),
+                                  tenHang,
+                                  xuatXu,
+                                  qty1, dvt1,
+                                  qty2, dvt2,
+                                  donGia, thanhTien,
+                                  ...(isA12 ? ['B01', 'VB901'] : []),
+                                ];
+                              });
+
+                              const wsData = [header, ...dataRows];
+
+                              // Apply column styles (number format for qty/price/total)
                               const wb = XLSX.utils.book_new();
                               const ws = XLSX.utils.aoa_to_sheet(wsData);
-                              XLSX.utils.book_append_sheet(wb, ws, 'Hang Hoa');
-                              XLSX.writeFile(wb, `HangHoa_${selectedLotNo}_${new Date().toISOString().slice(0,10)}.xlsx`);
-                              showNotification(`Đã xuất ${lotGoods.length} dòng hàng hóa lô ${selectedLotNo}`);
+
+                              // Auto column widths
+                              const colWidths = header.map((h, ci) => {
+                                const maxLen = Math.max(h.length, ...dataRows.map(r => String(r[ci] || '').length));
+                                return { wch: Math.min(Math.max(maxLen + 2, 10), 50) };
+                              });
+                              ws['!cols'] = colWidths;
+
+                              XLSX.utils.book_append_sheet(wb, ws, 'Danh Sach Hang Hoa');
+                              XLSX.writeFile(wb, `HangHoa_${selectedLotNo}_${isA12 ? 'A12' : 'E21'}_${new Date().toISOString().slice(0,10)}.xlsx`);
+                              showNotification(`Đã xuất ${lotGoods.length} dòng hàng hóa lô ${selectedLotNo} (${isA12 ? 'A12 — có HS Code + Mã Thuế' : 'E21'})`);
                             }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
                               📥 Xuất Excel
                             </button>
