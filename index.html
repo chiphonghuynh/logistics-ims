@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chang Yang Logistics IMS v2.3 [20260609_065527]</title>
+  <title>Chang Yang Logistics IMS v2.4 [20260609_070734]</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -1042,8 +1042,10 @@
           const lotMatch = lot.lot_no.toLowerCase().includes(q) || (lot.supplier && lot.supplier.toLowerCase().includes(q)) || (lot.bill_no && lot.bill_no.toLowerCase().includes(q));
           if (!lotMatch) return false;
         }
-        if (filterFromDate && lot.lot_date < filterFromDate) return false;
-        if (filterToDate && lot.lot_date > filterToDate) return false;
+        // Lọc ngày: ưu tiên get_docs_date (ngày nhận CT), fallback lot_date (ngày mở lô)
+        const refDate = lot.get_docs_date || lot.lot_date || '';
+        if (filterFromDate && refDate < filterFromDate) return false;
+        if (filterToDate && refDate > filterToDate) return false;
         return true;
       });
 
@@ -1963,11 +1965,11 @@
                     {/* Filter inputs */}
                     <div className="flex flex-wrap gap-4 items-end">
                       <div className="flex-1 min-w-[150px]">
-                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Ngày</label>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Ngày <span className="text-slate-600 normal-case font-normal">(Mở lô / Nhận CT)</span></label>
                         <input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                       </div>
                       <div className="flex-1 min-w-[150px]">
-                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Đến Ngày</label>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Đến Ngày <span className="text-slate-600 normal-case font-normal">(Mở lô / Nhận CT)</span></label>
                         <input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                       </div>
                       <div className="flex-1 min-w-[200px]">
@@ -1979,7 +1981,7 @@
                       </div>
                     </div>
                     {hasActiveFilter && filteredLots.length > 0 && (
-                      <p className="text-[10px] text-slate-500">Hiển thị <strong className="text-slate-300">{filteredLots.length}</strong> lô hàng{filterFromDate ? ` từ ${filterFromDate}` : ''}{filterToDate ? ` đến ${filterToDate}` : ''}</p>
+                      <p className="text-[10px] text-slate-500">Hiển thị <strong className="text-slate-300">{filteredLots.length}</strong> lô hàng theo ngày nhận CT / mở lô{filterFromDate ? ` từ ${filterFromDate}` : ''}{filterToDate ? ` đến ${filterToDate}` : ''}</p>
                     )}
                   </div>
 
@@ -2285,12 +2287,15 @@
                 const etaTransportTypes = ['ALL','SEA_CONT','SEA_CFS','AIR','EXPRESS','BY_TRUCK','NGOAI_QUAN'];
                 const etaTransportLabels = { ALL: '📋 Tất cả', SEA_CONT: '🚢 SEA Cont', SEA_CFS: '⚓ SEA CFS', AIR: '✈ Air', EXPRESS: '📦 Express', BY_TRUCK: '🚛 Truck', NGOAI_QUAN: '🏭 Ngoại Quan' };
                 const hasEtaFilter = !!(etaFilterFrom || etaFilterTo || etaFilterKeyword.trim() || etaTransportFilter !== 'ALL');
-                const baseLots = lots.filter(l => !l.atc_date);
+                // BASE POOL: lô CHƯA CÓ ETA (eta rỗng/null), bất kể đã nhập kho hay chưa
+                const baseLots = lots.filter(l => !l.eta || l.eta.trim() === '');
                 const filteredEtaLots = baseLots.filter(lot => {
                   if (etaTransportFilter !== 'ALL' && (lot.transport_type || 'SEA_CONT') !== etaTransportFilter) return false;
-                  if (etaFilterFrom && (lot.eta || '') < etaFilterFrom) return false;
-                  if (etaFilterTo && (lot.eta || '') > etaFilterTo) return false;
-                  if (etaFilterKeyword.trim()) {
+                  // Lọc ngày theo get_docs_date hoặc lot_date (ngày nhận CT / ngày mở lô)
+                  const refDate = lot.get_docs_date || lot.lot_date || '';
+                  if (etaFilterFrom && refDate < etaFilterFrom) return false;
+                  if (etaFilterTo && refDate > etaFilterTo) return false;
+                  if (etaFilterKeyword.trim() && etaFilterKeyword !== '__ALL__') {
                     const q = etaFilterKeyword.trim().toLowerCase();
                     const match = lot.lot_no.toLowerCase().includes(q)
                       || String(lot.bill_no||'').toLowerCase().includes(q)
@@ -2316,8 +2321,6 @@
                         ['📅 Hôm nay', () => { const d=new Date().toISOString().slice(0,10); setEtaFilterFrom(d); setEtaFilterTo(d); setEtaFilterKeyword(''); }],
                         ['📆 Tháng này', () => { const n=new Date(); setEtaFilterFrom(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setEtaFilterTo(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setEtaFilterKeyword(''); }],
                         ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setEtaFilterFrom(`${y}-01-01`); setEtaFilterTo(`${y}-12-31`); setEtaFilterKeyword(''); }],
-                        ['⚠️ Quá hạn', () => { const d=new Date().toISOString().slice(0,10); setEtaFilterFrom(''); setEtaFilterTo(d); setEtaFilterKeyword(''); }],
-                        ['⏰ 7 ngày tới', () => { const d=new Date(); const from=d.toISOString().slice(0,10); d.setDate(d.getDate()+7); setEtaFilterFrom(from); setEtaFilterTo(d.toISOString().slice(0,10)); setEtaFilterKeyword(''); }],
                         ['📋 Tất cả', () => { setEtaFilterFrom(''); setEtaFilterTo(''); setEtaFilterKeyword('__ALL__'); setEtaTransportFilter('ALL'); }],
                       ].map(([l, fn], i) => (
                         <button key={i} onClick={fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] px-3 py-1.5 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
@@ -2329,11 +2332,11 @@
                     {/* Filter inputs */}
                     <div className="flex flex-wrap gap-3 items-end">
                       <div className="flex-1 min-w-[140px]">
-                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">ETA Từ Ngày</label>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Ngày <span className="text-slate-600 normal-case font-normal">(Mở lô / Nhận CT)</span></label>
                         <input type="date" value={etaFilterFrom} onChange={e => setEtaFilterFrom(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                       </div>
                       <div className="flex-1 min-w-[140px]">
-                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">ETA Đến Ngày</label>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Đến Ngày <span className="text-slate-600 normal-case font-normal">(Mở lô / Nhận CT)</span></label>
                         <input type="date" value={etaFilterTo} onChange={e => setEtaFilterTo(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                       </div>
                       <div className="flex-1 min-w-[180px]">
@@ -2352,7 +2355,7 @@
                       ))}
                     </div>
                     {(hasEtaFilter || etaFilterKeyword === '__ALL__') && (
-                      <p className="text-[10px] text-slate-500">Hiển thị <strong className="text-slate-300">{filteredEtaLots.length}</strong> / {baseLots.length} lô chưa nhập kho</p>
+                      <p className="text-[10px] text-slate-500">Hiển thị <strong className="text-slate-300">{filteredEtaLots.length}</strong> / {baseLots.length} lô chưa có ETA</p>
                     )}
                   </div>
 
@@ -2366,9 +2369,9 @@
                       </div>
                       <div className="flex gap-2 flex-wrap justify-center">
                         {[
-                          ['⏰ 7 ngày tới', () => { const d=new Date(); const from=d.toISOString().slice(0,10); d.setDate(d.getDate()+7); setEtaFilterFrom(from); setEtaFilterTo(d.toISOString().slice(0,10)); }],
-                          ['⚠️ Quá hạn ETA', () => { setEtaFilterTo(new Date().toISOString().slice(0,10)); }],
-                          ['📋 Tất cả lô chưa kho', () => { setEtaFilterKeyword('__ALL__'); }],
+                          ['📆 Tháng này', () => { const n=new Date(); setEtaFilterFrom(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setEtaFilterTo(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); }],
+                          ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setEtaFilterFrom(`${y}-01-01`); setEtaFilterTo(`${y}-12-31`); }],
+                          ['📋 Tất cả lô chưa có ETA', () => { setEtaFilterKeyword('__ALL__'); }],
                         ].map(([l, fn], i) => (
                           <button key={i} onClick={fn} className="bg-slate-800 hover:bg-cyan-800 text-slate-300 hover:text-white text-xs px-4 py-2 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
                         ))}
@@ -2378,7 +2381,7 @@
                   <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                     <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
                       <h3 className="font-bold text-xs uppercase tracking-wide text-cyan-400">📋 Danh sách Lô Hàng — Cập nhật ETA</h3>
-                      <span className="text-[10px] text-slate-500">{filteredEtaLots.length} lô hiển thị</span>
+                      <span className="text-[10px] text-slate-500">{filteredEtaLots.length} lô chưa có ETA</span>
                     </div>
                     <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
@@ -2455,10 +2458,13 @@
                 const atcTransTypes = ['ALL','SEA_CONT','SEA_CFS','AIR','EXPRESS','BY_TRUCK','NGOAI_QUAN'];
                 const atcTransLabels = { ALL: '📋 Tất cả', SEA_CONT: '🚢 SEA Cont', SEA_CFS: '⚓ SEA CFS', AIR: '✈ Air', EXPRESS: '📦 Express', BY_TRUCK: '🚛 Truck', NGOAI_QUAN: '🏭 Ngoại Quan' };
                 const hasAtcFilter = !!(atcFilterFrom || atcFilterTo || atcFilterKeyword.trim() || atcTransportFilter !== 'ALL');
+                // BASE POOL: pendingAtcLots = lô CHƯA CÓ atc_date (chờ nhập kho)
                 const filteredAtcLots = pendingAtcLots.filter(lot => {
                   if (atcTransportFilter !== 'ALL' && (lot.transport_type || 'SEA_CONT') !== atcTransportFilter) return false;
-                  if (atcFilterFrom && (lot.eta || '') < atcFilterFrom) return false;
-                  if (atcFilterTo && (lot.eta || '') > atcFilterTo) return false;
+                  // Lọc ngày theo get_docs_date hoặc lot_date (ngày nhận CT / ngày mở lô)
+                  const refDate = lot.get_docs_date || lot.lot_date || '';
+                  if (atcFilterFrom && refDate < atcFilterFrom) return false;
+                  if (atcFilterTo && refDate > atcFilterTo) return false;
                   if (atcFilterKeyword.trim() && atcFilterKeyword !== '__ALL__') {
                     const q = atcFilterKeyword.trim().toLowerCase();
                     const match = lot.lot_no.toLowerCase().includes(q)
@@ -2484,7 +2490,7 @@
                         ['📅 Hôm nay', () => { const d=new Date().toISOString().slice(0,10); setAtcFilterFrom(d); setAtcFilterTo(d); setAtcFilterKeyword(''); }],
                         ['📆 Tháng này', () => { const n=new Date(); setAtcFilterFrom(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setAtcFilterTo(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setAtcFilterKeyword(''); }],
                         ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setAtcFilterFrom(`${y}-01-01`); setAtcFilterTo(`${y}-12-31`); setAtcFilterKeyword(''); }],
-                        ['⏰ ETA 7 ngày tới', () => { const d=new Date(); const from=d.toISOString().slice(0,10); d.setDate(d.getDate()+7); setAtcFilterFrom(from); setAtcFilterTo(d.toISOString().slice(0,10)); setAtcFilterKeyword(''); }],
+                        ['🗓 Năm trước', () => { const y=new Date().getFullYear()-1; setAtcFilterFrom(`${y}-01-01`); setAtcFilterTo(`${y}-12-31`); setAtcFilterKeyword(''); }],
                         ['📋 Tất cả', () => { setAtcFilterFrom(''); setAtcFilterTo(''); setAtcFilterKeyword('__ALL__'); setAtcTransportFilter('ALL'); }],
                       ].map(([l, fn], i) => (
                         <button key={i} onClick={fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] px-3 py-1.5 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
@@ -2496,11 +2502,11 @@
                     {/* Filter inputs */}
                     <div className="flex flex-wrap gap-3 items-end">
                       <div className="flex-1 min-w-[140px]">
-                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">ETA Từ Ngày</label>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Ngày <span className="text-slate-600 normal-case font-normal">(Mở lô / Nhận CT)</span></label>
                         <input type="date" value={atcFilterFrom} onChange={e => setAtcFilterFrom(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                       </div>
                       <div className="flex-1 min-w-[140px]">
-                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">ETA Đến Ngày</label>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Đến Ngày <span className="text-slate-600 normal-case font-normal">(Mở lô / Nhận CT)</span></label>
                         <input type="date" value={atcFilterTo} onChange={e => setAtcFilterTo(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                       </div>
                       <div className="flex-1 min-w-[180px]">
@@ -2533,9 +2539,9 @@
                       </div>
                       <div className="flex gap-2 flex-wrap justify-center">
                         {[
-                          ['📋 Xem tất cả lô chờ', () => { setAtcFilterKeyword('__ALL__'); }],
-                          ['⏰ ETA 7 ngày tới', () => { const d=new Date(); const from=d.toISOString().slice(0,10); d.setDate(d.getDate()+7); setAtcFilterFrom(from); setAtcFilterTo(d.toISOString().slice(0,10)); }],
-                          ['📆 Tháng này', () => { const n=new Date(); setAtcFilterFrom(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setAtcFilterTo(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); }],
+                          ['📋 Tất cả lô chờ nhập kho', () => { setAtcFilterKeyword('__ALL__'); }],
+                          ['📆 Tháng này (ngày mở lô)', () => { const n=new Date(); setAtcFilterFrom(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setAtcFilterTo(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); }],
+                          ['🗓 Năm nay (ngày mở lô)', () => { const y=new Date().getFullYear(); setAtcFilterFrom(`${y}-01-01`); setAtcFilterTo(`${y}-12-31`); }],
                         ].map(([l, fn], i) => (
                           <button key={i} onClick={fn} className="bg-slate-800 hover:bg-rose-800 text-slate-300 hover:text-white text-xs px-4 py-2 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
                         ))}
