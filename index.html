@@ -517,8 +517,8 @@
           if (finalLot.carrier) addCarrierHistory(finalLot.carrier.trim());
           const newLots = lots.map(l => l.lot_no === finalLot.lot_no ? finalLot : l);
           saveLotsToStorage(newLots);
+          showNotification(`✅ Đã cập nhật Lô hàng ${finalLot.lot_no} — dữ liệu mới đã ghi đè`);
           setShowAddModal(false);
-          showNotification(`Đã cập nhật Lô hàng ${finalLot.lot_no}`);
           return;
         }
 
@@ -631,6 +631,7 @@
           setModalTab('goods');
         } else {
           newInvoices = invoices.map(i => i.invoice_no === finalInvoice.invoice_no ? finalInvoice : i);
+          showNotification(`✅ Đã cập nhật Hóa Đơn ${finalInvoice.invoice_no} — dữ liệu mới đã ghi đè`);
           setShowAddModal(false);
         }
         saveInvoicesToStorage(newInvoices);
@@ -663,6 +664,7 @@
         let newGoods = [];
         if (isEditing) {
           newGoods = goods.map(g => g.id === goodsId ? finalGoods : g);
+          showNotification(`✅ Đã cập nhật mặt hàng ${finalGoods.goods_no} — dữ liệu mới đã ghi đè`);
           setShowAddModal(false);
         } else {
           newGoods = [...goods, finalGoods];
@@ -955,6 +957,9 @@
         if(e) e.stopPropagation();
         setModalMode('edit');
         setInvoiceForm({...inv});
+        // Pre-fill lot form info from the lot this invoice belongs to
+        const parentLot = lots.find(l => l.lot_no === inv.lot_no);
+        if (parentLot) setLotForm(prev => ({...prev, ...parentLot, cbm_str: parentLot.cbm ? String(parentLot.cbm) : ''}));
         setModalTab('invoice');
         setShowAddModal(true);
       };
@@ -982,8 +987,11 @@
 
       const handlePortalQuickSearch = (e) => { e.preventDefault(); setFilterLotNo(homeSearchQuery); setActiveMenu('E010'); };
       
+      // Kiểm tra có filter đang active không
+      const hasActiveFilter = !!(filterFromDate || filterToDate || filterLotNo.trim());
+
       const filteredLots = lots.filter(lot => {
-        if (filterLotNo) {
+        if (filterLotNo && filterLotNo !== '__ALL__') {
           const q = filterLotNo.toLowerCase();
           const lotMatch = lot.lot_no.toLowerCase().includes(q) || (lot.supplier && lot.supplier.toLowerCase().includes(q)) || (lot.bill_no && lot.bill_no.toLowerCase().includes(q));
           if (!lotMatch) return false;
@@ -1889,25 +1897,67 @@
                   )}
 
                   {/* BỘ LỌC TÌM KIẾM LÔ HÀNG */}
-                  <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex flex-wrap gap-4 items-end shadow-md">
-                    <div className="flex-1 min-w-[150px]">
-                      <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Ngày</label>
-                      <input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                  <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow-md space-y-3">
+                    {/* Quick presets */}
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Lọc nhanh:</span>
+                      {[
+                        ['📅 Hôm nay', () => { const d=new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setFilterLotNo(''); }],
+                        ['📆 Tháng này', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setFilterLotNo(''); }],
+                        ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); }],
+                        ['🗓 Năm trước', () => { const y=new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); }],
+                        ['📋 Tất cả', () => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo('__ALL__'); }],
+                      ].map(([l, fn], i) => (
+                        <button key={i} onClick={fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] px-3 py-1.5 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
+                      ))}
+                      {hasActiveFilter && (
+                        <button onClick={() => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo(''); }} className="text-[10px] text-rose-400 hover:text-rose-300 ml-auto font-bold">✕ Xóa bộ lọc</button>
+                      )}
                     </div>
-                    <div className="flex-1 min-w-[150px]">
-                      <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Đến Ngày</label>
-                      <input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                    {/* Filter inputs */}
+                    <div className="flex flex-wrap gap-4 items-end">
+                      <div className="flex-1 min-w-[150px]">
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Ngày</label>
+                        <input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                      </div>
+                      <div className="flex-1 min-w-[150px]">
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Đến Ngày</label>
+                        <input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Khóa Tra Cứu</label>
+                        <input type="text" placeholder="Tìm theo mã lô, số Bill..." value={filterLotNo === '__ALL__' ? '' : filterLotNo} onChange={(e) => setFilterLotNo(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={handleExportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Xuất Excel CSV</button>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-[200px]">
-                      <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Khóa Tra Cứu</label>
-                      <input type="text" placeholder="Tìm theo mã lô, số Bill..." value={filterLotNo} onChange={(e) => setFilterLotNo(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={handleExportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Xuất Excel CSV</button>
-                    </div>
+                    {hasActiveFilter && filteredLots.length > 0 && (
+                      <p className="text-[10px] text-slate-500">Hiển thị <strong className="text-slate-300">{filteredLots.length}</strong> lô hàng{filterFromDate ? ` từ ${filterFromDate}` : ''}{filterToDate ? ` đến ${filterToDate}` : ''}</p>
+                    )}
                   </div>
 
                   {/* BẢNG DANH SÁCH LÔ HÀNG (MASTER LOT) */}
+                  {!hasActiveFilter && (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4">
+                      <div className="text-5xl opacity-20">🔍</div>
+                      <div>
+                        <p className="text-slate-400 font-bold text-sm">Chưa có bộ lọc nào được chọn</p>
+                        <p className="text-slate-600 text-xs mt-1">Dùng bộ lọc ngày hoặc từ khóa phía trên để tìm kiếm lô hàng, hoặc chọn nhanh từ dashboard.</p>
+                      </div>
+                      <div className="flex gap-2 flex-wrap justify-center">
+                        {[
+                          ['📅 Hôm nay', () => { const d=new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); }],
+                          ['📆 Tháng này', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); }],
+                          ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); }],
+                          ['📋 Tất cả lô', () => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo('__ALL__'); }],
+                        ].map(([l, fn], i) => (
+                          <button key={i} onClick={fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs px-4 py-2 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {hasActiveFilter && (
                   <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs border-collapse min-w-[1500px]">
@@ -1973,6 +2023,7 @@
                       </table>
                     </div>
                   </div>
+                  )}
 
                   {/* THÔNG TIN PHÂN CẤP CHIA ĐÔI MÀN HÌNH (INVOICES & GOODS) */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1980,6 +2031,21 @@
                     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col">
                       <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
                         <h3 className="font-bold text-xs tracking-wide uppercase">📄 Hóa Đơn Thương Mại (Lô: {selectedLotNo || 'N/A'})</h3>
+                        {selectedLotNo && (
+                          <button onClick={() => {
+                            const selLot = lots.find(l => l.lot_no === selectedLotNo);
+                            if (selLot) {
+                              setLotForm(prev => ({...prev, ...selLot, cbm_str: selLot.cbm ? String(selLot.cbm) : ''}));
+                              setSelectedFactories(selLot.factory_no ? selLot.factory_no.split(',').map(s=>s.trim()).filter(Boolean) : []);
+                            }
+                            setModalMode('add');
+                            setModalTab('invoice');
+                            setInvoiceForm(prev => ({...prev, lot_no: selectedLotNo, bill_no: selLot?.bill_no || '', bill_stt: selLot?.stt || 0, invoice_no: '', total_amount: 0, invoice_date: new Date().toISOString().substring(0,10)}));
+                            setShowAddModal(true);
+                          }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
+                            ➕ Thêm Hóa Đơn
+                          </button>
+                        )}
                       </div>
                       <div className="overflow-x-auto flex-1">
                         <table className="w-full text-left text-xs border-collapse">
@@ -2030,6 +2096,40 @@
                     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col">
                       <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
                         <h3 className="font-bold text-xs tracking-wide uppercase">📦 Danh Sách Mặt Hàng (Mã HĐ: {selectedInvoiceNo || 'N/A'})</h3>
+                        <div className="flex gap-2">
+                          {selectedLotNo && (
+                            <button onClick={() => {
+                              // Export ALL goods of the selected lot to Excel
+                              const lotInvNos = invoices.filter(i => i.lot_no === selectedLotNo).map(i => i.invoice_no);
+                              const lotGoods = goods.filter(g => lotInvNos.includes(g.invoice_no));
+                              if (lotGoods.length === 0) return showNotification("Không có hàng hóa để xuất!", "error");
+                              const wsData = [
+                                ['Mã Lô', 'Invoice No.', 'STT', 'Mã Hàng', 'HS Code', 'Tên Tiếng Anh', 'Tên Tiếng Việt', 'Xuất Xứ', 'Số Lượng 1', 'ĐVT 1', 'Số Lượng 2', 'ĐVT 2', 'Đơn Giá', 'Thành Tiền'],
+                                ...lotGoods.map(g => {
+                                  const inv = invoices.find(i => i.invoice_no === g.invoice_no);
+                                  return [selectedLotNo, g.invoice_no, g.goods_item, (g.goods_no||'').split('*')[0].trim(), g.hs_code, g.goods_name_en, g.goods_name_local, g.origin_country||'', g.qty1||0, g.unit1||g.goods_unit_en||'', g.qty2||0, g.unit2||g.goods_unit_en2||'', g.unit_price||0, g.sale_amount||0];
+                                })
+                              ];
+                              const wb = XLSX.utils.book_new();
+                              const ws = XLSX.utils.aoa_to_sheet(wsData);
+                              XLSX.utils.book_append_sheet(wb, ws, 'Hang Hoa');
+                              XLSX.writeFile(wb, `HangHoa_${selectedLotNo}_${new Date().toISOString().slice(0,10)}.xlsx`);
+                              showNotification(`Đã xuất ${lotGoods.length} dòng hàng hóa lô ${selectedLotNo}`);
+                            }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
+                              📥 Xuất Excel
+                            </button>
+                          )}
+                          {selectedInvoiceNo && (
+                            <button onClick={() => {
+                              setModalMode('add');
+                              setGoodsForm(prev => ({...prev, invoice_no: selectedInvoiceNo}));
+                              setModalTab('goods');
+                              setShowAddModal(true);
+                            }} className="bg-emerald-800 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
+                              ➕ Thêm Hàng
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="overflow-x-auto flex-1">
                         <table className="w-full text-left text-xs border-collapse">
@@ -2462,8 +2562,14 @@
                         </div>
                       </div>
 
-                      <div className="pt-4 border-t border-slate-800 flex justify-end">
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-xs font-bold">Lưu Thông Tin Bill → Nhập Invoice ➔</button>
+                      <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
+                        {modalMode === 'edit' && (
+                          <p className="text-[10px] text-amber-500 italic">⚠️ Chế độ Sửa — dữ liệu mới sẽ ghi đè dữ liệu cũ khi bấm Cập Nhật</p>
+                        )}
+                        <button type="submit"
+                          className={`ml-auto px-6 py-2.5 rounded-lg text-xs font-bold text-white ${modalMode === 'edit' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                          {modalMode === 'edit' ? '✔ Cập Nhật Thông Tin Bill' : 'Lưu Thông Tin Bill → Nhập Invoice ➔'}
+                        </button>
                       </div>
                     </form>
                   )}
@@ -2804,7 +2910,17 @@
                         );
                       })()}
 
-                      <div className="pt-4 border-t border-slate-800 flex flex-wrap gap-3 justify-between items-center">
+                      <div className="pt-4 border-t border-slate-800 space-y-3">
+                        {/* EDIT MODE: show update warning + update button */}
+                        {modalMode === 'edit' && (
+                          <div className="flex justify-between items-center bg-amber-950/20 border border-amber-800/40 rounded-xl px-4 py-2.5">
+                            <p className="text-[10px] text-amber-400 italic">⚠️ Chế độ Sửa — nhấn Cập Nhật để ghi đè dữ liệu cũ</p>
+                            <button type="submit" className="bg-amber-600 hover:bg-amber-500 text-white px-5 py-2 rounded-lg text-xs font-bold">✔ Cập Nhật Hóa Đơn</button>
+                          </div>
+                        )}
+                        {/* ADD MODE: normal buttons */}
+                        {modalMode !== 'edit' && (
+                        <div className="flex flex-wrap gap-3 justify-between items-center">
                         <button type="button"
                           onClick={() => {
                             if (!invoiceForm.invoice_no.trim()) return showNotification("Nhập Số Hóa Đơn!", "error");
@@ -2866,6 +2982,7 @@
                             Lưu → Tạo Mã Lô ✦
                           </button>
                         </div>
+                        )}
                       </div>
                     </form>
                   )}
@@ -3068,7 +3185,13 @@
                       )}
 
                       <div className="pt-3 border-t border-slate-800 flex justify-end">
-                        <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg text-xs font-bold">➕ Save Item</button>
+                        {modalMode === 'edit' && (
+                          <p className="text-[10px] text-amber-500 italic self-center">⚠️ Chế độ Sửa — dữ liệu mới sẽ ghi đè dữ liệu cũ</p>
+                        )}
+                        <button type="submit"
+                          className={`px-5 py-2 rounded-lg text-xs font-bold text-white ${modalMode === 'edit' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+                          {modalMode === 'edit' ? '✔ Cập Nhật Mặt Hàng' : '➕ Save Item'}
+                        </button>
                       </div>
                     </form>
 
