@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chang Yang Logistics IMS v2.1 [20260608_033300]</title>
+  <title>Chang Yang Logistics IMS v2.3 [20260609_065527]</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -336,6 +336,15 @@
       const [selectedInvoiceNo, setSelectedInvoiceNo] = useState(null);
       const [selectedLotNos, setSelectedLotNos] = useState(new Set()); // for bulk delete
       const [atcTransportFilter, setAtcTransportFilter] = useState('ALL'); // for pending storage filter
+      // ETA_MGMT filter state
+      const [etaFilterFrom, setEtaFilterFrom] = useState('');
+      const [etaFilterTo, setEtaFilterTo] = useState('');
+      const [etaFilterKeyword, setEtaFilterKeyword] = useState('');
+      const [etaTransportFilter, setEtaTransportFilter] = useState('ALL');
+      // NO_ATC filter state (thêm date + keyword)
+      const [atcFilterFrom, setAtcFilterFrom] = useState('');
+      const [atcFilterTo, setAtcFilterTo] = useState('');
+      const [atcFilterKeyword, setAtcFilterKeyword] = useState('');
 
       // Advanced Filters
       const [filterFromDate, setFilterFromDate] = useState('');
@@ -2272,96 +2281,273 @@
               )}
 
               {/* --- ETA MANAGEMENT VIEW --- */}
-              {activeMenu === 'ETA_MGMT' && (
-                <div className="space-y-6 max-w-5xl mx-auto">
+              {activeMenu === 'ETA_MGMT' && (() => {
+                const etaTransportTypes = ['ALL','SEA_CONT','SEA_CFS','AIR','EXPRESS','BY_TRUCK','NGOAI_QUAN'];
+                const etaTransportLabels = { ALL: '📋 Tất cả', SEA_CONT: '🚢 SEA Cont', SEA_CFS: '⚓ SEA CFS', AIR: '✈ Air', EXPRESS: '📦 Express', BY_TRUCK: '🚛 Truck', NGOAI_QUAN: '🏭 Ngoại Quan' };
+                const hasEtaFilter = !!(etaFilterFrom || etaFilterTo || etaFilterKeyword.trim() || etaTransportFilter !== 'ALL');
+                const baseLots = lots.filter(l => !l.atc_date);
+                const filteredEtaLots = baseLots.filter(lot => {
+                  if (etaTransportFilter !== 'ALL' && (lot.transport_type || 'SEA_CONT') !== etaTransportFilter) return false;
+                  if (etaFilterFrom && (lot.eta || '') < etaFilterFrom) return false;
+                  if (etaFilterTo && (lot.eta || '') > etaFilterTo) return false;
+                  if (etaFilterKeyword.trim()) {
+                    const q = etaFilterKeyword.trim().toLowerCase();
+                    const match = lot.lot_no.toLowerCase().includes(q)
+                      || String(lot.bill_no||'').toLowerCase().includes(q)
+                      || String(lot.carrier||'').toLowerCase().includes(q)
+                      || String(lot.supplier||'').toLowerCase().includes(q);
+                    if (!match) return false;
+                  }
+                  return true;
+                });
+                return (
+                <div className="space-y-4">
+                  {/* Info banner */}
                   <div className="bg-cyan-950/20 border border-cyan-900/40 p-4 rounded-xl text-xs text-cyan-300">
-                    🛬 <strong>Quản lý ETA:</strong> Nhập/cập nhật ngày dự kiến hàng đến cho từng lô hàng chưa có ETA hoặc ETA sắp đến trong 7 ngày tới.
+                    🛬 <strong>Quản lý ETA:</strong> Nhập/cập nhật ngày dự kiến hàng đến. Lô <span className="text-rose-400 font-bold">quá hạn</span> màu đỏ, <span className="text-amber-400 font-bold">còn ≤7 ngày</span> màu vàng.
                   </div>
+
+                  {/* BỘ LỌC — giống E010 */}
+                  <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow-md space-y-3">
+                    {/* Quick presets */}
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Lọc nhanh:</span>
+                      {[
+                        ['📅 Hôm nay', () => { const d=new Date().toISOString().slice(0,10); setEtaFilterFrom(d); setEtaFilterTo(d); setEtaFilterKeyword(''); }],
+                        ['📆 Tháng này', () => { const n=new Date(); setEtaFilterFrom(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setEtaFilterTo(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setEtaFilterKeyword(''); }],
+                        ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setEtaFilterFrom(`${y}-01-01`); setEtaFilterTo(`${y}-12-31`); setEtaFilterKeyword(''); }],
+                        ['⚠️ Quá hạn', () => { const d=new Date().toISOString().slice(0,10); setEtaFilterFrom(''); setEtaFilterTo(d); setEtaFilterKeyword(''); }],
+                        ['⏰ 7 ngày tới', () => { const d=new Date(); const from=d.toISOString().slice(0,10); d.setDate(d.getDate()+7); setEtaFilterFrom(from); setEtaFilterTo(d.toISOString().slice(0,10)); setEtaFilterKeyword(''); }],
+                        ['📋 Tất cả', () => { setEtaFilterFrom(''); setEtaFilterTo(''); setEtaFilterKeyword('__ALL__'); setEtaTransportFilter('ALL'); }],
+                      ].map(([l, fn], i) => (
+                        <button key={i} onClick={fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] px-3 py-1.5 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
+                      ))}
+                      {hasEtaFilter && (
+                        <button onClick={() => { setEtaFilterFrom(''); setEtaFilterTo(''); setEtaFilterKeyword(''); setEtaTransportFilter('ALL'); }} className="text-[10px] text-rose-400 hover:text-rose-300 ml-auto font-bold">✕ Xóa bộ lọc</button>
+                      )}
+                    </div>
+                    {/* Filter inputs */}
+                    <div className="flex flex-wrap gap-3 items-end">
+                      <div className="flex-1 min-w-[140px]">
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">ETA Từ Ngày</label>
+                        <input type="date" value={etaFilterFrom} onChange={e => setEtaFilterFrom(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                      </div>
+                      <div className="flex-1 min-w-[140px]">
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">ETA Đến Ngày</label>
+                        <input type="date" value={etaFilterTo} onChange={e => setEtaFilterTo(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                      </div>
+                      <div className="flex-1 min-w-[180px]">
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Khóa</label>
+                        <input type="text" placeholder="Mã lô, số Bill, hãng tàu..." value={etaFilterKeyword === '__ALL__' ? '' : etaFilterKeyword} onChange={e => setEtaFilterKeyword(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" />
+                      </div>
+                    </div>
+                    {/* Transport type pills */}
+                    <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-800">
+                      <span className="text-[10px] text-slate-500 self-center font-bold">Phương thức:</span>
+                      {etaTransportTypes.map(t => (
+                        <button key={t} onClick={() => setEtaTransportFilter(t)}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold border transition-all ${etaTransportFilter === t ? 'bg-cyan-600 border-cyan-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                          {etaTransportLabels[t]}
+                        </button>
+                      ))}
+                    </div>
+                    {(hasEtaFilter || etaFilterKeyword === '__ALL__') && (
+                      <p className="text-[10px] text-slate-500">Hiển thị <strong className="text-slate-300">{filteredEtaLots.length}</strong> / {baseLots.length} lô chưa nhập kho</p>
+                    )}
+                  </div>
+
+                  {/* EMPTY STATE khi chưa lọc */}
+                  {!hasEtaFilter && etaFilterKeyword !== '__ALL__' ? (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4">
+                      <div className="text-5xl opacity-20">🛬</div>
+                      <div>
+                        <p className="text-slate-400 font-bold text-sm">Chưa có bộ lọc nào được chọn</p>
+                        <p className="text-slate-600 text-xs mt-1">Dùng bộ lọc phía trên để tìm kiếm, hoặc chọn nhanh bên dưới.</p>
+                      </div>
+                      <div className="flex gap-2 flex-wrap justify-center">
+                        {[
+                          ['⏰ 7 ngày tới', () => { const d=new Date(); const from=d.toISOString().slice(0,10); d.setDate(d.getDate()+7); setEtaFilterFrom(from); setEtaFilterTo(d.toISOString().slice(0,10)); }],
+                          ['⚠️ Quá hạn ETA', () => { setEtaFilterTo(new Date().toISOString().slice(0,10)); }],
+                          ['📋 Tất cả lô chưa kho', () => { setEtaFilterKeyword('__ALL__'); }],
+                        ].map(([l, fn], i) => (
+                          <button key={i} onClick={fn} className="bg-slate-800 hover:bg-cyan-800 text-slate-300 hover:text-white text-xs px-4 py-2 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
                   <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                     <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
                       <h3 className="font-bold text-xs uppercase tracking-wide text-cyan-400">📋 Danh sách Lô Hàng — Cập nhật ETA</h3>
-                      <span className="text-[10px] text-slate-500">{lots.filter(l => !l.atc_date).length} lô chưa nhập kho</span>
+                      <span className="text-[10px] text-slate-500">{filteredEtaLots.length} lô hiển thị</span>
                     </div>
+                    <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
                           <th className="p-3.5">Mã Lô</th>
                           <th className="p-3.5">Số Bill</th>
-                          <th className="p-3.5">Hãng Tàu/FWD</th>
+                          <th className="p-3.5">Nhà CC / Hãng Tàu</th>
                           <th className="p-3.5">Phương thức</th>
                           <th className="p-3.5 text-center text-cyan-400">ETA Hiện tại</th>
-                          <th className="p-3.5 text-center">Cập nhật ETA</th>
+                          <th className="p-3.5 text-center">Cập nhật ETA mới</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-855">
-                        {lots.filter(l => !l.atc_date).map(lot => {
+                        {filteredEtaLots.map(lot => {
                           const today = new Date().toISOString().slice(0,10);
                           const etaDays = lot.eta ? Math.ceil((new Date(lot.eta) - new Date(today)) / 86400000) : null;
-                          const isUrgent = etaDays !== null && etaDays <= 7;
+                          const isUrgent = etaDays !== null && etaDays <= 7 && etaDays >= 0;
                           const isOverdue = etaDays !== null && etaDays < 0;
                           return (
-                            <tr key={lot.lot_no} className={`hover:bg-slate-850/40 ${isOverdue ? 'bg-rose-950/10' : isUrgent ? 'bg-amber-950/10' : ''}`}>
+                            <tr key={lot.lot_no} className={`hover:bg-slate-850/40 ${isOverdue ? 'bg-rose-950/10 border-l-2 border-rose-800' : isUrgent ? 'bg-amber-950/10 border-l-2 border-amber-800' : ''}`}>
                               <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
                               <td className="p-3.5 font-mono text-slate-300">{lot.bill_no || '—'}</td>
-                              <td className="p-3.5 text-slate-300">{lot.carrier || '—'}</td>
+                              <td className="p-3.5 text-slate-300 text-[11px]">
+                                <div className="font-semibold">{lot.supplier || '—'}</div>
+                                {lot.carrier && <div className="text-slate-500">{lot.carrier}</div>}
+                              </td>
                               <td className="p-3.5">
                                 <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300">{lot.transport_type || 'SEA_CONT'}</span>
                               </td>
                               <td className="p-3.5 text-center">
                                 {lot.eta ? (
                                   <div>
-                                    <span className={`font-mono font-bold ${isOverdue ? 'text-rose-400' : isUrgent ? 'text-amber-400' : 'text-cyan-400'}`}>{fmtDisplayDate(lot.eta)}</span>
-                                    {etaDays !== null && <span className={`ml-2 text-[10px] ${isOverdue ? 'text-rose-500' : isUrgent ? 'text-amber-500' : 'text-slate-500'}`}>{isOverdue ? `Quá ${-etaDays} ngày` : etaDays === 0 ? 'Hôm nay!' : `Còn ${etaDays} ngày`}</span>}
+                                    <div className={`font-mono font-bold ${isOverdue ? 'text-rose-400' : isUrgent ? 'text-amber-400' : 'text-cyan-400'}`}>{fmtDisplayDate(lot.eta)}</div>
+                                    <div className={`text-[10px] mt-0.5 ${isOverdue ? 'text-rose-500' : isUrgent ? 'text-amber-500' : 'text-slate-500'}`}>
+                                      {isOverdue ? `⚠️ Quá ${-etaDays} ngày` : etaDays === 0 ? '🔴 Hôm nay!' : `Còn ${etaDays} ngày`}
+                                    </div>
                                   </div>
-                                ) : <span className="text-slate-600 italic">Chưa có ETA</span>}
+                                ) : <span className="text-slate-600 italic text-[11px]">Chưa có ETA</span>}
                               </td>
                               <td className="p-3.5 text-center">
                                 <div className="flex gap-2 justify-center items-center">
-                                  <input type="date" id={`eta-input-${lot.lot_no}`} defaultValue={lot.eta || ''} className="bg-slate-950 border border-slate-700 rounded p-1 text-white font-mono text-[11px]" style={{colorScheme:"dark"}} />
+                                  <input type="date" id={`eta-input-${lot.lot_no}`} defaultValue={lot.eta || ''} className="bg-slate-950 border border-slate-700 rounded p-1.5 text-white font-mono text-[11px]" style={{colorScheme:"dark"}} />
                                   <button onClick={() => {
                                     const inp = document.getElementById(`eta-input-${lot.lot_no}`);
                                     if (!inp) return;
                                     const newEta = inp.value;
+                                    if (!newEta) return showNotification('Vui lòng chọn ngày ETA!', 'error');
                                     const newLots = lots.map(l => l.lot_no === lot.lot_no ? {...l, eta: newEta} : l);
                                     saveLotsToStorage(newLots);
-                                    showNotification(`Đã cập nhật ETA cho lô ${lot.lot_no}: ${newEta}`);
-                                  }} className="bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-1 rounded text-[11px] font-bold">Lưu ETA</button>
+                                    showNotification(`✅ Đã cập nhật ETA lô ${lot.lot_no}: ${fmtDisplayDate(newEta)}`);
+                                  }} className="bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-1.5 rounded text-[11px] font-bold whitespace-nowrap">Lưu ETA</button>
                                 </div>
                               </td>
                             </tr>
                           );
                         })}
-                        {lots.filter(l => !l.atc_date).length === 0 && (
-                          <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">🎉 Tất cả lô hàng đã nhập kho!</td></tr>
+                        {filteredEtaLots.length === 0 && (
+                          <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">
+                            {baseLots.length === 0 ? '🎉 Tất cả lô hàng đã nhập kho!' : '🔍 Không tìm thấy lô nào khớp với bộ lọc.'}
+                          </td></tr>
                         )}
                       </tbody>
                     </table>
+                    </div>
                   </div>
+                  )}
                 </div>
-              )}
+                );
+              })()}
 
               {/* --- NO_ATC VIEW --- */}
-              {activeMenu === 'NO_ATC' && (
+              {activeMenu === 'NO_ATC' && (() => {
+                const atcTransTypes = ['ALL','SEA_CONT','SEA_CFS','AIR','EXPRESS','BY_TRUCK','NGOAI_QUAN'];
+                const atcTransLabels = { ALL: '📋 Tất cả', SEA_CONT: '🚢 SEA Cont', SEA_CFS: '⚓ SEA CFS', AIR: '✈ Air', EXPRESS: '📦 Express', BY_TRUCK: '🚛 Truck', NGOAI_QUAN: '🏭 Ngoại Quan' };
+                const hasAtcFilter = !!(atcFilterFrom || atcFilterTo || atcFilterKeyword.trim() || atcTransportFilter !== 'ALL');
+                const filteredAtcLots = pendingAtcLots.filter(lot => {
+                  if (atcTransportFilter !== 'ALL' && (lot.transport_type || 'SEA_CONT') !== atcTransportFilter) return false;
+                  if (atcFilterFrom && (lot.eta || '') < atcFilterFrom) return false;
+                  if (atcFilterTo && (lot.eta || '') > atcFilterTo) return false;
+                  if (atcFilterKeyword.trim() && atcFilterKeyword !== '__ALL__') {
+                    const q = atcFilterKeyword.trim().toLowerCase();
+                    const match = lot.lot_no.toLowerCase().includes(q)
+                      || String(lot.bill_no||'').toLowerCase().includes(q)
+                      || String(lot.supplier||'').toLowerCase().includes(q);
+                    if (!match) return false;
+                  }
+                  return true;
+                });
+                return (
                 <div className="space-y-4">
+                  {/* Info banner */}
                   <div className="bg-rose-950/20 border border-rose-900/60 p-4 rounded-xl text-xs text-rose-300">
-                    🚚 <strong>Lưu ý nghiệp vụ điều xe:</strong> Đây là danh sách các lô hàng đang chờ điền ngày thực tế nhận hàng tại xưởng (ATC Date).
+                    🚚 <strong>Pending Storage:</strong> Danh sách các lô hàng đang chờ xác nhận ngày thực tế nhập xưởng (ATC Date).
                   </div>
 
-                  {/* Transport filter buttons */}
-                  <div className="flex gap-2 flex-wrap">
-                    {['ALL','SEA_CONT','SEA_CFS','AIR','EXPRESS','BY_TRUCK','NGOAI_QUAN'].map(t => {
-                      const labels = { ALL: '📋 Tất cả', SEA_CONT: '🚢 SEA Cont', SEA_CFS: '⚓ SEA CFS', AIR: '✈ Air', EXPRESS: '📦 Express', BY_TRUCK: '🚛 Truck', NGOAI_QUAN: '🏭 Ngoại Quan' };
-                      return (
+                  {/* BỘ LỌC — giống E010 */}
+                  <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow-md space-y-3">
+                    {/* Quick presets */}
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Lọc nhanh:</span>
+                      {[
+                        ['📅 Hôm nay', () => { const d=new Date().toISOString().slice(0,10); setAtcFilterFrom(d); setAtcFilterTo(d); setAtcFilterKeyword(''); }],
+                        ['📆 Tháng này', () => { const n=new Date(); setAtcFilterFrom(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setAtcFilterTo(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setAtcFilterKeyword(''); }],
+                        ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setAtcFilterFrom(`${y}-01-01`); setAtcFilterTo(`${y}-12-31`); setAtcFilterKeyword(''); }],
+                        ['⏰ ETA 7 ngày tới', () => { const d=new Date(); const from=d.toISOString().slice(0,10); d.setDate(d.getDate()+7); setAtcFilterFrom(from); setAtcFilterTo(d.toISOString().slice(0,10)); setAtcFilterKeyword(''); }],
+                        ['📋 Tất cả', () => { setAtcFilterFrom(''); setAtcFilterTo(''); setAtcFilterKeyword('__ALL__'); setAtcTransportFilter('ALL'); }],
+                      ].map(([l, fn], i) => (
+                        <button key={i} onClick={fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] px-3 py-1.5 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
+                      ))}
+                      {hasAtcFilter && (
+                        <button onClick={() => { setAtcFilterFrom(''); setAtcFilterTo(''); setAtcFilterKeyword(''); setAtcTransportFilter('ALL'); }} className="text-[10px] text-rose-400 hover:text-rose-300 ml-auto font-bold">✕ Xóa bộ lọc</button>
+                      )}
+                    </div>
+                    {/* Filter inputs */}
+                    <div className="flex flex-wrap gap-3 items-end">
+                      <div className="flex-1 min-w-[140px]">
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">ETA Từ Ngày</label>
+                        <input type="date" value={atcFilterFrom} onChange={e => setAtcFilterFrom(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                      </div>
+                      <div className="flex-1 min-w-[140px]">
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">ETA Đến Ngày</label>
+                        <input type="date" value={atcFilterTo} onChange={e => setAtcFilterTo(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                      </div>
+                      <div className="flex-1 min-w-[180px]">
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Khóa</label>
+                        <input type="text" placeholder="Mã lô, số Bill, nhà CC..." value={atcFilterKeyword === '__ALL__' ? '' : atcFilterKeyword} onChange={e => setAtcFilterKeyword(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" />
+                      </div>
+                    </div>
+                    {/* Transport type pills */}
+                    <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-800">
+                      <span className="text-[10px] text-slate-500 self-center font-bold">Phương thức:</span>
+                      {atcTransTypes.map(t => (
                         <button key={t} onClick={() => setAtcTransportFilter(t)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${atcTransportFilter === t ? 'bg-rose-600 border-rose-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-600'}`}>
-                          {labels[t]}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold border transition-all ${atcTransportFilter === t ? 'bg-rose-600 border-rose-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                          {atcTransLabels[t]}
                         </button>
-                      );
-                    })}
+                      ))}
+                    </div>
+                    {(hasAtcFilter || atcFilterKeyword === '__ALL__') && (
+                      <p className="text-[10px] text-slate-500">Hiển thị <strong className="text-slate-300">{filteredAtcLots.length}</strong> / {pendingAtcLots.length} lô chờ nhập kho</p>
+                    )}
                   </div>
 
-                  {/* Table */}
+                  {/* EMPTY STATE khi chưa lọc */}
+                  {!hasAtcFilter && atcFilterKeyword !== '__ALL__' ? (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4">
+                      <div className="text-5xl opacity-20">🚚</div>
+                      <div>
+                        <p className="text-slate-400 font-bold text-sm">Chưa có bộ lọc nào được chọn</p>
+                        <p className="text-slate-600 text-xs mt-1">Dùng bộ lọc phía trên hoặc chọn nhanh bên dưới.</p>
+                      </div>
+                      <div className="flex gap-2 flex-wrap justify-center">
+                        {[
+                          ['📋 Xem tất cả lô chờ', () => { setAtcFilterKeyword('__ALL__'); }],
+                          ['⏰ ETA 7 ngày tới', () => { const d=new Date(); const from=d.toISOString().slice(0,10); d.setDate(d.getDate()+7); setAtcFilterFrom(from); setAtcFilterTo(d.toISOString().slice(0,10)); }],
+                          ['📆 Tháng này', () => { const n=new Date(); setAtcFilterFrom(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setAtcFilterTo(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); }],
+                        ].map(([l, fn], i) => (
+                          <button key={i} onClick={fn} className="bg-slate-800 hover:bg-rose-800 text-slate-300 hover:text-white text-xs px-4 py-2 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
                   <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                    <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
+                      <h3 className="font-bold text-xs uppercase tracking-wide text-rose-400">⏳ Lô Hàng Chờ Nhập Kho (ATC)</h3>
+                      <span className="text-[10px] text-slate-500">{filteredAtcLots.length} lô</span>
+                    </div>
+                    <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
@@ -2374,34 +2560,52 @@
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-855">
-                        {(atcTransportFilter === 'ALL' ? pendingAtcLots : pendingAtcLots.filter(l => (l.transport_type || 'SEA_CONT') === atcTransportFilter)).map(lot => (
-                          <tr key={lot.lot_no} className="hover:bg-slate-850/40 text-slate-300">
-                            <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
-                            <td className="p-3.5 font-semibold">{lot.supplier}</td>
-                            <td className="p-3.5 font-mono">{lot.bill_no || '-'}</td>
-                            <td className="p-3.5"><span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded">{lot.transport_type || 'SEA_CONT'}</span></td>
-                            <td className="p-3.5 text-cyan-400 font-mono">{lot.eta || 'Chưa rõ'}</td>
-                            <td className="p-3.5 text-center">
-                              {inlineAtcLotNo === lot.lot_no ? (
-                                <div className="flex gap-2 justify-center items-center">
-                                  <input type="date" value={inlineAtcDate} onChange={e => setInlineAtcDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded p-1 text-white font-mono" style={{colorScheme:"dark"}} />
-                                  <button onClick={() => handleInlineAtcUpdate(lot.lot_no, inlineAtcDate)} className="bg-emerald-600 px-3 py-1 rounded text-white font-bold text-[11px]">Lưu</button>
-                                  <button onClick={() => setInlineAtcLotNo(null)} className="bg-slate-800 px-2 py-1 rounded text-slate-300 text-[11px]">Hủy</button>
-                                </div>
-                              ) : (
-                                <button onClick={() => { setInlineAtcLotNo(lot.lot_no); setInlineAtcDate(new Date().toISOString().substring(0, 10)); }} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-1.5 rounded text-xs shadow-sm">Xác nhận ngày thực nhập</button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                        {pendingAtcLots.length === 0 && (
-                          <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">🎉 Tuyệt vời! Hiện tại không có lô hàng nào chờ nhập xưởng.</td></tr>
+                        {filteredAtcLots.map(lot => {
+                          const today = new Date().toISOString().slice(0,10);
+                          const etaDays = lot.eta ? Math.ceil((new Date(lot.eta) - new Date(today)) / 86400000) : null;
+                          const isOverdue = etaDays !== null && etaDays < 0;
+                          const isUrgent = etaDays !== null && etaDays <= 7 && etaDays >= 0;
+                          return (
+                            <tr key={lot.lot_no} className={`hover:bg-slate-850/40 text-slate-300 ${isOverdue ? 'bg-rose-950/10 border-l-2 border-rose-800' : isUrgent ? 'bg-amber-950/10 border-l-2 border-amber-800' : ''}`}>
+                              <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
+                              <td className="p-3.5 font-semibold">{lot.supplier || '—'}</td>
+                              <td className="p-3.5 font-mono">{lot.bill_no || '—'}</td>
+                              <td className="p-3.5"><span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded">{lot.transport_type || 'SEA_CONT'}</span></td>
+                              <td className="p-3.5">
+                                {lot.eta ? (
+                                  <div>
+                                    <span className={`font-mono font-bold ${isOverdue ? 'text-rose-400' : isUrgent ? 'text-amber-400' : 'text-cyan-400'}`}>{fmtDisplayDate(lot.eta)}</span>
+                                    {etaDays !== null && <span className={`ml-2 text-[10px] ${isOverdue ? 'text-rose-500' : isUrgent ? 'text-amber-500' : 'text-slate-500'}`}>{isOverdue ? `⚠️ Quá ${-etaDays} ngày` : etaDays === 0 ? '🔴 Hôm nay' : `Còn ${etaDays} ngày`}</span>}
+                                  </div>
+                                ) : <span className="text-slate-600 italic">Chưa có ETA</span>}
+                              </td>
+                              <td className="p-3.5 text-center">
+                                {inlineAtcLotNo === lot.lot_no ? (
+                                  <div className="flex gap-2 justify-center items-center">
+                                    <input type="date" value={inlineAtcDate} onChange={e => setInlineAtcDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded p-1.5 text-white font-mono text-[11px]" style={{colorScheme:"dark"}} />
+                                    <button onClick={() => handleInlineAtcUpdate(lot.lot_no, inlineAtcDate)} className="bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded text-white font-bold text-[11px]">Lưu</button>
+                                    <button onClick={() => setInlineAtcLotNo(null)} className="bg-slate-800 hover:bg-slate-700 px-2 py-1.5 rounded text-slate-300 text-[11px]">Hủy</button>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => { setInlineAtcLotNo(lot.lot_no); setInlineAtcDate(new Date().toISOString().substring(0, 10)); }} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-1.5 rounded text-xs shadow-sm">✅ Xác nhận nhập kho</button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {filteredAtcLots.length === 0 && (
+                          <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">
+                            {pendingAtcLots.length === 0 ? '🎉 Tuyệt vời! Không có lô hàng nào chờ nhập kho.' : '🔍 Không tìm thấy lô nào khớp với bộ lọc.'}
+                          </td></tr>
                         )}
                       </tbody>
                     </table>
+                    </div>
                   </div>
+                  )}
                 </div>
-              )}
+                );
+              })()}
 
             </div>
           </div>
