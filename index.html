@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chang Yang Logistics IMS v2.7 [20260610_SCHEMA_FIX]</title>
+  <title>Chang Yang Logistics IMS v2.8 [20260610_TRIM_FIX]</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -249,32 +249,35 @@
       // ── DATA SANITIZERS: đảm bảo tất cả field có mặt trước khi lưu lên Sheet ──
       // Apps Script đọc keys từ object đầu tiên để tạo header → cần đủ field.
 
+      // Helper: ép về string an toàn (tránh Apps Script trả về number cho mã dạng text)
+      const toStr = (v) => (v === null || v === undefined || v === '') ? '' : String(v).trim();
+
       const sanitizeLot = (lot) => ({
-        lot_no:             lot.lot_no             || '',
+        lot_no:             toStr(lot.lot_no),
         stt:                Number(lot.stt)         || 0,
         lot_date:           normalizeDate(lot.lot_date),
         get_docs_date:      normalizeDate(lot.get_docs_date),
-        bill_no:            lot.bill_no             || '',
+        bill_no:            toStr(lot.bill_no),
         bill_date:          normalizeDate(lot.bill_date),
-        bill_term:          lot.bill_term           || 'Freight Prepaid',
-        carrier:            lot.carrier             || '',
-        pol:                lot.pol                 || '',
-        pod:                lot.pod                 || '',
-        transport_type:     lot.transport_type      || (lot.is_cont ? 'SEA_CONT' : 'SEA_CFS'),
+        bill_term:          toStr(lot.bill_term)    || 'Freight Prepaid',
+        carrier:            toStr(lot.carrier),
+        pol:                toStr(lot.pol),
+        pod:                toStr(lot.pod),
+        transport_type:     toStr(lot.transport_type) || (lot.is_cont ? 'SEA_CONT' : 'SEA_CFS'),
         is_cont:            lot.is_cont !== undefined ? Boolean(lot.is_cont) : true,
-        cont_no:            lot.cont_no             || '',
-        seal_no:            lot.seal_no             || '',
-        cont_type:          lot.cont_type           || '40HC',
+        cont_no:            toStr(lot.cont_no),
+        seal_no:            toStr(lot.seal_no),
+        cont_type:          toStr(lot.cont_type)    || '40HC',
         pkg_qty:            Number(lot.pkg_qty)     || 0,
         gw:                 Number(lot.gw)          || 0,
         cbm:                Number(lot.cbm)         || 0,
         eta:                normalizeDate(lot.eta),
         atc_date:           normalizeDate(lot.atc_date),
-        origin_country:     lot.origin_country      || 'TAIWAN',
-        loai_hinh:          lot.loai_hinh           || 'NEUTRAL',
-        loai_hinh_con:      lot.loai_hinh_con       || 'DEFAULT',
-        factory_no:         lot.factory_no          || '',
-        supplier:           lot.supplier            || '',
+        origin_country:     toStr(lot.origin_country) || 'TAIWAN',
+        loai_hinh:          toStr(lot.loai_hinh)    || 'NEUTRAL',
+        loai_hinh_con:      toStr(lot.loai_hinh_con) || 'DEFAULT',
+        factory_no:         toStr(lot.factory_no),
+        supplier:           toStr(lot.supplier),
         is_hang_chung_bill: Boolean(lot.is_hang_chung_bill),
         sale_qty:           Number(lot.sale_qty)    || 0,
         contract_start:     normalizeDate(lot.contract_start),
@@ -282,23 +285,23 @@
       });
 
       const sanitizeInvoice = (inv) => ({
-        invoice_no:         inv.invoice_no          || '',
-        lot_no:             inv.lot_no              || '',
-        bill_no:            inv.bill_no             || '',
+        invoice_no:         toStr(inv.invoice_no),
+        lot_no:             toStr(inv.lot_no),
+        bill_no:            toStr(inv.bill_no),
         bill_stt:           Number(inv.bill_stt)    || 0,
         invoice_date:       normalizeDate(inv.invoice_date),
-        loai_hinh:          inv.loai_hinh           || 'A12',
-        loai_hinh_con:      inv.loai_hinh_con       || 'DEFAULT',
-        supplier:           inv.supplier            || '',
-        factory_no:         inv.factory_no          || '',
-        currency:           inv.currency            || 'USD',
-        incoterm:           inv.incoterm            || 'CIF',
+        loai_hinh:          toStr(inv.loai_hinh)    || 'A12',
+        loai_hinh_con:      toStr(inv.loai_hinh_con) || 'DEFAULT',
+        supplier:           toStr(inv.supplier),
+        factory_no:         toStr(inv.factory_no),
+        currency:           toStr(inv.currency)     || 'USD',
+        incoterm:           toStr(inv.incoterm)     || 'CIF',
         total_amount:       Number(inv.total_amount)       || 0,
         foc_amount:         Number(inv.foc_amount)         || 0,
         plus_sea_freight:   Number(inv.plus_sea_freight)   || 0,
         handling_charges:   Number(inv.handling_charges)   || 0,
         other_charges:      Number(inv.other_charges)      || 0,
-        other_charges_note: inv.other_charges_note  || '',
+        other_charges_note: toStr(inv.other_charges_note),
         inv_pkg_qty:        Number(inv.inv_pkg_qty)        || 0,
         inv_gw:             Number(inv.inv_gw)             || 0,
         is_hang_chung_bill: Boolean(inv.is_hang_chung_bill),
@@ -729,7 +732,7 @@
 
       const handleSaveInvoice = (e) => {
         e.preventDefault();
-        if (!invoiceForm.invoice_no.trim()) return showNotification("Vui lòng điền Số hóa đơn!", "error");
+        if (!String(invoiceForm.invoice_no || '').trim()) return showNotification("Vui lòng điền Số hóa đơn!", "error");
         let targetLotNo = invoiceForm.lot_no;
 
         if (invoiceForm.is_hang_chung_bill && activeBillStatus.matches) {
@@ -754,7 +757,7 @@
           return showNotification(`⚠️ Không hợp lệ: Bill [Freight Collect] không phù hợp với Incoterm [${incoterm}]. Nên dùng: FOB, FCA, EXW, FAS`, 'error');
         }
         const finalInvoice = {
-          ...invoiceForm, invoice_no: invoiceForm.invoice_no.trim(), lot_no: targetLotNo,
+          ...invoiceForm, invoice_no: String(invoiceForm.invoice_no || '').trim(), lot_no: targetLotNo,
           bill_stt: Number(invoiceForm.bill_stt || lotForm.stt || 0),
           bill_no: invoiceForm.bill_no || lotForm.bill_no,
           is_hang_chung_bill: lotForm.is_hang_chung_bill || false,
@@ -769,7 +772,7 @@
 
         let newInvoices = [];
         if (modalMode === 'add') {
-          if (invoices.some(i => String(i.invoice_no||'').toLowerCase() === invoiceForm.invoice_no.trim().toLowerCase())) {
+          if (invoices.some(i => String(i.invoice_no||'').toLowerCase() === String(invoiceForm.invoice_no||'').trim().toLowerCase())) {
             return showNotification("Invoice No. already exists!", "error");
           }
           newInvoices = [finalInvoice, ...invoices];
@@ -1127,28 +1130,28 @@
       const startEditInvoice = (inv, e) => {
         if(e) e.stopPropagation();
         setModalMode('edit');
-        // Load ĐẦY ĐỦ toàn bộ dữ liệu invoice cũ lên form với fallback cho từng field
+        // Load ĐẦY ĐỦ toàn bộ dữ liệu invoice cũ lên form — toStr() đảm bảo không bao giờ là number
         setInvoiceForm({
-          invoice_no:          inv.invoice_no          || '',
-          lot_no:              inv.lot_no              || '',
-          bill_no:             inv.bill_no             || '',
+          invoice_no:          toStr(inv.invoice_no),
+          lot_no:              toStr(inv.lot_no),
+          bill_no:             toStr(inv.bill_no),
           bill_stt:            Number(inv.bill_stt)    || 1,
           invoice_date:        normalizeDate(inv.invoice_date),
-          incoterm:            inv.incoterm            || 'CIF',
-          loai_hinh:           inv.loai_hinh           || 'A12',
-          loai_hinh_con:       inv.loai_hinh_con       || 'DEFAULT',
-          supplier:            inv.supplier            || 'CHANG YANG MATERIAL CORP.',
-          currency:            inv.currency            || 'USD',
+          incoterm:            toStr(inv.incoterm)     || 'CIF',
+          loai_hinh:           toStr(inv.loai_hinh)   || 'A12',
+          loai_hinh_con:       toStr(inv.loai_hinh_con) || 'DEFAULT',
+          supplier:            toStr(inv.supplier)    || 'CHANG YANG MATERIAL CORP.',
+          currency:            toStr(inv.currency)    || 'USD',
           total_amount:        Number(inv.total_amount)        || 0,
           foc_amount:          Number(inv.foc_amount)          || 0,
           plus_sea_freight:    Number(inv.plus_sea_freight)    || 0,
           handling_charges:    Number(inv.handling_charges)    || 0,
           other_charges:       Number(inv.other_charges)       || 0,
-          other_charges_note:  inv.other_charges_note  || '',
+          other_charges_note:  toStr(inv.other_charges_note),
           inv_pkg_qty:         Number(inv.inv_pkg_qty)         || 0,
           inv_gw:              Number(inv.inv_gw)              || 0,
-          is_hang_chung_bill:  inv.is_hang_chung_bill  || false,
-          factory_no:          inv.factory_no          || '',
+          is_hang_chung_bill:  Boolean(inv.is_hang_chung_bill),
+          factory_no:          toStr(inv.factory_no),
           contract_start:      normalizeDate(inv.contract_start),
           contract_end:        normalizeDate(inv.contract_end),
         });
@@ -1173,8 +1176,8 @@
         // Load ĐẦY ĐỦ toàn bộ dữ liệu goods cũ lên form với fallback cho từng field
         setGoodsForm({
           id:                   item.id                   || '',
-          invoice_no:           item.invoice_no           || '',
-          goods_no:             item.goods_no             || '',
+          invoice_no:           toStr(item.invoice_no),
+          goods_no:             toStr(item.goods_no),
           goods_item:           Number(item.goods_item)   || 1,
           goods_name_en:        item.goods_name_en        || '',
           goods_name_local:     item.goods_name_local     || '',
@@ -3301,12 +3304,12 @@
                           <div className="flex flex-wrap gap-3 justify-between items-center">
                             <button type="button"
                               onClick={() => {
-                                if (!invoiceForm.invoice_no.trim()) return showNotification("Nhập Số Hóa Đơn!", "error");
-                                if (invoices.some(i => String(i.invoice_no||'').toLowerCase() === invoiceForm.invoice_no.trim().toLowerCase())) {
+                                if (!String(invoiceForm.invoice_no||'').trim()) return showNotification("Nhập Số Hóa Đơn!", "error");
+                                if (invoices.some(i => String(i.invoice_no||'').toLowerCase() === String(invoiceForm.invoice_no||'').trim().toLowerCase())) {
                                   return showNotification("Số hóa đơn đã tồn tại!", "error");
                                 }
                                 const finalInv = {
-                                  ...invoiceForm, invoice_no: invoiceForm.invoice_no.trim(),
+                                  ...invoiceForm, invoice_no: String(invoiceForm.invoice_no||'').trim(),
                                   bill_stt: Number(invoiceForm.bill_stt || lotForm.stt || 0),
                                   bill_no: invoiceForm.bill_no || lotForm.bill_no,
                                   total_amount: Number(invoiceForm.total_amount)||0, foc_amount: Number(invoiceForm.foc_amount)||0,
@@ -3336,10 +3339,10 @@
                               </button>
                               <button type="button"
                                 onClick={() => {
-                                  if (!invoiceForm.invoice_no.trim()) return showNotification("Nhập Số Hóa Đơn!", "error");
-                                  if (!invoices.some(i => String(i.invoice_no||'').toLowerCase() === invoiceForm.invoice_no.trim().toLowerCase())) {
+                                  if (!String(invoiceForm.invoice_no||'').trim()) return showNotification("Nhập Số Hóa Đơn!", "error");
+                                  if (!invoices.some(i => String(i.invoice_no||'').toLowerCase() === String(invoiceForm.invoice_no||'').trim().toLowerCase())) {
                                     const finalInv = {
-                                      ...invoiceForm, invoice_no: invoiceForm.invoice_no.trim(),
+                                      ...invoiceForm, invoice_no: String(invoiceForm.invoice_no||'').trim(),
                                       bill_stt: Number(invoiceForm.bill_stt || lotForm.stt || 0),
                                       bill_no: invoiceForm.bill_no || lotForm.bill_no,
                                       is_hang_chung_bill: lotForm.is_hang_chung_bill || false,
