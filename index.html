@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chang Yang Logistics IMS v2.5 [20260610_003951]</title>
+  <title>Chang Yang Logistics IMS v2.6 [20260610_FIX_EDIT]</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -557,7 +557,17 @@
         if (modalMode === 'edit') {
           // Edit mode: validate lot_no exists
           if (!lotForm.lot_no.trim()) return showNotification("Mã lô hàng không được trống", "error");
-          const finalLot = { ...lotForm, lot_no: lotForm.lot_no.trim(), stt: Number(lotForm.stt), pkg_qty: Number(lotForm.pkg_qty)||0, gw: Number(lotForm.gw)||0, cbm: Number(lotForm.cbm)||0 };
+          const finalLot = {
+            ...lotForm, lot_no: lotForm.lot_no.trim(), stt: Number(lotForm.stt),
+            pkg_qty: Number(lotForm.pkg_qty)||0, gw: Number(lotForm.gw)||0, cbm: Number(lotForm.cbm)||0,
+            lot_date: normalizeDate(lotForm.lot_date),
+            bill_date: normalizeDate(lotForm.bill_date),
+            eta: normalizeDate(lotForm.eta),
+            atc_date: normalizeDate(lotForm.atc_date),
+            get_docs_date: normalizeDate(lotForm.get_docs_date),
+            contract_start: normalizeDate(lotForm.contract_start),
+            contract_end: normalizeDate(lotForm.contract_end),
+          };
           if (finalLot.carrier) addCarrierHistory(finalLot.carrier.trim());
           const newLots = lots.map(l => l.lot_no === finalLot.lot_no ? finalLot : l);
           saveLotsToStorage(newLots);
@@ -664,6 +674,10 @@
           is_hang_chung_bill: lotForm.is_hang_chung_bill || false,
           total_amount: Number(invoiceForm.total_amount) || 0, foc_amount: Number(invoiceForm.foc_amount) || 0,
           plus_sea_freight: Number(invoiceForm.plus_sea_freight) || 0, handling_charges: Number(invoiceForm.handling_charges) || 0, other_charges: Number(invoiceForm.other_charges) || 0,
+          // Normalize ngày về YYYY-MM-DD trước khi lưu
+          invoice_date: normalizeDate(invoiceForm.invoice_date),
+          contract_start: normalizeDate(invoiceForm.contract_start),
+          contract_end: normalizeDate(invoiceForm.contract_end),
         };
         if (finalInvoice.supplier) addSupplierHistory(finalInvoice.supplier.trim());
 
@@ -971,10 +985,22 @@
         showNotification("Đã xóa dòng mặt hàng thành công!");
       };
 
+      // ── Suy ra transport_type từ dữ liệu cũ (trước khi có field transport_type) ──
+      const inferTransportType = (lot) => {
+        if (lot.transport_type) return lot.transport_type;
+        // Legacy: is_cont=true → SEA_CONT, is_cont=false → SEA_CFS
+        if (lot.is_cont === true || lot.is_cont === 'true') return 'SEA_CONT';
+        if (lot.is_cont === false || lot.is_cont === 'false') return 'SEA_CFS';
+        return 'SEA_CONT';
+      };
+
       // Mở nhanh Edit modal
       const startEditLot = (lot, e) => {
         if(e) e.stopPropagation();
         setModalMode('edit');
+        // Set selectedLotNo để currentInvoices và currentGoods hiển thị đúng lô đang sửa
+        setSelectedLotNo(lot.lot_no);
+        const inferredTransport = inferTransportType(lot);
         // Load ĐẦY ĐỦ toàn bộ dữ liệu lot cũ lên form, đảm bảo mọi field có giá trị
         setLotForm({
           lot_no:           lot.lot_no            || '',
@@ -988,8 +1014,8 @@
           pod:              lot.pod               || '',
           bill_term:        lot.bill_term         || 'Freight Prepaid',
           carrier:          lot.carrier           || '',
-          transport_type:   lot.transport_type    || 'SEA_CONT',
-          is_cont:          lot.is_cont !== undefined ? lot.is_cont : true,
+          transport_type:   inferredTransport,
+          is_cont:          inferredTransport === 'SEA_CONT',
           cont_no:          lot.cont_no           || '',
           seal_no:          lot.seal_no           || '',
           cont_type:        lot.cont_type         || '40HC',
@@ -1009,8 +1035,6 @@
           supplier:         lot.supplier          || '',
         });
         setSelectedFactories(lot.factory_no ? lot.factory_no.split(',').map(s=>s.trim()).filter(Boolean) : []);
-        // If previously on Tab 4 (assign), redirect to Tab 1 in edit mode
-        if (modalTab === 'assign') setModalTab('lot');
         setModalTab('lot');
         setShowAddModal(true);
       };
@@ -1051,6 +1075,9 @@
             cbm_str: parentLot.cbm ? String(parentLot.cbm) : '',
           }));
         }
+        // Set selected IDs so main table highlights correct row
+        setSelectedLotNo(inv.lot_no || null);
+        setSelectedInvoiceNo(inv.invoice_no || null);
         setModalTab('invoice');
         setShowAddModal(true);
       };
@@ -1080,6 +1107,12 @@
           unit_price_str:       item.unit_price           ? String(item.unit_price) : '',
           sale_amount:          Number(item.sale_amount)  || 0,
         });
+        // Set selected invoice so goods table shows correct data
+        const parentInv = invoices.find(i => i.invoice_no === item.invoice_no);
+        if (parentInv) {
+          setSelectedLotNo(parentInv.lot_no || null);
+          setSelectedInvoiceNo(item.invoice_no);
+        }
         setModalTab('goods');
         setShowAddModal(true);
       };
@@ -2762,6 +2795,33 @@
                   {modalTab === 'invoice' && (
                     <form onSubmit={handleSaveInvoice} className="space-y-5">
 
+                      {/* --- CHỌN HÓA ĐƠN ĐỂ SỬA (edit mode, khi chưa chọn invoice nào) --- */}
+                      {modalMode === 'edit' && !invoiceForm.invoice_no && selectedLotNo && (() => {
+                        const lotInvoices = invoices.filter(i => i.lot_no === selectedLotNo);
+                        if (lotInvoices.length === 0) return (
+                          <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-6 text-center">
+                            <p className="text-slate-400 text-xs">Lô <strong className="text-white">{selectedLotNo}</strong> chưa có hóa đơn nào.</p>
+                          </div>
+                        );
+                        return (
+                          <div className="bg-indigo-950/20 border border-indigo-800/40 rounded-xl overflow-hidden">
+                            <div className="bg-indigo-950/40 px-4 py-2.5 border-b border-indigo-900/30">
+                              <p className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider">📋 Chọn Hóa Đơn Để Sửa — Lô {selectedLotNo}</p>
+                            </div>
+                            <div className="p-3 flex flex-wrap gap-2">
+                              {lotInvoices.map(inv => (
+                                <button key={inv.invoice_no} type="button"
+                                  onClick={() => startEditInvoice(inv)}
+                                  className="flex flex-col items-start bg-slate-900 hover:bg-indigo-900/30 border border-slate-700 hover:border-indigo-600 rounded-lg px-4 py-2.5 transition-all text-left">
+                                  <span className="font-mono font-bold text-indigo-300 text-xs">{inv.invoice_no}</span>
+                                  <span className="text-[10px] text-slate-500 mt-0.5">{fmtDisplayDate(inv.invoice_date)} · {inv.currency||'USD'} {Number(inv.total_amount||0).toLocaleString()}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {/* ── HÀNG CHUNG BILL: per-invoice pkg/gw when lotForm.is_hang_chung_bill ── */}
                       {lotForm.is_hang_chung_bill && (
                         <div className="bg-amber-950/20 border border-amber-700/50 rounded-xl p-4 space-y-3">
@@ -3095,6 +3155,47 @@
                       })()}
 
 
+                      {/* --- DANH SÁCH HÓA ĐƠN CỦA LÔ (edit mode) --- */}
+                      {modalMode === 'edit' && (invoiceForm.lot_no || selectedLotNo) && (() => {
+                        const activeLotNo = invoiceForm.lot_no || selectedLotNo;
+                        const lotInvoices = invoices.filter(i => i.lot_no === activeLotNo);
+                        if (lotInvoices.length === 0) return null;
+                        return (
+                          <div className="bg-slate-950/50 border border-indigo-900/40 rounded-xl overflow-hidden">
+                            <div className="bg-indigo-950/40 px-4 py-2 border-b border-indigo-900/30 flex justify-between items-center">
+                              <p className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">📋 Hóa Đơn Thuộc Lô {activeLotNo}</p>
+                              <span className="text-[10px] text-indigo-600">{lotInvoices.length} invoice(s)</span>
+                            </div>
+                            <table className="w-full text-[11px] border-collapse">
+                              <thead>
+                                <tr className="bg-slate-950 text-slate-500 border-b border-slate-800">
+                                  <th className="px-3 py-2 text-left">Invoice No.</th>
+                                  <th className="px-3 py-2 text-center">Loại Hình</th>
+                                  <th className="px-3 py-2 text-center">Ngày HĐ</th>
+                                  <th className="px-3 py-2 text-right">Trị Giá</th>
+                                  <th className="px-3 py-2 text-center w-20">Thao tác</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-900">
+                                {lotInvoices.map(inv => (
+                                  <tr key={inv.invoice_no} className={}>
+                                    <td className="px-3 py-2 font-mono font-bold text-indigo-300">{inv.invoice_no}</td>
+                                    <td className="px-3 py-2 text-center text-slate-400">{inv.loai_hinh}/{inv.loai_hinh_con}</td>
+                                    <td className="px-3 py-2 text-center text-slate-400">{fmtDisplayDate(inv.invoice_date)}</td>
+                                    <td className="px-3 py-2 text-right font-mono text-emerald-400">{inv.currency||'USD'} {Number(inv.total_amount||0).toLocaleString()}</td>
+                                    <td className="px-3 py-2 text-center">
+                                      <button type="button"
+                                        onClick={() => startEditInvoice(inv)}
+                                        className="text-blue-400 hover:text-blue-300 text-[10px] font-bold">✏️ Sửa</button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
+
                       <div className="pt-4 border-t border-slate-800">
                         {modalMode === 'edit' && (
                           <div className="flex justify-between items-center bg-amber-950/20 border border-amber-800/40 rounded-xl px-4 py-2.5">
@@ -3175,6 +3276,40 @@
                   {modalTab === 'goods' && (
                     <div>
                     <form onSubmit={handleSaveGoods} className="space-y-4">
+
+                      {/* --- CHỌN MẶT HÀNG ĐỂ SỬA (edit mode, khi chưa chọn goods nào) --- */}
+                      {modalMode === 'edit' && !goodsForm.id && selectedInvoiceNo && (() => {
+                        const invGoods = goods.filter(g => g.invoice_no === selectedInvoiceNo)
+                          .sort((a,b) => (a.goods_item||0)-(b.goods_item||0));
+                        if (invGoods.length === 0) return (
+                          <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-6 text-center">
+                            <p className="text-slate-400 text-xs">Invoice <strong className="text-white">{selectedInvoiceNo}</strong> chưa có mặt hàng nào.</p>
+                          </div>
+                        );
+                        return (
+                          <div className="bg-emerald-950/20 border border-emerald-800/40 rounded-xl overflow-hidden">
+                            <div className="bg-emerald-950/40 px-4 py-2.5 border-b border-emerald-900/30">
+                              <p className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">📦 Chọn Mặt Hàng Để Sửa — Invoice {selectedInvoiceNo}</p>
+                            </div>
+                            <div className="divide-y divide-slate-900">
+                              {invGoods.map(g => (
+                                <div key={g.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-900/40 cursor-pointer"
+                                  onClick={() => startEditGoods(g)}>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-[10px] text-slate-600 w-5 text-right">{g.goods_item}</span>
+                                    <span className="font-mono font-bold text-emerald-400 text-xs">{(g.goods_no||''). split('*')[0].trim()}</span>
+                                    <span className="text-xs text-slate-300 max-w-[250px] truncate">{g.goods_name_en}</span>
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                    <span className="text-[11px] font-mono text-amber-400">{'$'}{Number(g.sale_amount||0).toLocaleString(undefined,{minimumFractionDigits:2})}</span>
+                                    <button type="button" className="text-blue-400 hover:text-blue-300 text-[10px] font-bold px-2 py-1 border border-blue-800 rounded">✏️ Sửa</button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Invoice link + Excel batch */}
                       <div className="flex flex-wrap gap-4 items-end">
