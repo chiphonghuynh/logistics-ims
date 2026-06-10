@@ -3178,7 +3178,7 @@
                               </thead>
                               <tbody className="divide-y divide-slate-900">
                                 {lotInvoices.map(inv => (
-                                  <tr key={inv.invoice_no} className={}>
+                                  <tr key={inv.invoice_no} className={`hover:bg-slate-900/40 ${invoiceForm.invoice_no === inv.invoice_no ? 'bg-amber-950/20 border-l-2 border-amber-500' : ''}`}>
                                     <td className="px-3 py-2 font-mono font-bold text-indigo-300">{inv.invoice_no}</td>
                                     <td className="px-3 py-2 text-center text-slate-400">{inv.loai_hinh}/{inv.loai_hinh_con}</td>
                                     <td className="px-3 py-2 text-center text-slate-400">{fmtDisplayDate(inv.invoice_date)}</td>
