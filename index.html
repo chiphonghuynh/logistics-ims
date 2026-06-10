@@ -469,6 +469,26 @@
       };
 
       // ── DISPLAY HELPERS ─────────────────────────────────────────────
+      // ── DATE NORMALIZE: chuyển bất kỳ dạng ngày nào về YYYY-MM-DD cho input type="date"
+      const normalizeDate = (d) => {
+        if (!d) return '';
+        const s = String(d).trim();
+        // Already YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        // ISO timestamp: 2026-06-08T17:00:00.000Z → 2026-06-08
+        const isoMatch = s.match(/^(\d{4}-\d{2}-\d{2})T/);
+        if (isoMatch) return isoMatch[1];
+        // DD/MM/YYYY → YYYY-MM-DD
+        const dmyMatch = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (dmyMatch) return `${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`;
+        // Try Date parse as fallback
+        try {
+          const parsed = new Date(d);
+          if (!isNaN(parsed)) return parsed.toISOString().substring(0,10);
+        } catch(e) {}
+        return '';
+      };
+
       const fmtDisplayDate = (d) => {
         if (!d) return '—';
         // Handle ISO timestamps like "2026-06-03T17:00:00.000Z"
@@ -958,12 +978,12 @@
         // Load ĐẦY ĐỦ toàn bộ dữ liệu lot cũ lên form, đảm bảo mọi field có giá trị
         setLotForm({
           lot_no:           lot.lot_no            || '',
-          stt:              lot.stt               || 1,
-          lot_date:         lot.lot_date          || '',
-          get_docs_date:    lot.get_docs_date     || '',
+          stt:              Number(lot.stt)        || 1,
+          lot_date:         normalizeDate(lot.lot_date),
+          get_docs_date:    normalizeDate(lot.get_docs_date),
           factory_no:       lot.factory_no        || '',
           bill_no:          lot.bill_no           || '',
-          bill_date:        lot.bill_date         || '',
+          bill_date:        normalizeDate(lot.bill_date),
           pol:              lot.pol               || '',
           pod:              lot.pod               || '',
           bill_term:        lot.bill_term         || 'Freight Prepaid',
@@ -977,18 +997,20 @@
           gw:               Number(lot.gw)        || 0,
           cbm:              Number(lot.cbm)       || 0,
           cbm_str:          lot.cbm               ? String(lot.cbm) : '',
-          eta:              lot.eta               || '',
-          atc_date:         lot.atc_date          || '',
+          eta:              normalizeDate(lot.eta),
+          atc_date:         normalizeDate(lot.atc_date),
           origin_country:   lot.origin_country    || 'TAIWAN',
           loai_hinh:        lot.loai_hinh         || 'NEUTRAL',
           loai_hinh_con:    lot.loai_hinh_con     || 'DEFAULT',
           sale_qty:         Number(lot.sale_qty)  || 0,
-          is_hang_chung_bill: lot.is_hang_chung_bill || false,
-          contract_start:   lot.contract_start    || '',
-          contract_end:     lot.contract_end      || '',
+          is_hang_chung_bill: Boolean(lot.is_hang_chung_bill),
+          contract_start:   normalizeDate(lot.contract_start),
+          contract_end:     normalizeDate(lot.contract_end),
           supplier:         lot.supplier          || '',
         });
         setSelectedFactories(lot.factory_no ? lot.factory_no.split(',').map(s=>s.trim()).filter(Boolean) : []);
+        // If previously on Tab 4 (assign), redirect to Tab 1 in edit mode
+        if (modalTab === 'assign') setModalTab('lot');
         setModalTab('lot');
         setShowAddModal(true);
       };
@@ -1000,8 +1022,8 @@
           invoice_no:          inv.invoice_no          || '',
           lot_no:              inv.lot_no              || '',
           bill_no:             inv.bill_no             || '',
-          bill_stt:            inv.bill_stt            || 1,
-          invoice_date:        inv.invoice_date        || '',
+          bill_stt:            Number(inv.bill_stt)    || 1,
+          invoice_date:        normalizeDate(inv.invoice_date),
           incoterm:            inv.incoterm            || 'CIF',
           loai_hinh:           inv.loai_hinh           || 'A12',
           loai_hinh_con:       inv.loai_hinh_con       || 'DEFAULT',
@@ -1017,8 +1039,8 @@
           inv_gw:              Number(inv.inv_gw)              || 0,
           is_hang_chung_bill:  inv.is_hang_chung_bill  || false,
           factory_no:          inv.factory_no          || '',
-          contract_start:      inv.contract_start      || '',
-          contract_end:        inv.contract_end        || '',
+          contract_start:      normalizeDate(inv.contract_start),
+          contract_end:        normalizeDate(inv.contract_end),
         });
         // Load parent lot để form hiển thị đúng context (hàng chung bill, etc.)
         const parentLot = lots.find(l => l.lot_no === inv.lot_no);
@@ -2545,7 +2567,9 @@
                   <button onClick={() => setModalTab('lot')} className={`py-3 px-4 font-bold text-[11px] uppercase tracking-wider border-b-2 ${modalTab === 'lot' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400'}`}>1. Lô Hàng</button>
                   <button onClick={() => setModalTab('invoice')} className={`py-3 px-4 font-bold text-[11px] uppercase tracking-wider border-b-2 ${modalTab === 'invoice' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-slate-400'}`}>2. Hóa Đơn</button>
                   <button onClick={() => setModalTab('goods')} className={`py-3 px-4 font-bold text-[11px] uppercase tracking-wider border-b-2 ${modalTab === 'goods' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400'}`}>3. Hàng Hóa</button>
-                  <button onClick={() => setModalTab('assign')} className={`py-3 px-4 font-bold text-[11px] uppercase tracking-wider border-b-2 ${modalTab === 'assign' ? 'border-amber-500 text-amber-400' : 'border-transparent text-slate-400'}`}>4. Tạo Mã Lô ✦</button>
+                  {modalMode !== 'edit' && (
+                    <button onClick={() => setModalTab('assign')} className={`py-3 px-4 font-bold text-[11px] uppercase tracking-wider border-b-2 ${modalTab === 'assign' ? 'border-amber-500 text-amber-400' : 'border-transparent text-slate-400'}`}>4. Tạo Mã Lô ✦</button>
+                  )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6">
@@ -3423,7 +3447,7 @@
                   {/* ════════════════════════════════════════════
                       TAB 4: TẠO MÃ LÔ — Fully auto from invoice data
                       ════════════════════════════════════════════ */}
-                  {modalTab === 'assign' && (() => {
+                  {modalTab === 'assign' && modalMode !== 'edit' && (() => {
                     // Chỉ hiện invoice CHƯA được gán vào mã lô hợp lệ nào
                     const unassignedInvoices = [...invoices]
                       .filter(inv => {
