@@ -413,6 +413,25 @@
         }
       };
 
+      // ── SYNC LIST HÀNG NHẬP CHANGYANG ──────────────────────────────────────
+      const [syncingListHang, setSyncingListHang] = useState(false);
+      const handleSyncListHang = async () => {
+        if (!window.CY_API_URL) return showNotification('Chưa kết nối Google Sheets! Vui lòng cấu hình API URL.', 'error');
+        setSyncingListHang(true);
+        try {
+          const res = await window.cyApiCall('syncListHang', {});
+          if (res?.status === 'ok') {
+            showNotification(`✅ Đã cập nhật "LIST HÀNG NHẬP CHANGYANG" — ${res.data?.updated || 0} lô hàng`);
+          } else {
+            throw new Error(res?.message || 'Sync thất bại');
+          }
+        } catch(err) {
+          showNotification('❌ Sync thất bại: ' + err.message, 'error');
+        } finally {
+          setSyncingListHang(false);
+        }
+      };
+
       // Lưu lên Google Sheets — sanitize trước để đảm bảo đủ cột, đúng định dạng ngày
       const saveLotsToStorage     = (d) => persist('lots',    d.map(sanitizeLot), setLots);
       const saveInvoicesToStorage  = (d) => persist('invoices', d.map(sanitizeInvoice), setInvoices);
@@ -1265,6 +1284,34 @@
       const totalImportValue = invoices.reduce((sum, inv) => sum + getInvoiceValueSum(inv), 0);
 
       // Export CSV
+      // ── SYNC SUMMARY SHEET ─────────────────────────────────────────
+      const handleSyncSummary = async () => {
+        if (!window.CY_API_URL) {
+          showNotification('⚠️ Chưa kết nối Google Sheets. Vui lòng thiết lập API URL trước.', 'error');
+          return;
+        }
+        setSyncStatus('syncing');
+        showNotification('🔄 Đang tổng hợp dữ liệu lên sheet "LIST HÀNG NHẬP CHANGYANG"...');
+        try {
+          const resp = await window.cyApiCall('syncSummary', {
+            lots:     lots,
+            invoices: invoices,
+            goods:    goods,
+          });
+          if (resp && resp.status === 'ok') {
+            setSyncStatus('ok');
+            showNotification(`✅ Đã cập nhật sheet "LIST HÀNG NHẬP CHANGYANG" — ${resp.data?.rows || 0} lô hàng`);
+            setTimeout(() => setSyncStatus('idle'), 3000);
+          } else {
+            throw new Error(resp?.message || 'Unknown error');
+          }
+        } catch (err) {
+          setSyncStatus('error');
+          showNotification('❌ Lỗi sync: ' + err.message, 'error');
+          setTimeout(() => setSyncStatus('idle'), 3000);
+        }
+      };
+
       const handleExportCSV = () => {
         let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
         csvContent += `STT,Mã Lô Hàng,Ngày Mở Lô,Số Bill,Cảng Đi,Cảng Đến,Số Cont,Tổng Tiền Lô\r\n`;
@@ -1804,6 +1851,16 @@
               <div className="flex items-center gap-2">
                 {isConnected && (
                   <button
+                    onClick={handleSyncListHang}
+                    disabled={syncingListHang}
+                    title="Tổng hợp tất cả lô hàng → ghi vào sheet 'LIST HÀNG NHẬP CHANGYANG'"
+                    className={`text-[11px] px-3 py-1.5 rounded-lg border font-bold transition-all flex items-center gap-1.5 ${syncingListHang ? 'border-amber-800 bg-amber-950 text-amber-400 cursor-wait' : 'border-emerald-800 bg-emerald-950 text-emerald-400 hover:bg-emerald-900'}`}>
+                    {syncingListHang ? <span className="animate-spin inline-block">⟳</span> : '📋'}
+                    {syncingListHang ? 'Đang xuất...' : 'Xuất LIST HÀNG'}
+                  </button>
+                )}
+                {isConnected && (
+                  <button
                     onClick={handleResyncAll}
                     title="Ghi lại toàn bộ dữ liệu lên Sheet với schema đầy đủ (backfill cột mới)"
                     className="text-[11px] px-3 py-1.5 rounded-lg border border-cyan-800 bg-cyan-950 text-cyan-400 font-bold hover:bg-cyan-900 transition-all flex items-center gap-1.5">
@@ -2175,6 +2232,18 @@
                       </div>
                       <div className="flex gap-2">
                         <button onClick={handleExportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Xuất Excel CSV</button>
+                      {window.CY_API_URL && (
+                        <button onClick={handleSyncSummary}
+                          disabled={syncStatus === 'syncing'}
+                          title="Tổng hợp tất cả dữ liệu lô hàng vào sheet LIST HÀNG NHẬP CHANGYANG"
+                          className={`font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all ${
+                            syncStatus === 'syncing' ? 'bg-amber-600 cursor-wait text-white' :
+                            syncStatus === 'ok'      ? 'bg-cyan-600 text-white' :
+                            'bg-cyan-700 hover:bg-cyan-600 text-white'
+                          }`}>
+                          {syncStatus === 'syncing' ? '⏳ Đang sync...' : '📊 Sync Bảng Tổng Hợp'}
+                        </button>
+                      )}
                       </div>
                     </div>
                     {hasActiveFilter && filteredLots.length > 0 && (
