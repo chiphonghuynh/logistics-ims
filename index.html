@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chang Yang Logistics IMS v2.8 [20260610_TRIM_FIX]</title>
+  <title>Chang Yang Logistics IMS v2.9 [20260610_FILTER_FIX]</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -429,6 +429,8 @@
       const [recentlyUpdatedInvoices, setRecentlyUpdatedInvoices] = useState(new Set());
       const [recentlyUpdatedGoods, setRecentlyUpdatedGoods] = useState(new Set());
       const [atcTransportFilter, setAtcTransportFilter] = useState('ALL'); // for pending storage filter
+      const [etaMgmtTab, setEtaMgmtTab] = useState('no_eta');    // 'no_eta' | 'has_eta'
+      const [atcMgmtTab, setAtcMgmtTab]  = useState('pending');   // 'pending' | 'done'
 
       // Advanced Filters
       const [filterFromDate, setFilterFromDate] = useState('');
@@ -1220,7 +1222,7 @@
       const triggerDeleteInvoiceConfirm = (invNo, e) => { if(e) e.stopPropagation(); setConfirmState({ isOpen: true, title: 'Xóa Hóa Đơn', message: `Hóa đơn thương mại [${invNo}] và các mặt hàng bên trong sẽ bị xóa khỏi hệ thống.`, onConfirm: () => executeDeleteInvoice(invNo) }); };
       const triggerDeleteGoodsConfirm = (gId, e) => { if(e) e.stopPropagation(); setConfirmState({ isOpen: true, title: 'Xóa Chi Tiết Mặt Hàng', message: `Xác nhận xóa mặt hàng này khỏi hóa đơn?`, onConfirm: () => executeDeleteGoods(gId) }); };
 
-      const handlePortalQuickSearch = (e) => { e.preventDefault(); setFilterLotNo(homeSearchQuery); setActiveMenu('E010'); };
+      const handlePortalQuickSearch = (e) => { e.preventDefault(); setFilterLotNo(homeSearchQuery); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); };
       
       // Kiểm tra có filter đang active không
       const hasActiveFilter = !!(filterFromDate || filterToDate || filterLotNo.trim());
@@ -1859,11 +1861,11 @@
                     <div className="flex gap-2 justify-center flex-wrap mt-2">
                       <span className="text-[10px] text-slate-500 self-center">Lọc nhanh:</span>
                       {[
-                        { label: '📅 Hôm nay', fn: () => { const d = new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setActiveMenu('E010'); }},
-                        { label: '📆 Tháng này', fn: () => { const n = new Date(); const from = new Date(n.getFullYear(), n.getMonth(), 1).toISOString().slice(0,10); const to = new Date(n.getFullYear(), n.getMonth()+1, 0).toISOString().slice(0,10); setFilterFromDate(from); setFilterToDate(to); setActiveMenu('E010'); }},
-                        { label: '🗓 Năm nay', fn: () => { const y = new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setActiveMenu('E010'); }},
-                        { label: '🗓 Năm trước', fn: () => { const y = new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setActiveMenu('E010'); }},
-                        { label: '📋 Tất cả', fn: () => { setFilterFromDate(''); setFilterToDate(''); setActiveMenu('E010'); }},
+                        { label: '📅 Hôm nay', fn: () => { const d = new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
+                        { label: '📆 Tháng này', fn: () => { const n = new Date(); const from = new Date(n.getFullYear(), n.getMonth(), 1).toISOString().slice(0,10); const to = new Date(n.getFullYear(), n.getMonth()+1, 0).toISOString().slice(0,10); setFilterFromDate(from); setFilterToDate(to); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
+                        { label: '🗓 Năm nay', fn: () => { const y = new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
+                        { label: '🗓 Năm trước', fn: () => { const y = new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
+                        { label: '📋 Tất cả', fn: () => { setFilterFromDate(''); setFilterToDate(''); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
                       ].map((btn, i) => (
                         <button key={i} onClick={btn.fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] px-3 py-1.5 rounded-lg border border-slate-700 transition-colors font-bold">{btn.label}</button>
                       ))}
@@ -2145,31 +2147,31 @@
                     <div className="flex flex-wrap gap-2 items-center">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">Lọc nhanh:</span>
                       {[
-                        ['📅 Hôm nay', () => { const d=new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setFilterLotNo(''); }],
-                        ['📆 Tháng này', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setFilterLotNo(''); }],
-                        ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); }],
-                        ['🗓 Năm trước', () => { const y=new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); }],
-                        ['📋 Tất cả', () => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo('__ALL__'); }],
+                        ['📅 Hôm nay', () => { const d=new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                        ['📆 Tháng này', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                        ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                        ['🗓 Năm trước', () => { const y=new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                        ['📋 Tất cả', () => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo('__ALL__'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
                       ].map(([l, fn], i) => (
                         <button key={i} onClick={fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] px-3 py-1.5 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
                       ))}
                       {hasActiveFilter && (
-                        <button onClick={() => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo(''); }} className="text-[10px] text-rose-400 hover:text-rose-300 ml-auto font-bold">✕ Xóa bộ lọc</button>
+                        <button onClick={() => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }} className="text-[10px] text-rose-400 hover:text-rose-300 ml-auto font-bold">✕ Xóa bộ lọc</button>
                       )}
                     </div>
                     {/* Filter inputs */}
                     <div className="flex flex-wrap gap-4 items-end">
                       <div className="flex-1 min-w-[150px]">
                         <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Ngày</label>
-                        <input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                        <input type="date" value={filterFromDate} onChange={(e) => { setFilterFromDate(e.target.value); setSelectedLotNo(null); setSelectedInvoiceNo(null); }} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                       </div>
                       <div className="flex-1 min-w-[150px]">
                         <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Đến Ngày</label>
-                        <input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                        <input type="date" value={filterToDate} onChange={(e) => { setFilterToDate(e.target.value); setSelectedLotNo(null); setSelectedInvoiceNo(null); }} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                       </div>
                       <div className="flex-1 min-w-[200px]">
                         <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Khóa Tra Cứu</label>
-                        <input type="text" placeholder="Tìm theo mã lô, số Bill..." value={filterLotNo === '__ALL__' ? '' : filterLotNo} onChange={(e) => setFilterLotNo(e.target.value)} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                        <input type="text" placeholder="Tìm theo mã lô, số Bill..." value={filterLotNo === '__ALL__' ? '' : filterLotNo} onChange={(e) => { setFilterLotNo(e.target.value); setSelectedLotNo(null); setSelectedInvoiceNo(null); }} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                       </div>
                       <div className="flex gap-2">
                         <button onClick={handleExportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Xuất Excel CSV</button>
@@ -2190,10 +2192,10 @@
                       </div>
                       <div className="flex gap-2 flex-wrap justify-center">
                         {[
-                          ['📅 Hôm nay', () => { const d=new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); }],
-                          ['📆 Tháng này', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); }],
-                          ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); }],
-                          ['📋 Tất cả lô', () => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo('__ALL__'); }],
+                          ['📅 Hôm nay', () => { const d=new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                          ['📆 Tháng này', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                          ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                          ['📋 Tất cả lô', () => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo('__ALL__'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
                         ].map(([l, fn], i) => (
                           <button key={i} onClick={fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs px-4 py-2 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
                         ))}
@@ -2491,136 +2493,217 @@
               )}
 
               {/* --- ETA MANAGEMENT VIEW --- */}
-              {activeMenu === 'ETA_MGMT' && (
-                <div className="space-y-6 max-w-5xl mx-auto">
-                  <div className="bg-cyan-950/20 border border-cyan-900/40 p-4 rounded-xl text-xs text-cyan-300">
-                    🛬 <strong>Quản lý ETA:</strong> Nhập/cập nhật ngày dự kiến hàng đến cho từng lô hàng chưa có ETA hoặc ETA sắp đến trong 7 ngày tới.
-                  </div>
-                  <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                    <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
-                      <h3 className="font-bold text-xs uppercase tracking-wide text-cyan-400">📋 Danh sách Lô Hàng — Cập nhật ETA</h3>
-                      <span className="text-[10px] text-slate-500">{lots.filter(l => !l.atc_date).length} lô chưa nhập kho</span>
+              {activeMenu === 'ETA_MGMT' && (() => {
+                const today = new Date().toISOString().slice(0,10);
+                const noEtaLots  = lots.filter(l => !l.eta || l.eta.trim() === '');
+                const hasEtaLots = lots.filter(l => l.eta && l.eta.trim() !== '');
+                const displayLots = etaMgmtTab === 'no_eta' ? noEtaLots : hasEtaLots;
+                return (
+                  <div className="space-y-4 max-w-5xl mx-auto">
+                    <div className="bg-cyan-950/20 border border-cyan-900/40 p-4 rounded-xl text-xs text-cyan-300">
+                      🛬 <strong>Quản lý ETA:</strong> Nhập/cập nhật ngày dự kiến hàng đến. Chuyển tab để xem lô chưa có hoặc đã có ETA.
                     </div>
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
-                          <th className="p-3.5">Mã Lô</th>
-                          <th className="p-3.5">Số Bill</th>
-                          <th className="p-3.5">Hãng Tàu/FWD</th>
-                          <th className="p-3.5">Phương thức</th>
-                          <th className="p-3.5 text-center text-cyan-400">ETA Hiện tại</th>
-                          <th className="p-3.5 text-center">Cập nhật ETA</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-855">
-                        {lots.filter(l => !l.atc_date).map(lot => {
-                          const today = new Date().toISOString().slice(0,10);
-                          const etaDays = lot.eta ? Math.ceil((new Date(lot.eta) - new Date(today)) / 86400000) : null;
-                          const isUrgent = etaDays !== null && etaDays <= 7;
-                          const isOverdue = etaDays !== null && etaDays < 0;
-                          return (
-                            <tr key={lot.lot_no} className={`hover:bg-slate-850/40 ${isOverdue ? 'bg-rose-950/10' : isUrgent ? 'bg-amber-950/10' : ''}`}>
-                              <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
-                              <td className="p-3.5 font-mono text-slate-300">{lot.bill_no || '—'}</td>
-                              <td className="p-3.5 text-slate-300">{lot.carrier || '—'}</td>
-                              <td className="p-3.5">
-                                <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300">{lot.transport_type || 'SEA_CONT'}</span>
-                              </td>
-                              <td className="p-3.5 text-center">
-                                {lot.eta ? (
-                                  <div>
-                                    <span className={`font-mono font-bold ${isOverdue ? 'text-rose-400' : isUrgent ? 'text-amber-400' : 'text-cyan-400'}`}>{fmtDisplayDate(lot.eta)}</span>
-                                    {etaDays !== null && <span className={`ml-2 text-[10px] ${isOverdue ? 'text-rose-500' : isUrgent ? 'text-amber-500' : 'text-slate-500'}`}>{isOverdue ? `Quá ${-etaDays} ngày` : etaDays === 0 ? 'Hôm nay!' : `Còn ${etaDays} ngày`}</span>}
+
+                    {/* Tab bar */}
+                    <div className="flex gap-1 bg-slate-950 border border-slate-800 rounded-xl p-1 w-fit">
+                      <button onClick={() => setEtaMgmtTab('no_eta')}
+                        className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2
+                          ${etaMgmtTab === 'no_eta' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
+                        ❌ Chưa có ETA
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${etaMgmtTab === 'no_eta' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'}`}>{noEtaLots.length}</span>
+                      </button>
+                      <button onClick={() => setEtaMgmtTab('has_eta')}
+                        className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2
+                          ${etaMgmtTab === 'has_eta' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
+                        ✅ Đã có ETA
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${etaMgmtTab === 'has_eta' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'}`}>{hasEtaLots.length}</span>
+                      </button>
+                    </div>
+
+                    {/* Table */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                      <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
+                        <h3 className="font-bold text-xs uppercase tracking-wide text-cyan-400">
+                          {etaMgmtTab === 'no_eta' ? '❌ Lô Hàng Chưa Có ETA' : '✅ Lô Hàng Đã Có ETA'}
+                        </h3>
+                        <span className="text-[10px] text-slate-500">{displayLots.length} lô</span>
+                      </div>
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
+                            <th className="p-3.5">Mã Lô</th>
+                            <th className="p-3.5">Số Bill</th>
+                            <th className="p-3.5">Hãng Tàu/FWD</th>
+                            <th className="p-3.5">Phương thức</th>
+                            <th className="p-3.5 text-center text-cyan-400">ETA Hiện tại</th>
+                            <th className="p-3.5 text-center">Cập nhật ETA</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-855">
+                          {displayLots.map(lot => {
+                            const etaDays = lot.eta ? Math.ceil((new Date(lot.eta) - new Date(today)) / 86400000) : null;
+                            const isUrgent  = etaDays !== null && etaDays <= 7 && etaDays >= 0;
+                            const isOverdue = etaDays !== null && etaDays < 0;
+                            return (
+                              <tr key={lot.lot_no} className={`hover:bg-slate-850/40 ${isOverdue ? 'bg-rose-950/10' : isUrgent ? 'bg-amber-950/10' : ''}`}>
+                                <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
+                                <td className="p-3.5 font-mono text-slate-300">{lot.bill_no || '—'}</td>
+                                <td className="p-3.5 text-slate-300">{lot.carrier || '—'}</td>
+                                <td className="p-3.5">
+                                  <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300">{lot.transport_type || 'SEA_CONT'}</span>
+                                </td>
+                                <td className="p-3.5 text-center">
+                                  {lot.eta ? (
+                                    <div>
+                                      <span className={`font-mono font-bold ${isOverdue ? 'text-rose-400' : isUrgent ? 'text-amber-400' : 'text-cyan-400'}`}>{fmtDisplayDate(lot.eta)}</span>
+                                      {etaDays !== null && <span className={`ml-2 text-[10px] ${isOverdue ? 'text-rose-500' : isUrgent ? 'text-amber-500' : 'text-slate-500'}`}>{isOverdue ? `Quá ${-etaDays} ngày` : etaDays === 0 ? 'Hôm nay!' : `Còn ${etaDays} ngày`}</span>}
+                                    </div>
+                                  ) : <span className="text-slate-600 italic">Chưa có ETA</span>}
+                                </td>
+                                <td className="p-3.5 text-center">
+                                  <div className="flex gap-2 justify-center items-center">
+                                    <input type="date" id={`eta-input-${lot.lot_no}`} defaultValue={lot.eta || ''} className="bg-slate-950 border border-slate-700 rounded p-1 text-white font-mono text-[11px]" style={{colorScheme:"dark"}} />
+                                    <button onClick={() => {
+                                      const inp = document.getElementById(`eta-input-${lot.lot_no}`);
+                                      if (!inp) return;
+                                      const newEta = inp.value;
+                                      const newLots = lots.map(l => l.lot_no === lot.lot_no ? {...l, eta: newEta} : l);
+                                      saveLotsToStorage(newLots);
+                                      showNotification(`Đã cập nhật ETA lô ${lot.lot_no}: ${newEta || '(xóa ETA)'}`);
+                                    }} className="bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-1 rounded text-[11px] font-bold">Lưu ETA</button>
                                   </div>
-                                ) : <span className="text-slate-600 italic">Chưa có ETA</span>}
-                              </td>
-                              <td className="p-3.5 text-center">
-                                <div className="flex gap-2 justify-center items-center">
-                                  <input type="date" id={`eta-input-${lot.lot_no}`} defaultValue={lot.eta || ''} className="bg-slate-950 border border-slate-700 rounded p-1 text-white font-mono text-[11px]" style={{colorScheme:"dark"}} />
-                                  <button onClick={() => {
-                                    const inp = document.getElementById(`eta-input-${lot.lot_no}`);
-                                    if (!inp) return;
-                                    const newEta = inp.value;
-                                    const newLots = lots.map(l => l.lot_no === lot.lot_no ? {...l, eta: newEta} : l);
-                                    saveLotsToStorage(newLots);
-                                    showNotification(`Đã cập nhật ETA cho lô ${lot.lot_no}: ${newEta}`);
-                                  }} className="bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-1 rounded text-[11px] font-bold">Lưu ETA</button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        {lots.filter(l => !l.atc_date).length === 0 && (
-                          <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">🎉 Tất cả lô hàng đã nhập kho!</td></tr>
-                        )}
-                      </tbody>
-                    </table>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {displayLots.length === 0 && (
+                            <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">
+                              {etaMgmtTab === 'no_eta' ? '🎉 Tất cả lô hàng đã có ETA!' : '📭 Chưa có lô nào được nhập ETA.'}
+                            </td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* --- NO_ATC VIEW --- */}
-              {activeMenu === 'NO_ATC' && (
-                <div className="space-y-4">
-                  <div className="bg-rose-950/20 border border-rose-900/60 p-4 rounded-xl text-xs text-rose-300">
-                    🚚 <strong>Lưu ý nghiệp vụ điều xe:</strong> Đây là danh sách các lô hàng đang chờ điền ngày thực tế nhận hàng tại xưởng (ATC Date).
-                  </div>
+              {activeMenu === 'NO_ATC' && (() => {
+                const doneAtcLots = lots.filter(lot => lot.atc_date && lot.atc_date.trim() !== '');
+                const filteredPending = atcTransportFilter === 'ALL' ? pendingAtcLots : pendingAtcLots.filter(l => (l.transport_type || 'SEA_CONT') === atcTransportFilter);
+                const filteredDone    = atcTransportFilter === 'ALL' ? doneAtcLots    : doneAtcLots.filter(l => (l.transport_type || 'SEA_CONT') === atcTransportFilter);
+                const displayLots = atcMgmtTab === 'pending' ? filteredPending : filteredDone;
+                return (
+                  <div className="space-y-4">
+                    <div className="bg-rose-950/20 border border-rose-900/60 p-4 rounded-xl text-xs text-rose-300">
+                      🚚 <strong>Lưu ý nghiệp vụ điều xe:</strong> Đây là danh sách các lô hàng đang chờ điền ngày thực tế nhận hàng tại xưởng (ATC Date).
+                    </div>
 
-                  {/* Transport filter buttons */}
-                  <div className="flex gap-2 flex-wrap">
-                    {['ALL','SEA_CONT','SEA_CFS','AIR','EXPRESS','BY_TRUCK','NGOAI_QUAN'].map(t => {
-                      const labels = { ALL: '📋 Tất cả', SEA_CONT: '🚢 SEA Cont', SEA_CFS: '⚓ SEA CFS', AIR: '✈ Air', EXPRESS: '📦 Express', BY_TRUCK: '🚛 Truck', NGOAI_QUAN: '🏭 Ngoại Quan' };
-                      return (
-                        <button key={t} onClick={() => setAtcTransportFilter(t)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${atcTransportFilter === t ? 'bg-rose-600 border-rose-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-600'}`}>
-                          {labels[t]}
+                    {/* Tab bar + Transport filter — cùng hàng */}
+                    <div className="flex flex-wrap gap-3 items-center justify-between">
+                      {/* Tab: Chưa / Đã nhập kho */}
+                      <div className="flex gap-1 bg-slate-950 border border-slate-800 rounded-xl p-1">
+                        <button onClick={() => setAtcMgmtTab('pending')}
+                          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2
+                            ${atcMgmtTab === 'pending' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
+                          ⏳ Chưa nhập kho
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${atcMgmtTab === 'pending' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'}`}>{pendingAtcLots.length}</span>
                         </button>
-                      );
-                    })}
-                  </div>
+                        <button onClick={() => setAtcMgmtTab('done')}
+                          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2
+                            ${atcMgmtTab === 'done' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
+                          ✅ Đã nhập kho
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${atcMgmtTab === 'done' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'}`}>{doneAtcLots.length}</span>
+                        </button>
+                      </div>
 
-                  {/* Table */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
-                          <th className="p-3.5">Mã Lô Hàng</th>
-                          <th className="p-3.5">Nhà Cung Cấp</th>
-                          <th className="p-3.5">Số Vận Đơn (Bill)</th>
-                          <th className="p-3.5">Phương thức</th>
-                          <th className="p-3.5">Ngày Dự Kiến ETA</th>
-                          <th className="p-3.5 text-center">Xác nhận Ngày Thực Nhập Xưởng (ATC)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-855">
-                        {(atcTransportFilter === 'ALL' ? pendingAtcLots : pendingAtcLots.filter(l => (l.transport_type || 'SEA_CONT') === atcTransportFilter)).map(lot => (
-                          <tr key={lot.lot_no} className="hover:bg-slate-850/40 text-slate-300">
-                            <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
-                            <td className="p-3.5 font-semibold">{lot.supplier}</td>
-                            <td className="p-3.5 font-mono">{lot.bill_no || '-'}</td>
-                            <td className="p-3.5"><span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded">{lot.transport_type || 'SEA_CONT'}</span></td>
-                            <td className="p-3.5 text-cyan-400 font-mono">{lot.eta || 'Chưa rõ'}</td>
-                            <td className="p-3.5 text-center">
-                              {inlineAtcLotNo === lot.lot_no ? (
-                                <div className="flex gap-2 justify-center items-center">
-                                  <input type="date" value={inlineAtcDate} onChange={e => setInlineAtcDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded p-1 text-white font-mono" style={{colorScheme:"dark"}} />
-                                  <button onClick={() => handleInlineAtcUpdate(lot.lot_no, inlineAtcDate)} className="bg-emerald-600 px-3 py-1 rounded text-white font-bold text-[11px]">Lưu</button>
-                                  <button onClick={() => setInlineAtcLotNo(null)} className="bg-slate-800 px-2 py-1 rounded text-slate-300 text-[11px]">Hủy</button>
-                                </div>
-                              ) : (
-                                <button onClick={() => { setInlineAtcLotNo(lot.lot_no); setInlineAtcDate(new Date().toISOString().substring(0, 10)); }} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-1.5 rounded text-xs shadow-sm">Xác nhận ngày thực nhập</button>
-                              )}
-                            </td>
+                      {/* Transport filter buttons (giữ nguyên) */}
+                      <div className="flex gap-2 flex-wrap">
+                        {['ALL','SEA_CONT','SEA_CFS','AIR','EXPRESS','BY_TRUCK','NGOAI_QUAN'].map(t => {
+                          const labels = { ALL: '📋 Tất cả', SEA_CONT: '🚢 SEA Cont', SEA_CFS: '⚓ SEA CFS', AIR: '✈ Air', EXPRESS: '📦 Express', BY_TRUCK: '🚛 Truck', NGOAI_QUAN: '🏭 Ngoại Quan' };
+                          return (
+                            <button key={t} onClick={() => setAtcTransportFilter(t)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${atcTransportFilter === t ? 'bg-rose-600 border-rose-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-600'}`}>
+                              {labels[t]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                      <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
+                        <h3 className="font-bold text-xs uppercase tracking-wide text-rose-400">
+                          {atcMgmtTab === 'pending' ? '⏳ Lô Hàng Chưa Nhập Kho' : '✅ Lô Hàng Đã Nhập Kho'}
+                        </h3>
+                        <span className="text-[10px] text-slate-500">{displayLots.length} lô</span>
+                      </div>
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
+                            <th className="p-3.5">Mã Lô Hàng</th>
+                            <th className="p-3.5">Nhà Cung Cấp</th>
+                            <th className="p-3.5">Số Vận Đơn (Bill)</th>
+                            <th className="p-3.5">Phương thức</th>
+                            <th className="p-3.5">Ngày ETA</th>
+                            {atcMgmtTab === 'pending'
+                              ? <th className="p-3.5 text-center">Xác nhận Ngày Thực Nhập Xưởng (ATC)</th>
+                              : <th className="p-3.5 text-center text-emerald-400">Ngày Thực Nhập Xưởng (ATC)</th>
+                            }
                           </tr>
-                        ))}
-                        {pendingAtcLots.length === 0 && (
-                          <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">🎉 Tuyệt vời! Hiện tại không có lô hàng nào chờ nhập xưởng.</td></tr>
-                        )}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-855">
+                          {displayLots.map(lot => (
+                            <tr key={lot.lot_no} className="hover:bg-slate-850/40 text-slate-300">
+                              <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
+                              <td className="p-3.5 font-semibold">{lot.supplier || '—'}</td>
+                              <td className="p-3.5 font-mono">{lot.bill_no || '—'}</td>
+                              <td className="p-3.5"><span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded">{lot.transport_type || 'SEA_CONT'}</span></td>
+                              <td className="p-3.5 text-cyan-400 font-mono">{fmtDisplayDate(lot.eta) || 'Chưa rõ'}</td>
+                              <td className="p-3.5 text-center">
+                                {atcMgmtTab === 'done' ? (
+                                  /* Tab Đã nhập kho: hiển thị ATC date + nút sửa */
+                                  <div className="flex items-center justify-center gap-2">
+                                    <span className="bg-emerald-950 text-emerald-400 px-3 py-1 rounded font-mono font-bold">{fmtDisplayDate(lot.atc_date)}</span>
+                                    <button onClick={() => { setInlineAtcLotNo(lot.lot_no); setInlineAtcDate(lot.atc_date || new Date().toISOString().substring(0,10)); }}
+                                      className="text-slate-400 hover:text-amber-400 text-[11px] px-2 py-1 border border-slate-700 hover:border-amber-700 rounded transition-all">✏️ Sửa</button>
+                                    {inlineAtcLotNo === lot.lot_no && (
+                                      <div className="flex gap-1 items-center ml-1">
+                                        <input type="date" value={inlineAtcDate} onChange={e => setInlineAtcDate(e.target.value)} className="bg-slate-950 border border-slate-700 rounded p-1 text-white font-mono text-[11px]" style={{colorScheme:"dark"}} />
+                                        <button onClick={() => handleInlineAtcUpdate(lot.lot_no, inlineAtcDate)} className="bg-emerald-600 px-2 py-1 rounded text-white font-bold text-[11px]">Lưu</button>
+                                        <button onClick={() => setInlineAtcLotNo(null)} className="bg-slate-800 px-2 py-1 rounded text-slate-300 text-[11px]">Hủy</button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  /* Tab Chưa nhập kho: nút xác nhận (giữ nguyên logic cũ) */
+                                  inlineAtcLotNo === lot.lot_no ? (
+                                    <div className="flex gap-2 justify-center items-center">
+                                      <input type="date" value={inlineAtcDate} onChange={e => setInlineAtcDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded p-1 text-white font-mono" style={{colorScheme:"dark"}} />
+                                      <button onClick={() => handleInlineAtcUpdate(lot.lot_no, inlineAtcDate)} className="bg-emerald-600 px-3 py-1 rounded text-white font-bold text-[11px]">Lưu</button>
+                                      <button onClick={() => setInlineAtcLotNo(null)} className="bg-slate-800 px-2 py-1 rounded text-slate-300 text-[11px]">Hủy</button>
+                                    </div>
+                                  ) : (
+                                    <button onClick={() => { setInlineAtcLotNo(lot.lot_no); setInlineAtcDate(new Date().toISOString().substring(0, 10)); }}
+                                      className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-1.5 rounded text-xs shadow-sm">Xác nhận ngày thực nhập</button>
+                                  )
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {displayLots.length === 0 && (
+                            <tr><td colSpan="6" className="p-8 text-center text-slate-500 italic">
+                              {atcMgmtTab === 'pending' ? '🎉 Tuyệt vời! Không có lô nào chờ nhập xưởng.' : '📭 Chưa có lô nào được xác nhận nhập kho.'}
+                            </td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
             </div>
           </div>
