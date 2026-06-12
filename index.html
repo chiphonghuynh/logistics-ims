@@ -418,10 +418,16 @@
       const handleSyncListHang = async () => {
         if (!window.CY_API_URL) return showNotification('Chưa kết nối Google Sheets! Vui lòng cấu hình API URL.', 'error');
         setSyncingListHang(true);
+        showNotification('🔄 Đang tổng hợp dữ liệu...');
         try {
-          const res = await window.cyApiCall('syncListHang', {});
+          // Gọi đúng action 'syncSummary' — truyền đủ lots, invoices, goods
+          const res = await window.cyApiCall('syncSummary', {
+            lots:     lots,
+            invoices: invoices,
+            goods:    goods,
+          });
           if (res?.status === 'ok') {
-            showNotification(`✅ Đã cập nhật "LIST HÀNG NHẬP CHANGYANG" — ${res.data?.updated || 0} lô hàng`);
+            showNotification(`✅ Đã cập nhật "LIST HÀNG NHẬP CHANGYANG" — ${res.data?.rows || 0} lô hàng`);
           } else {
             throw new Error(res?.message || 'Sync thất bại');
           }
