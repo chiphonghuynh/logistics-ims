@@ -420,17 +420,13 @@
         setSyncingListHang(true);
         showNotification('🔄 Đang tổng hợp dữ liệu...');
         try {
-          // Gọi đúng action 'syncSummary' — truyền đủ lots, invoices, goods
-          const res = await window.cyApiCall('syncSummary', {
+          // cyApiCall đã unwrap json.data, nếu không throw là thành công
+          const data = await window.cyApiCall('syncSummary', {
             lots:     lots,
             invoices: invoices,
             goods:    goods,
           });
-          if (res?.status === 'ok') {
-            showNotification(`✅ Đã cập nhật "LIST HÀNG NHẬP CHANGYANG" — ${res.data?.rows || 0} lô hàng`);
-          } else {
-            throw new Error(res?.message || 'Sync thất bại');
-          }
+          showNotification(`✅ Đã cập nhật "LIST HÀNG NHẬP CHANGYANG" — ${data?.rows || 0} lô hàng`);
         } catch(err) {
           showNotification('❌ Sync thất bại: ' + err.message, 'error');
         } finally {
@@ -1299,18 +1295,14 @@
         setSyncStatus('syncing');
         showNotification('🔄 Đang tổng hợp dữ liệu lên sheet "LIST HÀNG NHẬP CHANGYANG"...');
         try {
-          const resp = await window.cyApiCall('syncSummary', {
+          const data = await window.cyApiCall('syncSummary', {
             lots:     lots,
             invoices: invoices,
             goods:    goods,
           });
-          if (resp && resp.status === 'ok') {
-            setSyncStatus('ok');
-            showNotification(`✅ Đã cập nhật sheet "LIST HÀNG NHẬP CHANGYANG" — ${resp.data?.rows || 0} lô hàng`);
-            setTimeout(() => setSyncStatus('idle'), 3000);
-          } else {
-            throw new Error(resp?.message || 'Unknown error');
-          }
+          setSyncStatus('ok');
+          showNotification(`✅ Đã cập nhật sheet "LIST HÀNG NHẬP CHANGYANG" — ${data?.rows || 0} lô hàng`);
+          setTimeout(() => setSyncStatus('idle'), 3000);
         } catch (err) {
           setSyncStatus('error');
           showNotification('❌ Lỗi sync: ' + err.message, 'error');
