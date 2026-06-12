@@ -432,7 +432,7 @@
             // rows là array of objects — lấy headers từ keys của row đầu
             setListHangHeaders(Object.keys(rows[0]));
             setListHangData(rows);
-            showNotification(`✅ Đã tải ${rows.length} dòng từ "LIST HÀNG NHẬP CHANGYANG-test"`);
+            showNotification(`✅ Loaded ${rows.length} rows from sheet`);
           } else {
             setListHangData([]);
             setListHangHeaders([]);
@@ -447,16 +447,16 @@
 
       const exportListHangExcel = () => {
         if (!listHangData || listHangData.length === 0) {
-          showNotification('Chưa có dữ liệu. Nhấn "Tải dữ liệu" trước.', 'error');
+          showNotification('No data. Click "Load / Refresh" first.', 'error');
           return;
         }
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(listHangData, { header: listHangHeaders });
         // Style header row width
         ws['!cols'] = listHangHeaders.map(() => ({ wch: 20 }));
-        XLSX.utils.book_append_sheet(wb, ws, 'LIST HÀNG NHẬP');
-        XLSX.writeFile(wb, `LIST_HANG_NHAP_${new Date().toISOString().slice(0,10)}.xlsx`);
-        showNotification(`✅ Đã xuất ${listHangData.length} dòng ra Excel`);
+        XLSX.utils.book_append_sheet(wb, ws, 'Daily ATC Report');
+        XLSX.writeFile(wb, `Daily_ATC_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+        showNotification(`✅ Exported ${listHangData.length} rows to Excel`);
       };
 
       const [syncingListHang, setSyncingListHang] = useState(false);
@@ -1855,13 +1855,13 @@
                         <span>🛬</span> Nhập ETA
                       </button>
 
-                      {/* 3.3 List Hàng Nhập */}
+                      {/* 3.3 Daily ATC Report */}
                       <button
-                        onClick={() => { setActiveMenu('LIST_HANG'); if (listHangData === null) loadListHang(); }}
+                        onClick={() => setActiveMenu('LIST_HANG')}
                         className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
                           ${activeMenu === 'LIST_HANG' ? 'bg-yellow-950/40 text-yellow-400 font-bold border border-yellow-900' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                       >
-                        <span>📋</span> List Hàng Nhập
+                        <span>📋</span> Daily ATC Report
                       </button>
 
                       {/* 3.4 Pending Storage */}
@@ -1899,10 +1899,11 @@
                 {activeMenu === 'E010' && '📦 OPERATIONS — SHIPMENT PROFILES'}
                 {activeMenu === 'NO_ATC' && '⏳ OPERATIONS — PENDING STORAGE'}
                 {activeMenu === 'ETA_MGMT' && '🛬 OPERATIONS — NHẬP ETA HÀNG ĐẾN'}
-                {activeMenu === 'LIST_HANG' && '📋 LIST HÀNG NHẬP CHANGYANG'}
+                {activeMenu === 'LIST_HANG' && '📊 Daily ATC Report'}
               </h2>
               <div className="flex items-center gap-2">
-                {isConnected && (
+                {/* Xuất LIST HÀNG — tạm ẩn, chờ deploy Apps Script v3_1 */}
+                {false && isConnected && (
                   <button
                     onClick={handleSyncListHang}
                     disabled={syncingListHang}
@@ -2614,89 +2615,147 @@
                 </div>
               )}
 
-              {/* --- LIST HÀNG NHẬP VIEW --- */}
-              {activeMenu === 'LIST_HANG' && (
-                <div className="space-y-4">
-                  {/* Toolbar */}
-                  <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-5 py-3">
-                    <div>
-                      <h3 className="text-sm font-black text-yellow-400 uppercase tracking-wide">📋 LIST HÀNG NHẬP CHANGYANG</h3>
-                      <p className="text-[10px] text-slate-500 mt-0.5">Dữ liệu đọc trực tiếp từ sheet "LIST HÀNG NHẬP CHANGYANG-test"</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={loadListHang} disabled={listHangLoading}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white transition-all ${listHangLoading ? 'bg-slate-600 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                        {listHangLoading ? '⏳ Đang tải...' : '🔄 Tải / Làm mới'}
-                      </button>
-                      <button onClick={exportListHangExcel}
-                        disabled={!listHangData || listHangData.length === 0}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 disabled:text-slate-500 transition-all">
-                        📥 Xuất Excel
-                      </button>
-                    </div>
-                  </div>
+              {/* --- DAILY ATC REPORT VIEW --- */}
+              {activeMenu === 'LIST_HANG' && (() => {
+                // Columns that should always display as text (never parse as number)
+                const TEXT_COLS = ['BILL NO','INV NO','DEC NO','FACT NO','CTN NO','ORIGIN','SUPPLIER','TERM','Remarks','BL FACT','PK/GW/CBM'];
+                // Columns that contain dates → format dd/mm/yyyy
+                const DATE_COLS = ['GET DOCS','BILL DATE','INV DATE','ETA DATE','ATC'];
 
-                  {/* Table */}
-                  {listHangData === null && !listHangLoading && (
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
-                      <div className="text-4xl mb-3 opacity-30">📋</div>
-                      <p className="text-slate-400 font-bold">Nhấn "🔄 Tải / Làm mới" để đọc dữ liệu từ Google Sheets</p>
-                    </div>
-                  )}
+                const fmtCell = (h, val) => {
+                  if (val === '' || val === null || val === undefined) return null;
+                  // Force text for bill/inv no columns
+                  if (TEXT_COLS.includes(h)) return String(val);
+                  // Format dates dd/mm/yyyy
+                  if (DATE_COLS.includes(h)) {
+                    const s = String(val).trim();
+                    // Already dd/mm/yyyy
+                    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+                    // yyyy-mm-dd
+                    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+                      const [y,m,d] = s.slice(0,10).split('-');
+                      return `${d}/${m}/${y}`;
+                    }
+                    return s;
+                  }
+                  return val;
+                };
 
-                  {listHangLoading && (
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
-                      <p className="text-amber-400 font-bold animate-pulse">⏳ Đang tải dữ liệu từ sheet...</p>
-                    </div>
-                  )}
+                // Only show rows where ATC column is empty/blank
+                const atcCol = 'ATC';
+                const filteredRows = (listHangData || []).filter(row => {
+                  const atc = row[atcCol];
+                  return atc === '' || atc === null || atc === undefined;
+                });
 
-                  {listHangData !== null && !listHangLoading && listHangData.length === 0 && (
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
-                      <p className="text-slate-500 italic">Sheet chưa có dữ liệu hoặc không tìm thấy sheet.</p>
-                    </div>
-                  )}
-
-                  {listHangData !== null && listHangData.length > 0 && (
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                      <div className="bg-slate-950 px-4 py-2.5 border-b border-slate-800 flex justify-between items-center">
-                        <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                          {listHangData.length} dòng · {listHangHeaders.length} cột
-                        </span>
-                        <span className="text-[10px] text-slate-600">Cuộn ngang để xem thêm cột →</span>
+                return (
+                  <div className="space-y-4">
+                    {/* Toolbar */}
+                    <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-5 py-3">
+                      <div>
+                        <h3 className="text-sm font-black text-yellow-400 uppercase tracking-wide">📊 Daily ATC Report</h3>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {listHangData === null
+                            ? 'Press "🔄 Load / Refresh" to read data from Google Sheets'
+                            : `Showing ${filteredRows.length} pending lots (no ATC) · ${listHangHeaders.length} columns · Total in sheet: ${listHangData.length}`}
+                        </p>
                       </div>
-                      <div className="overflow-x-auto overflow-y-auto max-h-[65vh]">
-                        <table className="w-full text-left text-[11px] border-collapse" style={{minWidth: Math.max(listHangHeaders.length * 120, 800) + 'px'}}>
-                          <thead className="sticky top-0 z-10">
-                            <tr className="bg-yellow-950/60 border-b border-yellow-900/50">
-                              {listHangHeaders.map((h, i) => (
-                                <th key={i} className="px-3 py-2.5 text-yellow-300 font-bold whitespace-nowrap border-r border-slate-800 last:border-r-0">
-                                  {h}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-900">
-                            {listHangData.map((row, ri) => (
-                              <tr key={ri} className={ri % 2 === 0 ? 'bg-slate-900/40 hover:bg-slate-800/60' : 'bg-slate-950/40 hover:bg-slate-800/60'}>
-                                {listHangHeaders.map((h, ci) => {
-                                  const val = row[h];
-                                  const isNum = typeof val === 'number';
-                                  const isEmpty = val === '' || val === null || val === undefined;
-                                  return (
-                                    <td key={ci} className={`px-3 py-2 whitespace-nowrap border-r border-slate-800/60 last:border-r-0 ${isNum ? 'text-right font-mono text-emerald-400' : isEmpty ? 'text-slate-700' : 'text-slate-200'}`}>
-                                      {isEmpty ? '—' : isNum ? Number(val).toLocaleString() : String(val)}
-                                    </td>
-                                  );
-                                })}
+                      <div className="flex gap-2">
+                        <button onClick={loadListHang} disabled={listHangLoading}
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white transition-all ${listHangLoading ? 'bg-slate-600 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                          {listHangLoading ? <span className="animate-spin inline-block">⟳</span> : '🔄'}
+                          {listHangLoading ? ' Loading...' : ' Load / Refresh'}
+                        </button>
+                        <button onClick={exportListHangExcel}
+                          disabled={!listHangData || listHangData.length === 0}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 disabled:text-slate-500 transition-all">
+                          📥 Export Excel
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Not yet loaded */}
+                    {listHangData === null && !listHangLoading && (
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+                        <div className="text-5xl mb-4 opacity-20">📊</div>
+                        <p className="text-slate-400 font-bold text-sm">No data loaded</p>
+                        <p className="text-slate-600 text-xs mt-1">Press "🔄 Load / Refresh" to read from Google Sheets</p>
+                      </div>
+                    )}
+
+                    {/* Loading */}
+                    {listHangLoading && (
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
+                        <p className="text-amber-400 font-bold animate-pulse">⏳ Loading data from sheet...</p>
+                      </div>
+                    )}
+
+                    {/* Loaded but empty */}
+                    {listHangData !== null && !listHangLoading && listHangData.length === 0 && (
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
+                        <p className="text-slate-500 italic">Sheet has no data or was not found.</p>
+                      </div>
+                    )}
+
+                    {/* All rows have ATC — nothing pending */}
+                    {listHangData !== null && !listHangLoading && listHangData.length > 0 && filteredRows.length === 0 && (
+                      <div className="bg-emerald-950/30 border border-emerald-800/40 rounded-xl p-10 text-center">
+                        <div className="text-4xl mb-3">🎉</div>
+                        <p className="text-emerald-400 font-bold">All lots have ATC confirmed!</p>
+                        <p className="text-slate-500 text-xs mt-1">No pending lots remaining.</p>
+                      </div>
+                    )}
+
+                    {/* Data table — only rows without ATC */}
+                    {listHangData !== null && !listHangLoading && filteredRows.length > 0 && (
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                        <div className="bg-slate-950 px-4 py-2.5 border-b border-slate-800 flex justify-between items-center">
+                          <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">
+                            ⏳ {filteredRows.length} lots pending ATC
+                          </span>
+                          <span className="text-[10px] text-slate-600">Scroll horizontally to see more →</span>
+                        </div>
+                        <div className="overflow-x-auto overflow-y-auto max-h-[65vh]">
+                          <table className="w-full text-left text-[11px] border-collapse" style={{minWidth: Math.max(listHangHeaders.length * 130, 900) + 'px'}}>
+                            <thead className="sticky top-0 z-10">
+                              <tr className="bg-amber-950/60 border-b border-amber-900/50">
+                                {listHangHeaders.map((h, i) => (
+                                  <th key={i} className="px-3 py-2.5 text-amber-300 font-bold whitespace-nowrap border-r border-slate-800 last:border-r-0 uppercase tracking-wider text-[10px]">
+                                    {h}
+                                  </th>
+                                ))}
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-900">
+                              {filteredRows.map((row, ri) => (
+                                <tr key={ri} className={ri % 2 === 0 ? 'bg-slate-900/50 hover:bg-slate-800/60' : 'bg-slate-950/50 hover:bg-slate-800/60'}>
+                                  {listHangHeaders.map((h, ci) => {
+                                    const rawVal = row[h];
+                                    const displayVal = fmtCell(h, rawVal);
+                                    const isEmpty = displayVal === null || displayVal === undefined || displayVal === '';
+                                    const isAmt = h === 'AMOUNT';
+                                    const isDate = DATE_COLS.includes(h);
+                                    return (
+                                      <td key={ci} className={`px-3 py-2 whitespace-nowrap border-r border-slate-800/60 last:border-r-0
+                                        ${isEmpty ? 'text-slate-700' :
+                                          isAmt ? 'text-right font-mono text-emerald-400' :
+                                          isDate ? 'text-center text-cyan-300 font-mono' :
+                                          TEXT_COLS.includes(h) ? 'text-amber-200 font-mono' :
+                                          'text-slate-200'}`}>
+                                        {isEmpty ? '—' : isAmt ? Number(rawVal).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : String(displayVal)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* --- ETA MANAGEMENT VIEW --- */}
               {activeMenu === 'ETA_MGMT' && (() => {
