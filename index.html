@@ -459,6 +459,20 @@
         showNotification(`✅ Exported ${listHangData.length} rows to Excel`);
       };
 
+      // URL của Contract Web App (Google Apps Script)
+      const CONTRACT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwWEcKvLPR3QgXOhYL0EF0ayGZ5HeXQuZnyaNqtO7B8_68IgQlqtdIIFOdhwiT6adguIw/exec';
+
+      const handleCreateContract = () => {
+        if (!selectedLotNo) return showNotification('Please select a lot first.', 'error');
+        const selLot = lots.find(l => l.lot_no === selectedLotNo);
+        if (!selLot) return showNotification('Lot not found.', 'error');
+        if ((selLot.loai_hinh || '').toUpperCase() !== 'A12') {
+          return showNotification(`Lot ${selectedLotNo} is not type A12 — Sale Contract only applies to A12 lots.`, 'error');
+        }
+        const url = `${CONTRACT_SCRIPT_URL}?decNo=${encodeURIComponent(selectedLotNo)}&actionType=createDoc`;
+        window.open(url, '_blank');
+      };
+
       const [syncingListHang, setSyncingListHang] = useState(false);
       const handleSyncListHang = async () => {
         if (!window.CY_API_URL) return showNotification('Chưa kết nối Google Sheets! Vui lòng cấu hình API URL.', 'error');
@@ -2610,6 +2624,19 @@
                       setShowAddModal(true);
                     }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">➕ Khai Lô Hàng Mới</button>
                       <button onClick={() => { if(!selectedLotNo) return; setShowMasterInvoiceModal(true); }} disabled={!selectedLotNo} className={`px-4 py-2 rounded-lg text-xs font-bold ${selectedLotNo ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>Bảng Kê Hóa Đơn (Mẫu 02)</button>
+                      {/* Sale Contract — chỉ hiện khi lô A12 đang được chọn */}
+                      {selectedLotNo && (() => {
+                        const selLot = lots.find(l => l.lot_no === selectedLotNo);
+                        const isA12  = (selLot?.loai_hinh || '').toUpperCase() === 'A12';
+                        return isA12 ? (
+                          <button
+                            onClick={handleCreateContract}
+                            title={`Create Sale Contract for lot ${selectedLotNo}`}
+                            className="px-4 py-2 rounded-lg text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white flex items-center gap-1.5 transition-all">
+                            📄 Create Sale Contract
+                          </button>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                 </div>
