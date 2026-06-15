@@ -2400,11 +2400,7 @@
                                 </td>
                                 <td className="p-3 text-right font-mono">{Number(lot.pkg_qty).toLocaleString()}</td>
                                 <td className="p-3 text-right font-mono text-amber-300 font-bold">{'$'}{lotVal.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                <td className="p-3 text-center space-x-2">
-                                  <button onClick={(e) => { e.stopPropagation(); setViewDetailLot(lot); }} className="text-cyan-400 hover:text-cyan-300 text-[10px] font-bold hover:underline" title="View detail">👁 Detail</button>
-                                  <button onClick={(e) => startEditLot(lot, e)} className="text-blue-400 hover:underline">Sửa</button>
-                                  <button onClick={(e) => triggerDeleteLotConfirm(lot.lot_no, e)} className="text-rose-500 hover:underline">Xóa</button>
-                                </td>
+                                {/* Actions removed from table — handled inside detail panel */}
                               </tr>
                             );
                           })}
@@ -4485,152 +4481,174 @@
             );
 
             return (
-              <div className="fixed inset-0 z-50 flex">
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                   style={{animation: 'fadeIn 0.15s ease-out'}}>
                 {/* Backdrop */}
-                <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={() => setViewDetailLot(null)} />
+                <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setViewDetailLot(null)} />
 
-                {/* Panel */}
-                <div className="w-full max-w-xl bg-slate-950 border-l border-slate-700 flex flex-col shadow-2xl overflow-hidden"
-                     style={{animation: 'slideInRight 0.2s ease-out'}}>
+                {/* Modal — wide horizontal layout */}
+                <div className="relative w-full bg-slate-950 border border-slate-700 rounded-2xl flex flex-col shadow-2xl overflow-hidden"
+                     style={{maxWidth: '1100px', maxHeight: '90vh', animation: 'scaleIn 0.15s ease-out'}}>
 
-                  {/* Header */}
-                  <div className="bg-slate-900 border-b border-slate-800 px-5 py-4 flex items-start justify-between flex-shrink-0">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-lg font-black font-mono text-amber-400">{lot.lot_no}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold border ${
-                          lot.loai_hinh === 'A12' ? 'bg-blue-950 border-blue-700 text-blue-300' :
-                          lot.loai_hinh === 'E21' ? 'bg-purple-950 border-purple-700 text-purple-300' :
-                          'bg-slate-800 border-slate-600 text-slate-400'
-                        }`}>{lot.loai_hinh}/{lot.loai_hinh_con}</span>
-                        {lot.atc_date
-                          ? <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 border border-emerald-700 text-emerald-400 font-bold">✅ RECEIVED</span>
-                          : <span className="text-[10px] px-2 py-0.5 rounded bg-rose-950 border border-rose-700 text-rose-400 font-bold">⏳ PENDING</span>
-                        }
-                      </div>
-                      <p className="text-[11px] text-slate-500">{lot.supplier || 'No supplier'}</p>
+                  {/* ── HEADER ── */}
+                  <div className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between flex-shrink-0">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-xl font-black font-mono text-amber-400">{lot.lot_no}</span>
+                      <span className={`text-[10px] px-2.5 py-1 rounded-lg font-bold border ${
+                        lot.loai_hinh === 'A12' ? 'bg-blue-950 border-blue-700 text-blue-300' :
+                        lot.loai_hinh === 'E21' ? 'bg-purple-950 border-purple-700 text-purple-300' :
+                        'bg-slate-800 border-slate-600 text-slate-400'
+                      }`}>{lot.loai_hinh} / {lot.loai_hinh_con}</span>
+                      {lot.atc_date
+                        ? <span className="text-[10px] px-2.5 py-1 rounded-lg bg-emerald-950 border border-emerald-700 text-emerald-400 font-bold">✅ RECEIVED {fmtDisplayDate(lot.atc_date)}</span>
+                        : <span className="text-[10px] px-2.5 py-1 rounded-lg bg-rose-950 border border-rose-700 text-rose-400 font-bold">⏳ PENDING ATC</span>
+                      }
+                      <span className="text-[11px] text-slate-500">{lot.supplier}</span>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button onClick={() => { setViewDetailLot(null); startEditLot(lot); }}
-                        className="text-[11px] px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-bold transition-all">
-                        ✏️ Edit
-                      </button>
-                      <button onClick={() => setViewDetailLot(null)}
-                        className="text-slate-400 hover:text-white text-xl leading-none px-2">✕</button>
-                    </div>
+                    <button onClick={() => setViewDetailLot(null)}
+                      className="text-slate-400 hover:text-white text-2xl leading-none ml-4 flex-shrink-0">✕</button>
                   </div>
 
-                  {/* Scrollable body */}
-                  <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+                  {/* ── BODY: 2 cột ngang ── */}
+                  <div className="flex-1 overflow-y-auto">
 
                     {/* Summary bar */}
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-3 gap-0 border-b border-slate-800">
                       {[
-                        { label: 'Invoices', value: lotInvoices.length, color: 'text-indigo-400' },
-                        { label: 'Goods Items', value: lotGoods.length, color: 'text-cyan-400' },
+                        { label: 'Invoices',    value: lotInvoices.length,                                                      color: 'text-indigo-400' },
+                        { label: 'Goods Items', value: lotGoods.length,                                                         color: 'text-cyan-400' },
                         { label: 'Total Value', value: `$${totalVal.toLocaleString(undefined,{minimumFractionDigits:2})}`, color: 'text-emerald-400' },
-                      ].map(s => (
-                        <div key={s.label} className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
-                          <p className={`text-lg font-black font-mono ${s.color}`}>{s.value}</p>
+                      ].map((s, i) => (
+                        <div key={s.label} className={`py-3 px-6 text-center ${i < 2 ? 'border-r border-slate-800' : ''}`}>
+                          <p className={`text-xl font-black font-mono ${s.color}`}>{s.value}</p>
                           <p className="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5">{s.label}</p>
                         </div>
                       ))}
                     </div>
 
-                    {/* Section: Bill of Lading */}
-                    <Section title="🚢 Bill of Lading">
-                      <Field label="Bill No." value={lot.bill_no} mono highlight="text-white font-bold" />
-                      <Field label="Bill Date" value={fmtDisplayDate(lot.bill_date)} mono />
-                      <Field label="Bill Terms" value={lot.bill_term} />
-                      <Field label="Carrier / FWD" value={lot.carrier} />
-                      <Field label="Port of Loading (POL)" value={lot.pol} />
-                      <Field label="Port of Discharge (POD)" value={lot.pod} />
-                    </Section>
+                    {/* 2-column grid */}
+                    <div className="grid grid-cols-2 gap-0 divide-x divide-slate-800">
 
-                    {/* Section: Transport */}
-                    <Section title="📦 Transport & Container">
-                      <Field label="Transport Mode" value={lot.transport_type?.replace('_', ' ')} />
-                      <Field label="Container Type" value={lot.cont_type} />
-                      <Field label="Container No." value={lot.cont_no} mono highlight="text-cyan-300" />
-                      <Field label="Seal No." value={lot.seal_no} mono />
-                      <Field label="Pkg Qty" value={lot.pkg_qty ? Number(lot.pkg_qty).toLocaleString() : null} />
-                      <Field label="Gross Weight" value={lot.gw ? `${Number(lot.gw).toLocaleString()} KG` : null} />
-                      <Field label="CBM" value={lot.cbm ? `${lot.cbm} m³` : null} />
-                      <Field label="Origin Country" value={lot.origin_country} />
-                    </Section>
+                      {/* LEFT COLUMN — Shipment info */}
+                      <div className="p-6 space-y-6 overflow-y-auto">
 
-                    {/* Section: Dates */}
-                    <Section title="📅 Key Dates">
-                      <Field label="Lot Open Date" value={fmtDisplayDate(lot.lot_date)} mono />
-                      <Field label="Docs Received" value={fmtDisplayDate(lot.get_docs_date)} mono />
-                      <Field label="ETA" value={fmtDisplayDate(lot.eta)} mono highlight={lot.eta ? 'text-amber-300' : ''} />
-                      <Field label="ATC (Actual Receipt)" value={fmtDisplayDate(lot.atc_date)} mono highlight={lot.atc_date ? 'text-emerald-400' : 'text-rose-400'} />
-                    </Section>
-
-                    {/* Section: Contract (A12 only) */}
-                    {lot.loai_hinh === 'A12' && (lot.contract_start || lot.contract_end) && (
-                      <Section title="📋 Contract Period (A12)">
-                        <Field label="Contract Start" value={fmtDisplayDate(lot.contract_start)} mono highlight="text-blue-300" />
-                        <Field label="Contract End" value={fmtDisplayDate(lot.contract_end)} mono highlight="text-blue-300" />
-                      </Section>
-                    )}
-
-                    {/* Section: Factory & Supplier */}
-                    <Section title="🏭 Factory & Supplier">
-                      <Field label="Factory Code" value={lot.factory_no} />
-                      <Field label="Supplier" value={lot.supplier} />
-                      <Field label="Sale Qty" value={lot.sale_qty ? Number(lot.sale_qty).toLocaleString() : null} />
-                      <Field label="Shared Bill" value={lot.is_hang_chung_bill ? 'Yes' : 'No'} />
-                    </Section>
-
-                    {/* Section: Invoices list */}
-                    {lotInvoices.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1">📄 Invoices ({lotInvoices.length})</p>
-                        <div className="space-y-2">
-                          {lotInvoices.map(inv => {
-                            const invGoods = goods.filter(g => g.invoice_no === inv.invoice_no);
-                            const invTotal = getInvoiceValueSum(inv);
-                            return (
-                              <div key={inv.invoice_no} className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2.5">
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <span className="font-mono font-bold text-indigo-300 text-[12px]">{inv.invoice_no}</span>
-                                    <span className="ml-2 text-[10px] text-slate-500">{fmtDisplayDate(inv.invoice_date)}</span>
-                                    <span className="ml-2 text-[10px] text-slate-500">{inv.incoterm}</span>
-                                  </div>
-                                  <span className="font-mono font-bold text-emerald-400 text-[12px]">
-                                    {inv.currency || 'USD'} {invTotal.toLocaleString(undefined,{minimumFractionDigits:2})}
-                                  </span>
-                                </div>
-                                {invGoods.length > 0 && (
-                                  <div className="mt-2 space-y-1">
-                                    {invGoods.map(g => (
-                                      <div key={g.id || g.goods_no} className="flex justify-between text-[10px] text-slate-400 pl-2 border-l border-slate-700">
-                                        <span className="truncate max-w-[260px]">
-                                          <span className="text-emerald-600 font-mono mr-1">{g.goods_no}</span>
-                                          {g.goods_name_en}
-                                        </span>
-                                        <span className="font-mono text-slate-500 ml-2 flex-shrink-0">
-                                          {g.qty1 ? `${g.qty1} ${g.unit1 || ''}` : ''} 
-                                          {g.sale_amount ? ` · $${Number(g.sale_amount).toLocaleString(undefined,{minimumFractionDigits:2})}` : ''}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                        {/* Bill of Lading */}
+                        <div>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1.5 mb-3">🚢 Bill of Lading</p>
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                            <Field label="Bill No."          value={lot.bill_no}              mono highlight="text-white" />
+                            <Field label="Bill Date"         value={fmtDisplayDate(lot.bill_date)} mono />
+                            <Field label="Bill Terms"        value={lot.bill_term} />
+                            <Field label="Carrier / FWD"     value={lot.carrier} />
+                            <Field label="Port of Loading"   value={lot.pol} />
+                            <Field label="Port of Discharge" value={lot.pod} />
+                          </div>
                         </div>
-                      </div>
-                    )}
 
+                        {/* Transport & Container */}
+                        <div>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1.5 mb-3">📦 Transport & Container</p>
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                            <Field label="Transport Mode"  value={lot.transport_type?.replace(/_/g,' ')} />
+                            <Field label="Container Type"  value={lot.cont_type} />
+                            <Field label="Container No."   value={lot.cont_no}   mono highlight="text-cyan-300" />
+                            <Field label="Seal No."        value={lot.seal_no}   mono />
+                            <Field label="Pkg Qty"         value={lot.pkg_qty   ? Number(lot.pkg_qty).toLocaleString()   : null} />
+                            <Field label="Gross Weight"    value={lot.gw        ? `${Number(lot.gw).toLocaleString()} KG` : null} />
+                            <Field label="CBM"             value={lot.cbm       ? `${lot.cbm} m³`                          : null} />
+                            <Field label="Origin Country"  value={lot.origin_country} />
+                          </div>
+                        </div>
+
+                        {/* Dates */}
+                        <div>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1.5 mb-3">📅 Key Dates</p>
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                            <Field label="Lot Open Date"    value={fmtDisplayDate(lot.lot_date)}      mono />
+                            <Field label="Docs Received"    value={fmtDisplayDate(lot.get_docs_date)} mono />
+                            <Field label="ETA"              value={fmtDisplayDate(lot.eta)}           mono highlight={lot.eta      ? 'text-amber-300'  : ''} />
+                            <Field label="ATC"              value={fmtDisplayDate(lot.atc_date)}      mono highlight={lot.atc_date ? 'text-emerald-400' : 'text-rose-400'} />
+                          </div>
+                        </div>
+
+                        {/* Factory & Supplier */}
+                        <div>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1.5 mb-3">🏭 Factory & Supplier</p>
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                            <Field label="Factory Code" value={lot.factory_no} />
+                            <Field label="Supplier"     value={lot.supplier} />
+                            <Field label="Sale Qty"     value={lot.sale_qty ? Number(lot.sale_qty).toLocaleString() : null} />
+                            <Field label="Shared Bill"  value={lot.is_hang_chung_bill ? 'Yes' : 'No'} />
+                          </div>
+                        </div>
+
+                        {/* Contract Period — A12 only */}
+                        {lot.loai_hinh === 'A12' && (lot.contract_start || lot.contract_end) && (
+                          <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1.5 mb-3">📋 Contract Period (A12)</p>
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                              <Field label="Start Date" value={fmtDisplayDate(lot.contract_start)} mono highlight="text-blue-300" />
+                              <Field label="End Date"   value={fmtDisplayDate(lot.contract_end)}   mono highlight="text-blue-300" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* RIGHT COLUMN — Invoices & Goods */}
+                      <div className="p-6 space-y-4 overflow-y-auto">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1.5">
+                          📄 Invoices & Goods ({lotInvoices.length} inv · {lotGoods.length} items)
+                        </p>
+                        {lotInvoices.length === 0
+                          ? <p className="text-slate-600 italic text-xs">No invoices declared for this lot.</p>
+                          : lotInvoices.map(inv => {
+                              const invGoods = goods.filter(g => String(g.invoice_no) === String(inv.invoice_no));
+                              const invTotal = getInvoiceValueSum(inv);
+                              return (
+                                <div key={inv.invoice_no} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                                  {/* Invoice header */}
+                                  <div className="flex justify-between items-center px-4 py-2.5 border-b border-slate-800 bg-slate-950/60">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono font-bold text-indigo-300 text-xs">{inv.invoice_no}</span>
+                                      <span className="text-[10px] text-slate-500">{fmtDisplayDate(inv.invoice_date)}</span>
+                                      <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{inv.incoterm}</span>
+                                      {inv.currency && <span className="text-[10px] text-slate-500">{inv.currency}</span>}
+                                    </div>
+                                    <span className="font-mono font-bold text-emerald-400 text-xs">
+                                      ${invTotal.toLocaleString(undefined,{minimumFractionDigits:2})}
+                                    </span>
+                                  </div>
+                                  {/* Goods rows */}
+                                  {invGoods.length > 0 ? (
+                                    <div className="divide-y divide-slate-900">
+                                      {invGoods.map(g => (
+                                        <div key={g.id || g.goods_no} className="flex items-start justify-between px-4 py-2 text-[11px]">
+                                          <div className="flex items-start gap-2 min-w-0">
+                                            <span className="text-[9px] text-slate-600 w-4 text-right flex-shrink-0 mt-0.5">{g.goods_item}</span>
+                                            <span className="text-emerald-600 font-mono flex-shrink-0">{(g.goods_no||'').split('*')[0].trim()}</span>
+                                            <span className="text-slate-300 truncate">{g.goods_name_en}</span>
+                                          </div>
+                                          <div className="flex items-center gap-3 flex-shrink-0 ml-2 text-right">
+                                            {g.qty1 && <span className="text-slate-500 font-mono">{g.qty1} {g.unit1||''}</span>}
+                                            {g.sale_amount && <span className="text-amber-400 font-mono font-bold">${Number(g.sale_amount).toLocaleString(undefined,{minimumFractionDigits:2})}</span>}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="px-4 py-2 text-[10px] text-slate-600 italic">No goods items.</p>
+                                  )}
+                                </div>
+                              );
+                            })
+                        }
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Footer actions */}
-                  <div className="flex-shrink-0 border-t border-slate-800 bg-slate-900 px-5 py-3 flex justify-between items-center">
-                    <span className="text-[10px] text-slate-600 italic">Read-only view — use Edit to make changes</span>
+                  {/* ── FOOTER ACTIONS ── */}
+                  <div className="flex-shrink-0 border-t border-slate-800 bg-slate-900 px-6 py-3 flex justify-between items-center">
+                    <span className="text-[10px] text-slate-600 italic">Read-only — use Edit to make changes</span>
                     <div className="flex gap-2">
                       {lot.loai_hinh === 'A12' && (
                         <button onClick={() => { setViewDetailLot(null); handleCreateContract(); setSelectedLotNo(lot.lot_no); }}
@@ -4638,6 +4656,14 @@
                           📄 Sale Contract
                         </button>
                       )}
+                      <button onClick={() => { setViewDetailLot(null); startEditLot(lot); }}
+                        className="text-[11px] px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-bold transition-all">
+                        ✏️ Edit
+                      </button>
+                      <button onClick={(e) => { setViewDetailLot(null); triggerDeleteLotConfirm(lot.lot_no, e); }}
+                        className="text-[11px] px-3 py-1.5 rounded-lg bg-rose-900 hover:bg-rose-800 text-rose-300 font-bold transition-all">
+                        🗑 Delete
+                      </button>
                       <button onClick={() => setViewDetailLot(null)}
                         className="text-[11px] px-4 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold transition-all">
                         Close
@@ -4647,10 +4673,8 @@
                 </div>
 
                 <style>{`
-                  @keyframes slideInRight {
-                    from { transform: translateX(100%); opacity: 0; }
-                    to   { transform: translateX(0);    opacity: 1; }
-                  }
+                  @keyframes fadeIn  { from { opacity: 0; }               to { opacity: 1; } }
+                  @keyframes scaleIn { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
                 `}</style>
               </div>
             );
