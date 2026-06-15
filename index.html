@@ -583,7 +583,7 @@
         factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid',
         carrier: '', // Hãng tàu / FWD
         transport_type: 'SEA_CONT', // AIR | EXPRESS | SEA_CONT | SEA_CFS
-        is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC',
+        is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC', contList: [{cont_no:'',seal_no:'',cont_type:'40HC'}],
         pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '',
         origin_country: 'TAIWAN', loai_hinh: 'NEUTRAL', loai_hinh_con: 'DEFAULT', sale_qty: 0,
         is_hang_chung_bill: false,
@@ -733,6 +733,9 @@
         if (modalMode === 'edit') {
           // Edit mode: validate lot_no exists
           if (!lotForm.lot_no.trim()) return showNotification("Mã lô hàng không được trống", "error");
+          // Serialize contList → containers (JSON) + backward compat fields
+          const validConts = (lotForm.contList || []).filter(c => c.cont_no && c.cont_no.trim());
+          const primaryCont = validConts[0] || {};
           const finalLot = {
             ...lotForm, lot_no: lotForm.lot_no.trim(), stt: Number(lotForm.stt),
             pkg_qty: Number(lotForm.pkg_qty)||0, gw: Number(lotForm.gw)||0, cbm: Number(lotForm.cbm)||0,
@@ -743,6 +746,11 @@
             get_docs_date: normalizeDate(lotForm.get_docs_date),
             contract_start: normalizeDate(lotForm.contract_start),
             contract_end: normalizeDate(lotForm.contract_end),
+            // Multi-container: lưu JSON array + giữ cont_no/seal_no/cont_type cho backward compat
+            containers: serializeContainers(validConts.length > 0 ? validConts : [{cont_no:'',seal_no:'',cont_type:lotForm.cont_type||'40HC'}]),
+            cont_no:   primaryCont.cont_no   || '',
+            seal_no:   primaryCont.seal_no   || '',
+            cont_type: primaryCont.cont_type || lotForm.cont_type || '40HC',
           };
           if (finalLot.carrier) addCarrierHistory(finalLot.carrier.trim());
           const newLots = lots.map(l => l.lot_no === finalLot.lot_no ? finalLot : l);
@@ -1161,6 +1169,32 @@
         showNotification("Đã xóa dòng mặt hàng thành công!");
       };
 
+      // ── Helper: parse containers từ nhiều format ─────────────────
+      // Hỗ trợ: JSON array mới, string cũ "CONT1|SEAL1|40HC,CONT2|SEAL2|40HC", hoặc 3 field riêng
+      const parseContainers = (lot) => {
+        // Format mới: JSON array string
+        if (lot.containers) {
+          try {
+            const arr = JSON.parse(lot.containers);
+            if (Array.isArray(arr) && arr.length > 0) return arr;
+          } catch(e) {}
+          // Fallback: pipe-comma format "CONT1|SEAL1|40HC,CONT2|SEAL2|40HC"
+          if (typeof lot.containers === 'string' && lot.containers.trim()) {
+            return lot.containers.split(',').map(s => {
+              const [cont_no='', seal_no='', cont_type='40HC'] = s.split('|');
+              return { cont_no: cont_no.trim(), seal_no: seal_no.trim(), cont_type: cont_type.trim() || '40HC' };
+            }).filter(c => c.cont_no);
+          }
+        }
+        // Format cũ: 3 field riêng → convert sang array 1 phần tử
+        if (lot.cont_no && lot.cont_no.trim()) {
+          return [{ cont_no: lot.cont_no.trim(), seal_no: lot.seal_no || '', cont_type: lot.cont_type || '40HC' }];
+        }
+        return [{ cont_no: '', seal_no: '', cont_type: '40HC' }];
+      };
+
+      const serializeContainers = (arr) => JSON.stringify(arr);
+
       // ── Suy ra transport_type từ dữ liệu cũ (trước khi có field transport_type) ──
       const inferTransportType = (lot) => {
         if (lot.transport_type) return lot.transport_type;
@@ -1195,6 +1229,7 @@
           cont_no:          lot.cont_no           || '',
           seal_no:          lot.seal_no           || '',
           cont_type:        lot.cont_type         || '40HC',
+          contList:         parseContainers(lot),
           pkg_qty:          Number(lot.pkg_qty)   || 0,
           gw:               Number(lot.gw)        || 0,
           cbm:              Number(lot.cbm)       || 0,
@@ -2398,7 +2433,12 @@
                                 <td className="p-3 text-center">
                                   {lot.is_cont ? (
                                     <span className={sharedContNos.has(lot.lot_no) ? 'bg-purple-900/40 text-purple-300 border border-purple-700 px-2 py-0.5 rounded font-mono font-bold text-[10px]' : ''} title={sharedContNos.has(lot.lot_no) ? '⚠️ Chung Container với lô khác' : ''}>
-                                      {sharedContNos.has(lot.lot_no) ? '🔗 ' : ''}{lot.cont_no} ({lot.cont_type})
+                                      {sharedContNos.has(lot.lot_no) ? '🔗 ' : ''}
+                                      {(() => {
+                                        const conts = parseContainers(lot).filter(c=>c.cont_no);
+                                        if (conts.length > 1) return `${conts[0].cont_no} +${conts.length-1} more`;
+                                        return lot.cont_no || '—';
+                                      })()} {lot.cont_type ? `(${lot.cont_type})` : ''}
                                     </span>
                                   ) : 'LCL'}
                                 </td>
@@ -2617,7 +2657,7 @@
                       <button onClick={() => {
                       setModalMode('add'); setModalTab('lot');
                       const freshStt = getFirstVacantSeq();
-                      setLotForm({ lot_no: '', stt: freshStt, lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', carrier: '', transport_type: 'SEA_CONT', is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC', pkg_qty: 0, gw: 0, cbm: 0, cbm_str: '', eta: '', atc_date: '', origin_country: 'TAIWAN', loai_hinh: 'NEUTRAL', loai_hinh_con: 'DEFAULT', sale_qty: 0, is_hang_chung_bill: false, contract_start: '', contract_end: '' });
+                      setLotForm({ lot_no: '', stt: freshStt, lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', carrier: '', transport_type: 'SEA_CONT', is_cont: true, cont_no: '', seal_no: '', cont_type: '40HC', contList: [{cont_no:'',seal_no:'',cont_type:'40HC'}], pkg_qty: 0, gw: 0, cbm: 0, cbm_str: '', eta: '', atc_date: '', origin_country: 'TAIWAN', loai_hinh: 'NEUTRAL', loai_hinh_con: 'DEFAULT', sale_qty: 0, is_hang_chung_bill: false, contract_start: '', contract_end: '' });
                       setInvoiceForm({ invoice_no: '', lot_no: '', bill_no: '', bill_stt: freshStt, invoice_date: new Date().toISOString().substring(0, 10), inv_pkg_qty: 0, inv_gw: 0, incoterm: 'CIF', total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '', is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', currency: 'USD', supplier: 'CHANG YANG MATERIAL CORP.', contract_start: '', contract_end: '', factory_no: '' });
                       setGoodsForm({ invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '', goods_name_local: '', goods_unit_local: 'Cái', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0, origin_country: 'TAIWAN', qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: '' });
                       setSelectedFactories([]);
@@ -3268,23 +3308,102 @@
                           ))}
                         </div>
 
-                        {/* SEA CONT: Số Cont + Seal + Loại Cont */}
+                        {/* SEA CONT: Multi-container list */}
                         {lotForm.transport_type === 'SEA_CONT' && (
-                          <div className="grid grid-cols-3 gap-4 pt-2 border-t border-slate-800">
-                            <div>
-                              <label className="block text-[11px] text-slate-400 mb-1">Số Cont *</label>
-                              <input type="text" value={lotForm.cont_no} onChange={(e) => setLotForm({...lotForm, cont_no: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white font-mono" placeholder="TGBU-9928172" />
+                          <div className="pt-2 border-t border-slate-800 space-y-2">
+                            {/* Header */}
+                            <div className="flex items-center justify-between">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                🚢 Container List
+                                <span className="ml-2 text-slate-600 normal-case font-normal">({(lotForm.contList||[]).filter(c=>c.cont_no).length} cont{(lotForm.contList||[]).filter(c=>c.cont_no).length !== 1 ? 's' : ''})</span>
+                              </label>
+                              <button type="button"
+                                onClick={() => setLotForm(prev => ({
+                                  ...prev,
+                                  contList: [...(prev.contList||[]), {cont_no:'', seal_no:'', cont_type:'40HC'}]
+                                }))}
+                                className="text-[10px] px-2.5 py-1 rounded bg-blue-900/50 hover:bg-blue-800/60 text-blue-400 font-bold border border-blue-800/50 transition-all">
+                                ＋ Add Container
+                              </button>
                             </div>
-                            <div>
-                              <label className="block text-[11px] text-slate-400 mb-1">Số Seal</label>
-                              <input type="text" value={lotForm.seal_no} onChange={(e) => setLotForm({...lotForm, seal_no: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white font-mono" />
+
+                            {/* Column headers */}
+                            <div className="grid grid-cols-12 gap-2 px-1">
+                              <div className="col-span-1 text-[9px] text-slate-600 uppercase">#</div>
+                              <div className="col-span-5 text-[9px] text-slate-600 uppercase">Container No. *</div>
+                              <div className="col-span-3 text-[9px] text-slate-600 uppercase">Seal No.</div>
+                              <div className="col-span-2 text-[9px] text-slate-600 uppercase">Type</div>
+                              <div className="col-span-1"></div>
                             </div>
-                            <div>
-                              <label className="block text-[11px] text-slate-400 mb-1">Loại Cont</label>
-                              <select value={lotForm.cont_type} onChange={(e) => setLotForm({...lotForm, cont_type: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white">
-                                <option>20DC</option><option>40DC</option><option>40HC</option><option>45HC</option>
-                              </select>
-                            </div>
+
+                            {/* Container rows */}
+                            {(lotForm.contList || [{cont_no:'',seal_no:'',cont_type:'40HC'}]).map((c, idx) => (
+                              <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                                {/* Index */}
+                                <div className="col-span-1 text-[10px] text-slate-600 text-center font-mono">{idx+1}</div>
+                                {/* Container No */}
+                                <div className="col-span-5">
+                                  <input
+                                    type="text"
+                                    value={c.cont_no}
+                                    onChange={e => {
+                                      const list = [...(lotForm.contList||[])];
+                                      list[idx] = {...list[idx], cont_no: e.target.value.toUpperCase()};
+                                      setLotForm(prev => ({...prev, contList: list}));
+                                    }}
+                                    placeholder="TGBU-9928172"
+                                    className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-cyan-300 font-mono focus:border-blue-500 outline-none"
+                                  />
+                                </div>
+                                {/* Seal No */}
+                                <div className="col-span-3">
+                                  <input
+                                    type="text"
+                                    value={c.seal_no}
+                                    onChange={e => {
+                                      const list = [...(lotForm.contList||[])];
+                                      list[idx] = {...list[idx], seal_no: e.target.value.toUpperCase()};
+                                      setLotForm(prev => ({...prev, contList: list}));
+                                    }}
+                                    placeholder="SL-12345"
+                                    className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono focus:border-blue-500 outline-none"
+                                  />
+                                </div>
+                                {/* Cont Type */}
+                                <div className="col-span-2">
+                                  <select
+                                    value={c.cont_type || '40HC'}
+                                    onChange={e => {
+                                      const list = [...(lotForm.contList||[])];
+                                      list[idx] = {...list[idx], cont_type: e.target.value};
+                                      setLotForm(prev => ({...prev, contList: list, cont_type: idx === 0 ? e.target.value : prev.cont_type}));
+                                    }}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white focus:border-blue-500 outline-none">
+                                    <option>20DC</option><option>40DC</option><option>40HC</option><option>45HC</option>
+                                  </select>
+                                </div>
+                                {/* Remove button */}
+                                <div className="col-span-1 flex justify-center">
+                                  {(lotForm.contList||[]).length > 1 ? (
+                                    <button type="button"
+                                      onClick={() => {
+                                        const list = (lotForm.contList||[]).filter((_,i) => i !== idx);
+                                        setLotForm(prev => ({...prev, contList: list}));
+                                      }}
+                                      className="text-rose-500 hover:text-rose-400 text-base leading-none font-bold transition-colors" title="Remove">×</button>
+                                  ) : (
+                                    <span className="text-slate-800 text-base">×</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+
+                            {/* Summary nếu nhiều hơn 1 cont */}
+                            {(lotForm.contList||[]).filter(c=>c.cont_no).length > 1 && (
+                              <div className="text-[10px] text-slate-500 italic pl-1 pt-1">
+                                💡 {(lotForm.contList||[]).filter(c=>c.cont_no).length} containers — primary cont: <span className="text-cyan-400 font-mono">{(lotForm.contList||[]).find(c=>c.cont_no)?.cont_no}</span>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -4621,9 +4740,33 @@
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1.5 mb-3">📦 Transport & Container</p>
                           <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                             <Field label="Transport Mode"  value={lot.transport_type?.replace(/_/g,' ')} />
+                            <Field label="Transport Mode"  value={lot.transport_type?.replace(/_/g,' ')} />
                             <Field label="Container Type"  value={lot.cont_type} />
-                            <Field label="Container No."   value={lot.cont_no}   mono highlight="text-cyan-300" />
-                            <Field label="Seal No."        value={lot.seal_no}   mono />
+                            {/* Multi-container display */}
+                            {(() => {
+                              const conts = parseContainers(lot);
+                              if (conts.length <= 1) return (
+                                <>
+                                  <Field label="Container No." value={conts[0]?.cont_no || lot.cont_no} mono highlight="text-cyan-300" />
+                                  <Field label="Seal No."      value={conts[0]?.seal_no || lot.seal_no} mono />
+                                </>
+                              );
+                              return (
+                                <div className="col-span-2">
+                                  <p className="text-[9px] text-slate-500 uppercase mb-1.5">Containers ({conts.length})</p>
+                                  <div className="space-y-1">
+                                    {conts.map((c, i) => (
+                                      <div key={i} className="flex items-center gap-3 text-[11px]">
+                                        <span className="text-[9px] text-slate-600 w-4">{i+1}</span>
+                                        <span className="font-mono text-cyan-300 font-bold">{c.cont_no}</span>
+                                        {c.seal_no && <span className="text-slate-500 font-mono">seal: {c.seal_no}</span>}
+                                        <span className="text-[9px] text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded">{c.cont_type}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                             <Field label="Pkg Qty"         value={lot.pkg_qty   ? Number(lot.pkg_qty).toLocaleString()   : null} />
                             <Field label="Gross Weight"    value={lot.gw        ? `${Number(lot.gw).toLocaleString()} KG` : null} />
                             <Field label="CBM"             value={lot.cbm       ? `${lot.cbm} m³`                          : null} />
