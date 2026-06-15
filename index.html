@@ -876,7 +876,7 @@
           setGoodsForm(prev => ({ ...prev, invoice_no: finalInvoice.invoice_no, goods_no: '', goods_name_en: '', goods_name_local: '', hs_code: '', sale_amount: 0, qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: '' }));
           setModalTab('goods');
         } else {
-          newInvoices = invoices.map(i => i.invoice_no === finalInvoice.invoice_no ? finalInvoice : i);
+          newInvoices = invoices.map(i => String(i.invoice_no) === String(finalInvoice.invoice_no) ? finalInvoice : i);
           showNotification(`✅ Đã cập nhật Hóa Đơn ${finalInvoice.invoice_no}`);
           setRecentlyUpdatedInvoices(prev => new Set([...prev, finalInvoice.invoice_no]));
           setTimeout(() => setRecentlyUpdatedInvoices(prev => { const n = new Set(prev); n.delete(finalInvoice.invoice_no); return n; }), 5000);
@@ -886,7 +886,7 @@
         setSelectedLotNo(targetLotNo);
         setSelectedInvoiceNo(finalInvoice.invoice_no);
         // Check invoice total vs goods total
-        const invGoods = goods.filter(g => g.invoice_no === finalInvoice.invoice_no);
+        const invGoods = goods.filter(g => String(g.invoice_no) === String(finalInvoice.invoice_no));
         if (invGoods.length > 0) {
           const goodsTotal = invGoods.reduce((s, g) => s + Number(g.sale_amount||0), 0);
           const invTotal = Number(finalInvoice.total_amount)||0;
@@ -1138,8 +1138,8 @@
       const executeDeleteLot = (targetLotNo) => {
         const remainingLots = lots.filter(l => l.lot_no !== targetLotNo);
         const remainingInvoices = invoices.filter(i => i.lot_no !== targetLotNo);
-        const relatedInvoiceNos = invoices.filter(i => i.lot_no === targetLotNo).map(i => i.invoice_no);
-        const remainingGoods = goods.filter(g => !relatedInvoiceNos.includes(g.invoice_no));
+        const relatedInvoiceNos = invoices.filter(i => i.lot_no === targetLotNo).map(i => String(i.invoice_no));
+        const remainingGoods = goods.filter(g => !relatedInvoiceNos.includes(String(g.invoice_no)));
 
         saveLotsToStorage(remainingLots);
         saveInvoicesToStorage(remainingInvoices);
@@ -1332,7 +1332,7 @@
       const triggerDeleteLotConfirm = (lotNo, e) => {
         if(e) e.stopPropagation();
         const lotInvCount = invoices.filter(i => i.lot_no === lotNo).length;
-        const lotGoodsCount = goods.filter(g => invoices.filter(i => i.lot_no === lotNo).map(i => i.invoice_no).includes(g.invoice_no)).length;
+        const lotGoodsCount = goods.filter(g => invoices.filter(i => i.lot_no === lotNo).map(i => String(i.invoice_no)).includes(String(g.invoice_no))).length;
         setConfirmState({
           isOpen: true,
           title: '⚠️ Xóa Lô Hàng — Thao tác không thể hoàn tác',
@@ -1374,11 +1374,11 @@
         return shared;
       })();
       const currentInvoices = invoices.filter(inv => inv.lot_no === selectedLotNo);
-      const currentGoods = goods.filter(g => g.invoice_no === selectedInvoiceNo);
+      const currentGoods = goods.filter(g => String(g.invoice_no) === String(selectedInvoiceNo));
       const pendingAtcLots = lots.filter(lot => !lot.atc_date || lot.atc_date.trim() === '');
 
       const getInvoiceValueSum = (inv) => {
-        const base = goods.filter(g => g.invoice_no === inv.invoice_no).reduce((sum, item) => sum + item.sale_amount, 0);
+        const base = goods.filter(g => String(g.invoice_no) === String(inv.invoice_no)).reduce((sum, item) => sum + (Number(item.sale_amount) || 0), 0);
         return base + (Number(inv.plus_sea_freight) || 0) + (Number(inv.handling_charges) || 0) + (Number(inv.other_charges) || 0) - (Number(inv.foc_amount) || 0);
       };
 
@@ -1456,7 +1456,7 @@
 
       const handleEnglishNameAutoLookup = (engName, associatedInvoiceNo) => {
         if (!engName || engName.length < 2) return;
-        const targetInvoice = invoices.find(i => i.invoice_no === associatedInvoiceNo);
+        const targetInvoice = invoices.find(i => String(i.invoice_no) === String(associatedInvoiceNo));
         const lh = targetInvoice?.loai_hinh || 'A12';
         const dict = lh === 'E21' ? dictE21 : dictA12;
         const result = findBestDictMatch(engName, dict);
@@ -1556,7 +1556,7 @@
         
         // Calculate each invoice total
         const invRows = printInvoices.map((inv, idx) => {
-          const invGoods = goods.filter(g => g.invoice_no === inv.invoice_no);
+          const invGoods = goods.filter(g => String(g.invoice_no) === String(inv.invoice_no));
           const goodsBase = invGoods.reduce((s, g) => s + Number(g.sale_amount||0), 0);
           const invTotal = goodsBase + Number(inv.plus_sea_freight||0) + Number(inv.handling_charges||0) + Number(inv.other_charges||0) - Number(inv.foc_amount||0);
           return { ...inv, computedTotal: invTotal, idx: idx+1 };
@@ -2290,9 +2290,9 @@
                             let remainInvs = invoices;
                             let remainGoods = goods;
                             selectedLotNos.forEach(lotNo => {
-                              const relInvNos = invoices.filter(i => i.lot_no === lotNo).map(i => i.invoice_no);
+                              const relInvNos = invoices.filter(i => i.lot_no === lotNo).map(i => String(i.invoice_no));
                               remainInvs = remainInvs.filter(i => i.lot_no !== lotNo);
-                              remainGoods = remainGoods.filter(g => !relInvNos.includes(g.invoice_no));
+                              remainGoods = remainGoods.filter(g => !relInvNos.includes(String(g.invoice_no)));
                             });
                             saveLotsToStorage(remainLots);
                             saveInvoicesToStorage(remainInvs);
@@ -2499,7 +2499,7 @@
                                     <span className="ml-1.5 text-[9px] bg-amber-600/30 border border-amber-700 text-amber-400 px-1.5 py-0.5 rounded font-sans">✏️ đang sửa</span>
                                   )}
                                   {(() => {
-                                    const invGoods = goods.filter(g => g.invoice_no === inv.invoice_no);
+                                    const invGoods = goods.filter(g => String(g.invoice_no) === String(inv.invoice_no));
                                     if (invGoods.length === 0) return null;
                                     const gTotal = invGoods.reduce((s,g) => s+Number(g.sale_amount||0),0);
                                     const iTotal = Number(inv.total_amount)||0;
@@ -2533,8 +2533,8 @@
                           {selectedLotNo && (
                             <button onClick={() => {
                               // Export goods of selected lot — columns depend on loai_hinh
-                              const lotInvNos = invoices.filter(i => i.lot_no === selectedLotNo).map(i => i.invoice_no);
-                              const lotGoods = goods.filter(g => lotInvNos.includes(g.invoice_no));
+                              const lotInvNos = invoices.filter(i => i.lot_no === selectedLotNo).map(i => String(i.invoice_no));
+                              const lotGoods = goods.filter(g => lotInvNos.includes(String(g.invoice_no)));
                               if (lotGoods.length === 0) return showNotification("Không có hàng hóa để xuất!", "error");
 
                               // Detect loai_hinh from first invoice of this lot
@@ -3061,7 +3061,7 @@
                           {displayLots.map(lot => (
                             <tr key={lot.lot_no} className="hover:bg-slate-850/40 text-slate-300">
                               <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
-                              <td className="p-3.5 font-semibold">{lot.supplier || '—'}</td>
+                              <td className="p-3.5 font-semibold">{lot.supplier || (invoices.find(i => i.lot_no === lot.lot_no && i.supplier && i.supplier.trim())?.supplier) || '—'}</td>
                               <td className="p-3.5 font-mono">{lot.bill_no || '—'}</td>
                               <td className="p-3.5"><span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded">{lot.transport_type || 'SEA_CONT'}</span></td>
                               <td className="p-3.5 text-cyan-400 font-mono">{fmtDisplayDate(lot.eta) || '—'}</td>
@@ -3940,7 +3940,7 @@
 
                       {/* --- CHỌN MẶT HÀNG ĐỂ SỬA (edit mode, khi chưa chọn goods nào) --- */}
                       {modalMode === 'edit' && !goodsForm.id && selectedInvoiceNo && (() => {
-                        const invGoods = goods.filter(g => g.invoice_no === selectedInvoiceNo)
+                        const invGoods = goods.filter(g => String(g.invoice_no) === String(selectedInvoiceNo))
                           .sort((a,b) => (a.goods_item||0)-(b.goods_item||0));
                         if (invGoods.length === 0) return (
                           <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-6 text-center">
@@ -4015,7 +4015,7 @@
                                   const idxQty2  = headers.findIndex(h => (h.includes('soluong') || h.includes('qty')) && h.includes('2'));
                                   const idxUnit2 = headers.findIndex(h => (h.includes('donvi') || h.includes('unit')) && h.includes('2'));
                                   const idxPrice = headers.findIndex(h => h.includes('dongia') || h.includes('unitprice') || h.includes('price'));
-                                  const currentInv = invoices.find(i => i.invoice_no === goodsForm.invoice_no);
+                                  const currentInv = invoices.find(i => String(i.invoice_no) === String(goodsForm.invoice_no));
                                   const targetDict = currentInv?.loai_hinh === 'E21' ? dictE21 : dictA12;
                                   let batch = [...goods];
                                   let count = 0, skipped = 0;
@@ -4070,7 +4070,7 @@
                             className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-amber-300 font-bold" />
                           <datalist id="goods-en-names-datalist">
                             {(() => {
-                              const currentInv = invoices.find(i => i.invoice_no === goodsForm.invoice_no);
+                              const currentInv = invoices.find(i => String(i.invoice_no) === String(goodsForm.invoice_no));
                               const targetDict = currentInv?.loai_hinh === 'E21' ? dictE21 : dictA12;
                               return targetDict.map((item, idx) => <option key={idx} value={item.goods_name_en}>{item.goods_no} — HS: {item.hs_code}</option>);
                             })()}
@@ -4652,8 +4652,11 @@
           {viewDetailLot && (() => {
             const lot = viewDetailLot;
             const lotInvoices = invoices.filter(i => i.lot_no === lot.lot_no);
-            const lotGoods    = goods.filter(g => lotInvoices.some(i => i.invoice_no === g.invoice_no));
+            const lotGoods    = goods.filter(g => lotInvoices.some(i => String(i.invoice_no) === String(g.invoice_no)));
             const totalVal    = lotInvoices.reduce((s, i) => s + getInvoiceValueSum(i), 0);
+            // Supplier: ưu tiên từ invoice của lô, fallback về lot.supplier
+            const displaySupplier = (lotInvoices.find(i => i.supplier && i.supplier.trim()) || {}).supplier
+                                     || lot.supplier || '';
 
             const Field = ({ label, value, mono = false, highlight = '' }) => (
               <div className="flex flex-col gap-0.5">
@@ -4694,7 +4697,7 @@
                         ? <span className="text-[10px] px-2.5 py-1 rounded-lg bg-emerald-950 border border-emerald-700 text-emerald-400 font-bold">✅ RECEIVED {fmtDisplayDate(lot.atc_date)}</span>
                         : <span className="text-[10px] px-2.5 py-1 rounded-lg bg-rose-950 border border-rose-700 text-rose-400 font-bold">⏳ PENDING ATC</span>
                       }
-                      <span className="text-[11px] text-slate-500">{lot.supplier}</span>
+                      <span className="text-[11px] text-slate-500">{displaySupplier}</span>
                     </div>
                     <button onClick={() => setViewDetailLot(null)}
                       className="text-slate-400 hover:text-white text-2xl leading-none ml-4 flex-shrink-0">✕</button>
@@ -4791,7 +4794,7 @@
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1.5 mb-3">🏭 Factory & Supplier</p>
                           <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                             <Field label="Factory Code" value={lot.factory_no} />
-                            <Field label="Supplier"     value={lot.supplier} />
+                            <Field label="Supplier"     value={displaySupplier} />
                             <Field label="Sale Qty"     value={lot.sale_qty ? Number(lot.sale_qty).toLocaleString() : null} />
                             <Field label="Shared Bill"  value={lot.is_hang_chung_bill ? 'Yes' : 'No'} />
                           </div>
