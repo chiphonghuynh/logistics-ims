@@ -1021,20 +1021,7 @@
         saveInvoicesToStorage(newInvoices);
         setSelectedLotNo(targetLotNo);
         setSelectedInvoiceNo(finalInvoice.invoice_no);
-        // Check invoice total vs goods total
-        const invGoods = goods.filter(g => String(g.invoice_no) === String(finalInvoice.invoice_no));
-        if (invGoods.length > 0) {
-          const goodsTotal = invGoods.reduce((s, g) => s + Number(g.sale_amount||0), 0);
-          const invTotal = Number(finalInvoice.total_amount)||0;
-          const diff = Math.abs(goodsTotal - invTotal);
-          if (diff > 0.01) {
-            showNotification(`⚠️ Trị giá Invoice (${invTotal.toFixed(2)}) ≠ Tổng hàng hóa (${goodsTotal.toFixed(2)}). Chênh lệch: ${diff.toFixed(2)}`, 'error');
-          } else {
-            showNotification(`Đã lưu Hóa đơn ${finalInvoice.invoice_no}`);
-          }
-        } else {
-          showNotification(`Đã lưu Hóa đơn ${finalInvoice.invoice_no}`);
-        }
+        showNotification(`✅ Đã lưu Hóa đơn ${finalInvoice.invoice_no}`);
       };
 
       const handleSaveGoods = (e) => {
