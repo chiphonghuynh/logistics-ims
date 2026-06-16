@@ -602,7 +602,150 @@
         const q = supplierSearch.toLowerCase();
         return (s['SUPPLIER NAME'] || '').toLowerCase().includes(q)
             || (s['ADDRESS'] || '').toLowerCase().includes(q);
-      }); 'https://script.google.com/macros/s/AKfycbwWEcKvLPR3QgXOhYL0EF0ayGZ5HeXQuZnyaNqtO7B8_68IgQlqtdIIFOdhwiT6adguIw/exec';
+      });
+
+      // ══════════════════════════════════════════════════════════════
+      // PAYMENT DATA — Phiếu Thanh Toán
+      // ══════════════════════════════════════════════════════════════
+      const [paymentData, setPaymentData]       = useState(null); // null=chưa load
+      const [paymentLoading, setPaymentLoading] = useState(false);
+      const [paymentSearch, setPaymentSearch]   = useState('');
+      const [paymentForm, setPaymentForm]       = useState(null);
+      const [paymentEditIdx, setPaymentEditIdx] = useState(null);
+      const [paymentCheckResult, setPaymentCheckResult] = useState(null); // kết quả kiểm tra triệt tiêu
+
+      // Parse NỘI DUNG → lấy danh sách bill_no liên quan
+      const parsePaymentContent = (noiDung) => {
+        if (!noiDung) return { bills: [], isPTU: false, isTrietTieu: false, rawBills: [] };
+        const s = String(noiDung).trim();
+        const isPTU = /^PTU\s+/i.test(s);
+        const isTrietTieu = /\(TRIỆT TIÊU\)/i.test(s);
+
+        // Bỏ prefix PTU / suffix (TRIỆT TIÊU)
+        let core = s
+          .replace(/^PTU\s+/i, '')
+          .replace(/\s*\(TRIỆT TIÊU\)\s*/i, '')
+          .trim();
+
+        // Dạng: XX [bill1, bill2, bill3] — nhiều bill trong ngoặc
+        const bracketMatch = core.match(/^(.+?)\s*\[(.+)\]$/);
+        let bills = [];
+        if (bracketMatch) {
+          bills = bracketMatch[2].split(',').map(b => b.trim()).filter(Boolean);
+        } else {
+          // Dạng: XX bill_no hoặc chỉ là bill_no
+          // Tách lấy phần cuối (sau khoảng trắng cuối cùng của prefix hãng)
+          // VD: "CH6KD-26" → ["CH6KD-26"], "CTL SZHCM25171484" → ["SZHCM25171484"]
+          // Nhưng lot_no dạng CH1KD-26 cũng là bill ref → giữ nguyên toàn bộ
+          // Heuristic: nếu có khoảng trắng → phần sau khoảng trắng cuối là bill
+          const parts = core.split(/\s+/);
+          bills = parts.length > 1 ? [parts[parts.length - 1]] : [core];
+        }
+        return { bills, isPTU, isTrietTieu, rawBills: bills };
+      };
+
+      // Lấy tất cả phiếu liên quan đến 1 bill_no hoặc lot_no
+      const getPaymentsForLot = (lotNo, billNo) => {
+        if (!paymentData) return [];
+        const refs = [lotNo, billNo].filter(Boolean).map(s => String(s).trim().toUpperCase());
+        return (paymentData || []).filter(p => {
+          const { bills } = parsePaymentContent(p['NỘI DUNG']);
+          return bills.some(b => refs.includes(String(b).trim().toUpperCase()));
+        });
+      };
+
+      // Kiểm tra phiếu PTU đã có phiếu triệt tiêu chưa
+      const checkTrietTieu = (payments) => {
+        const results = [];
+        payments.forEach((p, idx) => {
+          const parsed = parsePaymentContent(p['NỘI DUNG']);
+          if (!parsed.isPTU) return;
+          // Tìm phiếu triệt tiêu tương ứng
+          const soTien = Number(String(p['SỐ TIỀN']||'').replace(/[^0-9.-]/g,'')||0);
+          const trietTieuPhieu = payments.find((p2, i2) => {
+            if (i2 === idx) return false;
+            const p2parsed = parsePaymentContent(p2['NỘI DUNG']);
+            if (!p2parsed.isTrietTieu) return false;
+            const soTien2 = Number(String(p2['SỐ TIỀN']||'').replace(/[^0-9.-]/g,'')||0);
+            // Cùng bill refs + số tiền khớp
+            return p2parsed.bills.some(b => parsed.bills.includes(b)) && Math.abs(soTien2 - soTien) < 1;
+          });
+          results.push({ phieu: p, trietTieu: trietTieuPhieu || null });
+        });
+        return results;
+      };
+
+      const loadPayments = async () => {
+        if (!window.CY_API_URL) { showNotification('⚠️ Chưa kết nối Google Sheets.', 'error'); return; }
+        setPaymentLoading(true);
+        showNotification('🔄 Đang tải Payment Data...');
+        try {
+          const rows = await window.cyApiCall('getSheet', { sheet: 'Payment' });
+          setPaymentData(Array.isArray(rows) ? rows : []);
+          showNotification(`✅ Đã tải ${Array.isArray(rows) ? rows.length : 0} phiếu thanh toán`);
+        } catch(err) {
+          showNotification('❌ Lỗi tải Payment: ' + err.message, 'error');
+          setPaymentData([]);
+        } finally {
+          setPaymentLoading(false);
+        }
+      };
+
+      const savePayments = async (newData) => {
+        setPaymentData(newData);
+        if (!window.CY_API_URL) return;
+        try {
+          await window.cyApiCall('setSheet', { sheet: 'Payment', data: newData });
+          showNotification('✅ Đã lưu Payment lên Google Sheets!');
+        } catch(err) {
+          showNotification('❌ Lỗi lưu Payment: ' + err.message, 'error');
+        }
+      };
+
+      const handleSavePaymentForm = () => {
+        if (!paymentForm['SỐ PTT'] || !paymentForm['SỐ TIỀN']) {
+          showNotification('⚠️ Vui lòng nhập Số PTT và Số Tiền!', 'error'); return;
+        }
+        const newData = [...(paymentData || [])];
+        if (paymentEditIdx !== null) {
+          newData[paymentEditIdx] = { ...paymentForm };
+        } else {
+          if (newData.some(p => (p['SỐ PTT']||'').trim() === (paymentForm['SỐ PTT']||'').trim())) {
+            return showNotification(`⚠️ Số PTT "${paymentForm['SỐ PTT']}" đã tồn tại!`, 'error');
+          }
+          newData.push({ ...paymentForm });
+        }
+        savePayments(newData);
+        setPaymentForm(null);
+        setPaymentEditIdx(null);
+      };
+
+      const handleDeletePayment = (idx) => {
+        setConfirmState({
+          isOpen: true,
+          title: '⚠️ Xóa Phiếu Thanh Toán',
+          message: `Xóa phiếu "${(paymentData[idx]||{})['SỐ PTT']}"? Thao tác không thể hoàn tác.`,
+          onConfirm: () => {
+            const newData = (paymentData || []).filter((_, i) => i !== idx);
+            savePayments(newData);
+            setConfirmState(prev => ({ ...prev, isOpen: false }));
+          },
+          confirmLabel: 'Xóa', cancelLabel: 'Hủy',
+        });
+      };
+
+      const filteredPayments = (paymentData || []).filter(p => {
+        if (!paymentSearch.trim()) return true;
+        const q = paymentSearch.toLowerCase();
+        return (p['SỐ PTT'] || '').toLowerCase().includes(q)
+            || (p['NỘI DUNG'] || '').toLowerCase().includes(q)
+            || (p['NGÀY'] || '').toLowerCase().includes(q);
+      });
+
+      const fmtVND = (v) => {
+        const n = Number(String(v||'').replace(/[^0-9.-]/g,''));
+        return isNaN(n) ? (v||'—') : n.toLocaleString('vi-VN') + ' đ';
+      };
 
       const handleCreateContract = () => {
         if (!selectedLotNo) return showNotification('Please select a lot first.', 'error');
@@ -2039,6 +2182,13 @@
                       >
                         <span>🏢</span> Supplier Data
                       </button>
+                      <button
+                        onClick={() => { setActiveMenu('PAYMENT_DATA'); setPaymentSearch(''); setPaymentCheckResult(null); }}
+                        className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
+                          ${activeMenu === 'PAYMENT_DATA' ? 'bg-amber-600/20 text-amber-400 font-bold border border-amber-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                      >
+                        <span>💳</span> Payment Data
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2132,6 +2282,7 @@
                 {activeMenu === 'DASHBOARD' && '📊 DASHBOARD'}
                 {activeMenu === 'DATABASE_VIEW' && '🏷 MASTER DATA — HS CODE CATEGORY'}
                 {activeMenu === 'SUPPLIER_DATA' && '🏢 MASTER DATA — SUPPLIER DATA'}
+                {activeMenu === 'PAYMENT_DATA' && '💳 MASTER DATA — PAYMENT DATA'}
                 {activeMenu === 'E010' && '📦 OPERATIONS — SHIPMENT PROFILES'}
                 {activeMenu === 'NO_ATC' && '⏳ OPERATIONS — PENDING STORAGE'}
                 {activeMenu === 'ETA_MGMT' && '🛬 OPERATIONS — NHẬP ETA HÀNG ĐẾN'}
@@ -3031,6 +3182,220 @@
                             );
                           })}
                         </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* --- PAYMENT DATA --- */}
+              {activeMenu === 'PAYMENT_DATA' && (
+                <div className="space-y-4">
+                  {/* Toolbar */}
+                  <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-5 py-3">
+                    <div>
+                      <h3 className="text-sm font-black text-amber-400 uppercase tracking-wide">💳 Payment Data</h3>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        {paymentData === null
+                          ? 'Nhấn "Load" để tải dữ liệu từ Google Sheets (sheet: Payment)'
+                          : `${filteredPayments.length} / ${paymentData.length} phiếu`}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <button onClick={loadPayments} disabled={paymentLoading}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white transition-all ${paymentLoading ? 'bg-slate-600 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                        {paymentLoading ? <span className="animate-spin inline-block">⟳</span> : '🔄'}
+                        {paymentLoading ? ' Loading...' : ' Load / Refresh'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          const ptuList = checkTrietTieu(filteredPayments);
+                          setPaymentCheckResult(ptuList);
+                          showNotification(`🔍 Tìm thấy ${ptuList.length} phiếu PTU, kiểm tra xong.`);
+                        }}
+                        disabled={!paymentData || paymentData.length === 0}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition-all disabled:opacity-40">
+                        🔍 Kiểm Tra Triệt Tiêu
+                      </button>
+                      <button onClick={() => { setPaymentForm({ 'NGÀY': new Date().toISOString().slice(0,10), 'SỐ PTT': '', 'SỐ TIỀN': '', 'NỘI DUNG': '', 'NGÀY ĐƯA KẾ TOÁN': '' }); setPaymentEditIdx(null); }}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all">
+                        ➕ Thêm Phiếu
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Kết quả kiểm tra triệt tiêu */}
+                  {paymentCheckResult !== null && (
+                    <div className="bg-slate-900 border border-amber-800/40 rounded-xl p-4 space-y-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-black text-amber-400 uppercase tracking-wide">🔍 Kết Quả Kiểm Tra Triệt Tiêu ({paymentCheckResult.length} phiếu PTU)</p>
+                        <button onClick={() => setPaymentCheckResult(null)} className="text-slate-500 hover:text-white text-xs">✕ Đóng</button>
+                      </div>
+                      {paymentCheckResult.length === 0
+                        ? <p className="text-slate-500 italic text-xs">Không có phiếu tạm ứng (PTU) nào trong danh sách hiện tại.</p>
+                        : paymentCheckResult.map((item, i) => {
+                            const parsed = parsePaymentContent(item.phieu['NỘI DUNG']);
+                            const soTien = Number(String(item.phieu['SỐ TIỀN']||'').replace(/[^0-9.-]/g,''));
+                            return (
+                              <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border text-xs ${item.trietTieu ? 'bg-emerald-950/30 border-emerald-800/40' : 'bg-rose-950/30 border-rose-800/40'}`}>
+                                <span className="text-lg shrink-0">{item.trietTieu ? '✅' : '⚠️'}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono font-bold text-amber-300">{item.phieu['SỐ PTT']}</span>
+                                    <span className="text-slate-400">{item.phieu['NGÀY']}</span>
+                                    <span className="font-bold text-white">{fmtVND(soTien)}</span>
+                                  </div>
+                                  <p className="text-slate-400 mt-0.5 truncate">{item.phieu['NỘI DUNG']}</p>
+                                  {item.trietTieu
+                                    ? <p className="text-emerald-400 mt-1">→ Đã triệt tiêu bởi phiếu <span className="font-mono font-bold">{item.trietTieu['SỐ PTT']}</span> ngày {item.trietTieu['NGÀY']}</p>
+                                    : <p className="text-rose-400 mt-1 font-bold">→ CHƯA có phiếu triệt tiêu!</p>
+                                  }
+                                </div>
+                              </div>
+                            );
+                          })
+                      }
+                    </div>
+                  )}
+
+                  {/* Search */}
+                  {paymentData !== null && (
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
+                      <input type="text"
+                        placeholder={`Tìm theo số PTT, nội dung, ngày trong ${(paymentData||[]).length} phiếu...`}
+                        value={paymentSearch}
+                        onChange={e => setPaymentSearch(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pl-9 pr-10 text-xs text-white focus:outline-none focus:border-amber-500 transition-colors"
+                      />
+                      {paymentSearch && (
+                        <button onClick={() => setPaymentSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs bg-slate-800 rounded px-1.5 py-0.5">✕</button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Form thêm/sửa */}
+                  {paymentForm !== null && (
+                    <div className="bg-slate-900 border border-amber-800/50 rounded-xl p-5 space-y-3">
+                      <h4 className="text-sm font-bold text-amber-300">{paymentEditIdx !== null ? '✏️ Sửa Phiếu Thanh Toán' : '➕ Thêm Phiếu Mới'}</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { key: 'NGÀY', label: 'Ngày', type: 'date', req: true },
+                          { key: 'SỐ PTT', label: 'Số PTT', type: 'text', req: true },
+                          { key: 'SỐ TIỀN', label: 'Số Tiền (VNĐ)', type: 'number', req: true },
+                          { key: 'NGÀY ĐƯA KẾ TOÁN', label: 'Ngày Đưa Kế Toán', type: 'date', req: false },
+                        ].map(f => (
+                          <div key={f.key}>
+                            <label className="block text-[11px] text-slate-400 mb-1">{f.label}{f.req && <span className="text-rose-400 ml-1">*</span>}</label>
+                            <input type={f.type}
+                              value={paymentForm[f.key] || ''}
+                              onChange={e => setPaymentForm(p => ({ ...p, [f.key]: e.target.value }))}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-slate-400 mb-1">Nội Dung <span className="text-rose-400">*</span></label>
+                        <input type="text"
+                          placeholder="VD: CH6KD-26  hoặc  PTU YM YMJAZ567057926  hoặc  WH [002FA08290, 002FA08586]"
+                          value={paymentForm['NỘI DUNG'] || ''}
+                          onChange={e => setPaymentForm(p => ({ ...p, 'NỘI DUNG': e.target.value }))}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                        />
+                        {paymentForm['NỘI DUNG'] && (() => {
+                          const parsed = parsePaymentContent(paymentForm['NỘI DUNG']);
+                          return (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
+                              {parsed.isPTU && <span className="bg-orange-900/50 text-orange-300 text-[10px] px-2 py-0.5 rounded-full font-bold border border-orange-800">TẠM ỨNG</span>}
+                              {parsed.isTrietTieu && <span className="bg-blue-900/50 text-blue-300 text-[10px] px-2 py-0.5 rounded-full font-bold border border-blue-800">TRIỆT TIÊU</span>}
+                              {parsed.bills.map(b => <span key={b} className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-mono border border-slate-700">{b}</span>)}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={handleSavePaymentForm} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-5 py-2 rounded-lg text-xs">💾 Lưu</button>
+                        <button onClick={() => { setPaymentForm(null); setPaymentEditIdx(null); }} className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold px-4 py-2 rounded-lg text-xs">Hủy</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Empty states */}
+                  {paymentData === null && !paymentLoading && (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+                      <div className="text-5xl mb-4 opacity-20">💳</div>
+                      <p className="text-slate-400 font-bold text-sm">Chưa có dữ liệu</p>
+                      <p className="text-slate-600 text-xs mt-1">Nhấn "🔄 Load / Refresh" để đọc từ sheet "Payment" trên Google Sheets</p>
+                    </div>
+                  )}
+                  {paymentLoading && (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
+                      <p className="text-amber-400 font-bold animate-pulse">⏳ Đang tải phiếu thanh toán...</p>
+                    </div>
+                  )}
+
+                  {/* Table */}
+                  {paymentData !== null && !paymentLoading && (
+                    <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800 text-[10px]">
+                            <th className="p-3 w-8 text-center">#</th>
+                            <th className="p-3">Ngày</th>
+                            <th className="p-3">Số PTT</th>
+                            <th className="p-3 text-right">Số Tiền</th>
+                            <th className="p-3">Nội Dung</th>
+                            <th className="p-3">Ngày KT</th>
+                            <th className="p-3 text-center w-20">Thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-900">
+                          {filteredPayments.length === 0 ? (
+                            <tr><td colSpan="7" className="p-10 text-center text-slate-500">
+                              {paymentSearch ? `Không tìm thấy phiếu nào khớp "${paymentSearch}"` : 'Chưa có phiếu thanh toán.'}
+                            </td></tr>
+                          ) : filteredPayments.map((p, idx) => {
+                            const realIdx = (paymentData||[]).indexOf(p);
+                            const parsed = parsePaymentContent(p['NỘI DUNG']);
+                            const rowBg = parsed.isPTU
+                              ? 'bg-orange-950/20 hover:bg-orange-950/40'
+                              : parsed.isTrietTieu
+                              ? 'bg-blue-950/20 hover:bg-blue-950/40'
+                              : 'hover:bg-slate-900/60';
+                            return (
+                              <tr key={idx} className={`text-slate-300 transition-colors ${rowBg}`}>
+                                <td className="p-3 text-center text-slate-500 font-mono text-[10px]">{idx+1}</td>
+                                <td className="p-3 font-mono text-slate-400 whitespace-nowrap">{p['NGÀY']}</td>
+                                <td className="p-3 font-mono font-bold text-amber-300 whitespace-nowrap">{p['SỐ PTT']}</td>
+                                <td className="p-3 font-mono text-right font-bold text-emerald-400 whitespace-nowrap">{fmtVND(p['SỐ TIỀN'])}</td>
+                                <td className="p-3 max-w-xs">
+                                  <div className="flex flex-wrap gap-1 items-center">
+                                    {parsed.isPTU && <span className="bg-orange-900/60 text-orange-300 text-[9px] px-1.5 py-0.5 rounded font-bold shrink-0">PTU</span>}
+                                    {parsed.isTrietTieu && <span className="bg-blue-900/60 text-blue-300 text-[9px] px-1.5 py-0.5 rounded font-bold shrink-0">TRIỆT TIÊU</span>}
+                                    <span className="truncate">{p['NỘI DUNG']}</span>
+                                  </div>
+                                </td>
+                                <td className="p-3 font-mono text-slate-500 whitespace-nowrap text-[10px]">{p['NGÀY ĐƯA KẾ TOÁN'] || '—'}</td>
+                                <td className="p-3 text-center space-x-2" onClick={e => e.stopPropagation()}>
+                                  <button onClick={() => { setPaymentForm({...p}); setPaymentEditIdx(realIdx); }} className="text-blue-400 hover:underline text-[11px]">Sửa</button>
+                                  <button onClick={() => handleDeletePayment(realIdx)} className="text-rose-500 hover:underline text-[11px]">Xóa</button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-slate-700 bg-slate-950">
+                            <td colSpan="3" className="p-3 text-[10px] text-slate-500 font-bold uppercase">
+                              Tổng {filteredPayments.length} phiếu
+                            </td>
+                            <td className="p-3 text-right font-mono font-black text-emerald-300 text-xs">
+                              {fmtVND(filteredPayments.reduce((s,p) => s + Number(String(p['SỐ TIỀN']||'').replace(/[^0-9.-]/g,'')||0), 0))}
+                            </td>
+                            <td colSpan="3"></td>
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
                   )}
@@ -5162,6 +5527,68 @@
                             </div>
                           </div>
                         )}
+
+                        {/* Payment Vouchers — lấy từ paymentData */}
+                        {(() => {
+                          const lotPayments = getPaymentsForLot(lot.lot_no, lot.bill_no);
+                          const ptuChecks = checkTrietTieu(lotPayments);
+                          const totalPaid = lotPayments.reduce((s,p) => s + Number(String(p['SỐ TIỀN']||'').replace(/[^0-9.-]/g,'')||0), 0);
+                          const pendingPTU = ptuChecks.filter(r => !r.trietTieu).length;
+                          return (
+                            <div>
+                              <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-3">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">💳 Phiếu Thanh Toán ({lotPayments.length})</p>
+                                {pendingPTU > 0 && (
+                                  <span className="bg-orange-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold">{pendingPTU} PTU chưa triệt tiêu</span>
+                                )}
+                              </div>
+                              {paymentData === null ? (
+                                <p className="text-slate-600 italic text-[11px]">Chưa tải Payment Data. Vào <span className="text-amber-400 font-bold">💳 Payment Data</span> để Load.</p>
+                              ) : lotPayments.length === 0 ? (
+                                <p className="text-slate-600 italic text-[11px]">Chưa có phiếu thanh toán cho lô này.</p>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  {lotPayments.map((p, i) => {
+                                    const parsed = parsePaymentContent(p['NỘI DUNG']);
+                                    const ptuCheck = ptuChecks.find(r => r.phieu === p);
+                                    const soTien = Number(String(p['SỐ TIỀN']||'').replace(/[^0-9.-]/g,'')||0);
+                                    return (
+                                      <div key={i} className={`rounded-lg px-3 py-2 border text-[11px] ${
+                                        parsed.isPTU && ptuCheck && !ptuCheck.trietTieu
+                                          ? 'bg-orange-950/30 border-orange-800/40'
+                                          : parsed.isPTU && ptuCheck && ptuCheck.trietTieu
+                                          ? 'bg-slate-800/40 border-slate-700/40 opacity-60'
+                                          : parsed.isTrietTieu
+                                          ? 'bg-blue-950/20 border-blue-800/30'
+                                          : 'bg-slate-800/30 border-slate-700/30'
+                                      }`}>
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            {parsed.isPTU && <span className="bg-orange-800/60 text-orange-300 text-[9px] px-1.5 py-0.5 rounded font-bold">PTU</span>}
+                                            {parsed.isTrietTieu && <span className="bg-blue-800/60 text-blue-300 text-[9px] px-1.5 py-0.5 rounded font-bold">TRIỆT TIÊU</span>}
+                                            <span className="font-mono font-bold text-amber-300">{p['SỐ PTT']}</span>
+                                            <span className="text-slate-500">{p['NGÀY']}</span>
+                                          </div>
+                                          <span className="font-mono font-bold text-emerald-400 whitespace-nowrap">{fmtVND(soTien)}</span>
+                                        </div>
+                                        {parsed.isPTU && ptuCheck && !ptuCheck.trietTieu && (
+                                          <p className="text-orange-400 text-[10px] mt-0.5 font-bold">⚠ Chưa có phiếu triệt tiêu!</p>
+                                        )}
+                                        {parsed.isPTU && ptuCheck && ptuCheck.trietTieu && (
+                                          <p className="text-slate-500 text-[10px] mt-0.5">✓ Triệt tiêu: {ptuCheck.trietTieu['SỐ PTT']}</p>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                  <div className="flex justify-between items-center pt-1.5 border-t border-slate-800 mt-2">
+                                    <span className="text-[10px] text-slate-500 uppercase font-bold">Tổng thanh toán</span>
+                                    <span className="font-mono font-black text-emerald-300 text-xs">{fmtVND(totalPaid)}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* RIGHT COLUMN — Invoices & Goods */}
