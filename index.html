@@ -680,7 +680,7 @@
         setPaymentLoading(true);
         showNotification('🔄 Đang tải Payment Data...');
         try {
-          const rows = await window.cyApiCall('getSheet', { sheet: 'Payment' });
+          const rows = await window.cyApiCall('getSheet', { sheet: 'payment' });
           setPaymentData(Array.isArray(rows) ? rows : []);
           showNotification(`✅ Đã tải ${Array.isArray(rows) ? rows.length : 0} phiếu thanh toán`);
         } catch(err) {
@@ -695,7 +695,7 @@
         setPaymentData(newData);
         if (!window.CY_API_URL) return;
         try {
-          await window.cyApiCall('setSheet', { sheet: 'Payment', data: newData });
+          await window.cyApiCall('setSheet', { sheet: 'payment', data: newData });
           showNotification('✅ Đã lưu Payment lên Google Sheets!');
         } catch(err) {
           showNotification('❌ Lỗi lưu Payment: ' + err.message, 'error');
