@@ -460,8 +460,90 @@
         showNotification(`✅ Exported ${listHangData.length} rows to Excel`);
       };
 
-      // URL của Contract Web App (Google Apps Script)
-      const CONTRACT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwmYc0VK593yuF4ALnYQ-mPPmq7FfGDSslbM2tzg6WdDRWOeWZWFAUwo7fJH4byrPTo/exec';
+      // ── SUPPLIER DATA ────────────────────────────────────────
+      const [supplierData, setSupplierData]       = useState(null); // null=chưa load
+      const [supplierLoading, setSupplierLoading] = useState(false);
+      const [supplierSearch, setSupplierSearch]   = useState('');
+      const [supplierForm, setSupplierForm]       = useState(null); // null=ẩn form, object=thêm/sửa
+      const [supplierEditIdx, setSupplierEditIdx] = useState(null); // null=thêm mới, idx=sửa
+
+      const SUPPLIER_FIELDS = [
+        { key: 'SUPPLIER NAME', label: 'Tên Supplier', required: true },
+        { key: 'ADDRESS',       label: 'Địa chỉ',      required: false },
+        { key: 'SIGNATURE IMAGE ID', label: 'Link ảnh chữ ký/mộc', required: false },
+      ];
+
+      const loadSuppliers = async () => {
+        if (!window.CY_API_URL) { showNotification('⚠️ Chưa kết nối Google Sheets.', 'error'); return; }
+        setSupplierLoading(true);
+        showNotification('🔄 Đang tải Supplier Data...');
+        try {
+          const rows = await window.cyApiCall('getSuppliers', {});
+          setSupplierData(Array.isArray(rows) ? rows : []);
+          showNotification(`✅ Đã tải ${Array.isArray(rows) ? rows.length : 0} supplier`);
+        } catch(err) {
+          showNotification('❌ Lỗi tải Supplier Data: ' + err.message, 'error');
+          setSupplierData([]);
+        } finally {
+          setSupplierLoading(false);
+        }
+      };
+
+      const saveSuppliers = async (newData) => {
+        setSupplierData(newData);
+        if (!window.CY_API_URL) return;
+        try {
+          await window.cyApiCall('setSuppliers', { data: newData });
+          showNotification('✅ Đã lưu Supplier Data lên Google Sheets!');
+        } catch(err) {
+          showNotification('❌ Lỗi lưu Supplier: ' + err.message, 'error');
+        }
+      };
+
+      const handleOpenAddSupplier = () => {
+        setSupplierForm({ 'SUPPLIER NAME': '', 'ADDRESS': '', 'SIGNATURE IMAGE ID': '' });
+        setSupplierEditIdx(null);
+      };
+
+      const handleOpenEditSupplier = (idx) => {
+        setSupplierForm({ ...(supplierData[idx]) });
+        setSupplierEditIdx(idx);
+      };
+
+      const handleSaveSupplierForm = () => {
+        const name = (supplierForm['SUPPLIER NAME'] || '').trim();
+        if (!name) { showNotification('⚠️ Vui lòng nhập tên Supplier!', 'error'); return; }
+        const newData = [...(supplierData || [])];
+        if (supplierEditIdx !== null) {
+          newData[supplierEditIdx] = { ...supplierForm, 'SUPPLIER NAME': name };
+        } else {
+          newData.push({ ...supplierForm, 'SUPPLIER NAME': name });
+        }
+        saveSuppliers(newData);
+        setSupplierForm(null);
+        setSupplierEditIdx(null);
+      };
+
+      const handleDeleteSupplier = (idx) => {
+        setConfirmState({
+          isOpen: true,
+          title: '⚠️ Xóa Supplier',
+          message: `Bạn có chắc muốn xóa supplier "${(supplierData[idx] || {})['SUPPLIER NAME']}"? Thao tác không thể hoàn tác.`,
+          onConfirm: () => {
+            const newData = (supplierData || []).filter((_, i) => i !== idx);
+            saveSuppliers(newData);
+          },
+          confirmLabel: 'Xóa',
+          cancelLabel: 'Hủy',
+        });
+      };
+
+      const filteredSuppliers = (supplierData || []).filter(s => {
+        if (!supplierSearch.trim()) return true;
+        const q = supplierSearch.toLowerCase();
+        return (s['SUPPLIER NAME'] || '').toLowerCase().includes(q)
+            || (s['ADDRESS'] || '').toLowerCase().includes(q);
+      }); 'https://script.google.com/macros/s/AKfycbwWEcKvLPR3QgXOhYL0EF0ayGZ5HeXQuZnyaNqtO7B8_68IgQlqtdIIFOdhwiT6adguIw/exec';
 
       const handleCreateContract = () => {
         if (!selectedLotNo) return showNotification('Please select a lot first.', 'error');
@@ -1867,6 +1949,13 @@
                       >
                         <span>🏷</span> HS Code Category
                       </button>
+                      <button
+                        onClick={() => { setActiveMenu('SUPPLIER_DATA'); setSupplierSearch(''); }}
+                        className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
+                          ${activeMenu === 'SUPPLIER_DATA' ? 'bg-violet-600/20 text-violet-400 font-bold border border-violet-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                      >
+                        <span>🏢</span> Supplier Data
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1951,6 +2040,7 @@
               <h2 className="text-xs font-bold tracking-widest text-slate-300 uppercase">
                 {activeMenu === 'DASHBOARD' && '📊 DASHBOARD'}
                 {activeMenu === 'DATABASE_VIEW' && '🏷 MASTER DATA — HS CODE CATEGORY'}
+                {activeMenu === 'SUPPLIER_DATA' && '🏢 MASTER DATA — SUPPLIER DATA'}
                 {activeMenu === 'E010' && '📦 OPERATIONS — SHIPMENT PROFILES'}
                 {activeMenu === 'NO_ATC' && '⏳ OPERATIONS — PENDING STORAGE'}
                 {activeMenu === 'ETA_MGMT' && '🛬 OPERATIONS — NHẬP ETA HÀNG ĐẾN'}
@@ -2682,6 +2772,169 @@
                       })()}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* --- SUPPLIER DATA VIEW --- */}
+              {activeMenu === 'SUPPLIER_DATA' && (
+                <div className="space-y-4">
+                  {/* Toolbar */}
+                  <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-5 py-3">
+                    <div>
+                      <h3 className="text-sm font-black text-violet-400 uppercase tracking-wide">🏢 Supplier Data</h3>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        {supplierData === null
+                          ? 'Nhấn "Load" để tải dữ liệu từ Google Sheets'
+                          : `${filteredSuppliers.length} / ${supplierData.length} supplier`}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <button onClick={loadSuppliers} disabled={supplierLoading}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white transition-all ${supplierLoading ? 'bg-slate-600 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                        {supplierLoading ? <span className="animate-spin inline-block">⟳</span> : '🔄'}
+                        {supplierLoading ? ' Loading...' : ' Load / Refresh'}
+                      </button>
+                      {supplierData !== null && (
+                        <button onClick={handleOpenAddSupplier}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 transition-all">
+                          ➕ Thêm Supplier
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Search */}
+                  {supplierData !== null && (
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
+                      <input type="text"
+                        placeholder={`Tìm theo tên hoặc địa chỉ trong ${supplierData.length} supplier...`}
+                        value={supplierSearch}
+                        onChange={e => setSupplierSearch(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pl-9 pr-10 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
+                      />
+                      {supplierSearch && (
+                        <button onClick={() => setSupplierSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs bg-slate-800 rounded px-1.5 py-0.5">✕</button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Form thêm/sửa */}
+                  {supplierForm !== null && (
+                    <div className="bg-slate-900 border border-violet-800/50 rounded-xl p-5 space-y-3">
+                      <h4 className="text-sm font-bold text-violet-300">{supplierEditIdx !== null ? '✏️ Sửa Supplier' : '➕ Thêm Supplier mới'}</h4>
+                      {SUPPLIER_FIELDS.map(f => (
+                        <div key={f.key}>
+                          <label className="block text-[11px] text-slate-400 mb-1">{f.label}{f.required && <span className="text-rose-400 ml-1">*</span>}</label>
+                          {f.key === 'ADDRESS' ? (
+                            <textarea rows={2}
+                              value={supplierForm[f.key] || ''}
+                              onChange={e => setSupplierForm(p => ({ ...p, [f.key]: e.target.value }))}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-violet-500 resize-none"
+                            />
+                          ) : f.key === 'SIGNATURE IMAGE ID' ? (
+                            <div className="space-y-1.5">
+                              <input type="text"
+                                placeholder="Dán link ảnh (Google Drive/URL công khai)..."
+                                value={supplierForm[f.key] || ''}
+                                onChange={e => setSupplierForm(p => ({ ...p, [f.key]: e.target.value }))}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-violet-500"
+                              />
+                              {supplierForm[f.key] && (
+                                <img
+                                  src={supplierForm[f.key]}
+                                  alt="Preview chữ ký"
+                                  className="h-16 object-contain border border-slate-700 rounded bg-white/5 p-1"
+                                  onError={e => { e.target.style.display='none'; }}
+                                />
+                              )}
+                            </div>
+                          ) : (
+                            <input type="text"
+                              value={supplierForm[f.key] || ''}
+                              onChange={e => setSupplierForm(p => ({ ...p, [f.key]: e.target.value }))}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-violet-500"
+                            />
+                          )}
+                        </div>
+                      ))}
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={handleSaveSupplierForm}
+                          className="bg-violet-600 hover:bg-violet-700 text-white font-bold px-5 py-2 rounded-lg text-xs transition-colors">
+                          💾 Lưu
+                        </button>
+                        <button onClick={() => { setSupplierForm(null); setSupplierEditIdx(null); }}
+                          className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold px-4 py-2 rounded-lg text-xs transition-colors">
+                          Hủy
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Chưa load */}
+                  {supplierData === null && !supplierLoading && (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+                      <div className="text-5xl mb-4 opacity-20">🏢</div>
+                      <p className="text-slate-400 font-bold text-sm">Chưa có dữ liệu</p>
+                      <p className="text-slate-600 text-xs mt-1">Nhấn "🔄 Load / Refresh" để đọc từ Google Sheets</p>
+                    </div>
+                  )}
+
+                  {/* Loading */}
+                  {supplierLoading && (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
+                      <p className="text-violet-400 font-bold animate-pulse">⏳ Đang tải dữ liệu supplier...</p>
+                    </div>
+                  )}
+
+                  {/* Table */}
+                  {supplierData !== null && !supplierLoading && (
+                    <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                            <th className="p-3 text-center w-10">STT</th>
+                            <th className="p-3">Tên Supplier</th>
+                            <th className="p-3">Địa chỉ</th>
+                            <th className="p-3 text-center">Chữ ký/Mộc</th>
+                            <th className="p-3 text-center w-24">Thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-900">
+                          {filteredSuppliers.length === 0 ? (
+                            <tr>
+                              <td colSpan="5" className="p-10 text-center text-slate-500">
+                                {supplierSearch ? `Không tìm thấy supplier nào khớp với "${supplierSearch}"` : 'Chưa có dữ liệu supplier. Nhấn ➕ Thêm để bắt đầu.'}
+                              </td>
+                            </tr>
+                          ) : filteredSuppliers.map((s, idx) => {
+                            const realIdx = (supplierData || []).indexOf(s);
+                            return (
+                              <tr key={idx} className="hover:bg-slate-900/60 text-slate-300 transition-colors">
+                                <td className="p-3 text-center text-slate-500 font-mono">{idx + 1}</td>
+                                <td className="p-3 font-bold text-violet-300">{s['SUPPLIER NAME']}</td>
+                                <td className="p-3 text-slate-400 text-[11px] leading-relaxed">{s['ADDRESS'] || <span className="italic text-slate-600">—</span>}</td>
+                                <td className="p-3 text-center">
+                                  {s['SIGNATURE IMAGE ID'] ? (
+                                    <img
+                                      src={s['SIGNATURE IMAGE ID']}
+                                      alt="sig"
+                                      className="h-10 mx-auto object-contain border border-slate-700 rounded bg-white/5 p-0.5"
+                                      onError={e => { e.target.replaceWith(Object.assign(document.createElement('span'), { textContent: '⚠️ Lỗi ảnh', className: 'text-rose-400 text-[10px]' })); }}
+                                    />
+                                  ) : <span className="text-slate-600 italic text-[10px]">—</span>}
+                                </td>
+                                <td className="p-3 text-center space-x-2" onClick={e => e.stopPropagation()}>
+                                  <button onClick={() => handleOpenEditSupplier(realIdx)} className="text-blue-400 hover:underline">Sửa</button>
+                                  <button onClick={() => handleDeleteSupplier(realIdx)} className="text-rose-500 hover:underline">Xóa</button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
 
