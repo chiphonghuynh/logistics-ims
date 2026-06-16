@@ -534,10 +534,14 @@
       const handleSaveSupplierForm = () => {
         const name = (supplierForm['SUPPLIER NAME'] || '').trim();
         if (!name) { showNotification('⚠️ Vui lòng nhập tên Supplier!', 'error'); return; }
-        const newData = [...(supplierData || [])];
+        const newData = [...(supplierData || [])];  // nếu chưa load → bắt đầu từ []
         if (supplierEditIdx !== null) {
           newData[supplierEditIdx] = { ...supplierForm, 'SUPPLIER NAME': name };
         } else {
+          // Kiểm tra trùng tên
+          if (newData.some(s => (s['SUPPLIER NAME']||'').trim().toLowerCase() === name.toLowerCase())) {
+            return showNotification(`⚠️ Supplier "${name}" đã tồn tại!`, 'error');
+          }
           newData.push({ ...supplierForm, 'SUPPLIER NAME': name });
         }
         saveSuppliers(newData);
@@ -967,8 +971,37 @@
           contract_start: normalizeDate(invoiceForm.contract_start),
           contract_end: normalizeDate(invoiceForm.contract_end),
         };
-        if (finalInvoice.supplier) addSupplierHistory(finalInvoice.supplier.trim());
 
+        // ── Kiểm tra tiền hoá đơn khớp tổng hàng + phí ──────────────────────
+        // Chỉ kiểm tra khi đã có goods (tránh block khi mới tạo invoice chưa có hàng)
+        const invGoods = goods.filter(g => String(g.invoice_no) === String(finalInvoice.invoice_no));
+        if (invGoods.length > 0 && finalInvoice.total_amount > 0) {
+          const goodsTotal   = invGoods.reduce((s, g) => s + (Number(g.sale_amount) || 0), 0);
+          const expectedTotal = goodsTotal
+            + (Number(finalInvoice.plus_sea_freight)  || 0)
+            + (Number(finalInvoice.handling_charges)  || 0)
+            + (Number(finalInvoice.other_charges)     || 0)
+            - (Number(finalInvoice.foc_amount)        || 0);
+          const diff = Math.abs(finalInvoice.total_amount - expectedTotal);
+          if (diff > 0.01) { // cho phép sai số tối đa $0.01 do làm tròn
+            const proceed = window.confirm(
+              `⚠️ Tiền hoá đơn KHÔNG KHỚP!\n\n` +
+              `Tổng tiền hàng:  ${goodsTotal.toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
+              `+ Phí biển:       ${(Number(finalInvoice.plus_sea_freight)||0).toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
+              `+ Handling:       ${(Number(finalInvoice.handling_charges)||0).toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
+              `+ Phí khác:       ${(Number(finalInvoice.other_charges)||0).toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
+              `- FOC:            ${(Number(finalInvoice.foc_amount)||0).toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
+              `──────────────────────────────\n` +
+              `= Kỳ vọng:        ${expectedTotal.toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
+              `≠ Đã nhập:        ${finalInvoice.total_amount.toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
+              `Chênh lệch:      ${diff.toLocaleString('en-US', {minimumFractionDigits:2})} USD\n\n` +
+              `Nhấn OK để lưu anyway, Cancel để sửa lại.`
+            );
+            if (!proceed) return;
+          }
+        }
+
+        if (finalInvoice.supplier) addSupplierHistory(finalInvoice.supplier.trim());
         let newInvoices = [];
         if (modalMode === 'add') {
           if (invoices.some(i => String(i.invoice_no||'').toLowerCase() === String(invoiceForm.invoice_no||'').trim().toLowerCase())) {
@@ -2815,12 +2848,10 @@
                         {supplierLoading ? <span className="animate-spin inline-block">⟳</span> : '🔄'}
                         {supplierLoading ? ' Loading...' : ' Load / Refresh'}
                       </button>
-                      {supplierData !== null && (
-                        <button onClick={handleOpenAddSupplier}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 transition-all">
-                          ➕ Thêm Supplier
-                        </button>
-                      )}
+                      <button onClick={handleOpenAddSupplier}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 transition-all">
+                        ➕ Thêm Supplier
+                      </button>
                     </div>
                   </div>
 
