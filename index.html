@@ -72,6 +72,27 @@
       @media print {
         .no-print { display: none !important; }
       }
+
+      /* ── CONTRAST BOOST: tăng độ tương phản chữ trên nền tối ── */
+      /* text-slate-400 (xám nhạt, khó đọc) → sáng hơn */
+      .text-slate-400 { color: #cbd5e1 !important; }   /* slate-300 */
+      /* text-slate-500 (placeholder/mô tả phụ) → dễ đọc hơn */
+      .text-slate-500 { color: #94a3b8 !important; }   /* slate-400 */
+      /* text-slate-600 (rất mờ, chỉ dùng cho hint) → tăng nhẹ */
+      .text-slate-600 { color: #64748b !important; }   /* slate-500 */
+      /* text-slate-300 (body text chính) → trắng hơn */
+      .text-slate-300 { color: #f1f5f9 !important; }   /* slate-100 */
+      /* text-slate-200 → trắng */
+      .text-slate-200 { color: #f8fafc !important; }   /* slate-50 */
+      /* Các màu accent: tăng lên tier -300 để rõ hơn trên nền tối */
+      .text-amber-400  { color: #fcd34d !important; }  /* amber-300 */
+      .text-emerald-400{ color: #6ee7b7 !important; }  /* emerald-300 */
+      .text-blue-400   { color: #93c5fd !important; }  /* blue-300 */
+      .text-rose-400   { color: #fca5a5 !important; }  /* rose-300 */
+      .text-cyan-400   { color: #67e8f9 !important; }  /* cyan-300 */
+      .text-sky-400    { color: #7dd3fc !important; }  /* sky-300 */
+      .text-violet-400 { color: #c4b5fd !important; }  /* violet-300 */
+      .text-indigo-400 { color: #a5b4fc !important; }  /* indigo-300 */
     }
   </style>
 </head>
@@ -2840,14 +2861,18 @@
                                 onChange={e => setSupplierForm(p => ({ ...p, [f.key]: e.target.value }))}
                                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-violet-500"
                               />
-                              {supplierForm[f.key] && (
-                                <img
-                                  src={supplierForm[f.key]}
-                                  alt="Preview chữ ký"
-                                  className="h-16 object-contain border border-slate-700 rounded bg-white/5 p-1"
-                                  onError={e => { e.target.style.display='none'; }}
-                                />
-                              )}
+                              {supplierForm[f.key] && (() => {
+                                const raw = supplierForm[f.key].trim();
+                                const url = raw.startsWith('http')
+                                  ? raw
+                                  : `https://drive.google.com/uc?export=view&id=${raw}`;
+                                return (
+                                  <a href={url} target="_blank" rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-200 underline text-[11px]">
+                                    🖼 Xem ảnh
+                                  </a>
+                                );
+                              })()}
                             </div>
                           ) : (
                             <input type="text"
@@ -2915,14 +2940,19 @@
                                 <td className="p-3 font-bold text-violet-300">{s['SUPPLIER NAME']}</td>
                                 <td className="p-3 text-slate-400 text-[11px] leading-relaxed">{s['ADDRESS'] || <span className="italic text-slate-600">—</span>}</td>
                                 <td className="p-3 text-center">
-                                  {s['SIGNATURE IMAGE ID'] ? (
-                                    <img
-                                      src={s['SIGNATURE IMAGE ID']}
-                                      alt="sig"
-                                      className="h-10 mx-auto object-contain border border-slate-700 rounded bg-white/5 p-0.5"
-                                      onError={e => { e.target.replaceWith(Object.assign(document.createElement('span'), { textContent: '⚠️ Lỗi ảnh', className: 'text-rose-400 text-[10px]' })); }}
-                                    />
-                                  ) : <span className="text-slate-600 italic text-[10px]">—</span>}
+                                  {s['SIGNATURE IMAGE ID'] ? (() => {
+                                    const raw = s['SIGNATURE IMAGE ID'].trim();
+                                    // Nếu là file ID thuần (không chứa http) → build Drive view URL
+                                    const url = raw.startsWith('http')
+                                      ? raw
+                                      : `https://drive.google.com/uc?export=view&id=${raw}`;
+                                    return (
+                                      <a href={url} target="_blank" rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-200 underline text-[11px] font-medium">
+                                        🖼 Xem ảnh
+                                      </a>
+                                    );
+                                  })() : <span className="text-slate-600 italic text-[10px]">—</span>}
                                 </td>
                                 <td className="p-3 text-center space-x-2" onClick={e => e.stopPropagation()}>
                                   <button onClick={() => handleOpenEditSupplier(realIdx)} className="text-blue-400 hover:underline">Sửa</button>
