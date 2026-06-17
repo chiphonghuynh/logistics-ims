@@ -610,6 +610,10 @@
       const [suppPage, setSuppPage]       = useState(1);
       const [suppShowAll, setSuppShowAll] = useState(false);
       const [pymPage, setPymPage]         = useState(1);
+      const [pymDateFrom, setPymDateFrom]   = useState('');
+      const [pymDateTo, setPymDateTo]       = useState('');
+      const [pymQuickFilter, setPymQuickFilter] = useState('all'); // 'all'|'today'|'month'|'year'|'prev_year'|'no_kt'
+      const [pymSelected, setPymSelected]   = useState(new Set()); // set of SỐ PTT được chọn
       const [pymShowAll, setPymShowAll]   = useState(false);
 
       // ══════════════════════════════════════════════════════════════
@@ -742,13 +746,55 @@
         });
       };
 
-      const filteredPayments = (paymentData || []).filter(p => {
-        if (!paymentSearch.trim()) return true;
-        const q = paymentSearch.toLowerCase();
-        return (p['SỐ PTT'] || '').toLowerCase().includes(q)
-            || (p['NỘI DUNG'] || '').toLowerCase().includes(q)
-            || (p['NGÀY'] || '').toLowerCase().includes(q);
-      });
+      const filteredPayments = (() => {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        // Parse dd/mm/yyyy hoặc yyyy-mm-dd → Date
+        const parseD = (s) => {
+          if (!s) return null;
+          const s1 = String(s).trim();
+          const m1 = s1.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+          if (m1) return new Date(+m1[3], +m1[2]-1, +m1[1]);
+          const m2 = s1.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (m2) return new Date(+m2[1], +m2[2]-1, +m2[3]);
+          return null;
+        };
+        return (paymentData || []).filter(p => {
+          // Tìm kiếm text
+          if (paymentSearch.trim()) {
+            const q = paymentSearch.toLowerCase();
+            const match = (p['SỐ PTT']||'').toLowerCase().includes(q)
+                       || (p['NỘI DUNG']||'').toLowerCase().includes(q)
+                       || (p['NGÀY']||'').toLowerCase().includes(q);
+            if (!match) return false;
+          }
+          // Lọc chưa có Ngày KT
+          if (pymQuickFilter === 'no_kt') {
+            return !p['NGÀY ĐƯA KẾ TOÁN'] || String(p['NGÀY ĐƯA KẾ TOÁN']).trim() === '';
+          }
+          // Lọc theo ngày NGÀY cột đầu
+          const d = parseD(p['NGÀY']);
+          if (!d) return true;
+          // Quick filters
+          if (pymQuickFilter === 'today') {
+            return d.toDateString() === now.toDateString();
+          }
+          if (pymQuickFilter === 'month') {
+            return d.getFullYear() === y && d.getMonth() === m;
+          }
+          if (pymQuickFilter === 'year') {
+            return d.getFullYear() === y;
+          }
+          if (pymQuickFilter === 'prev_year') {
+            return d.getFullYear() === y - 1;
+          }
+          // Custom date range
+          if (pymDateFrom) { const df = parseD(pymDateFrom.split('-').reverse().join('/')); if (df && d < df) return false; }
+          if (pymDateTo)   { const dt = parseD(pymDateTo.split('-').reverse().join('/')); if (dt && d > dt) return false; }
+          return true;
+        });
+      })();
 
       const fmtVND = (v) => {
         const n = Number(String(v||'').replace(/[^0-9.-]/g,''));
@@ -3268,25 +3314,40 @@
                 return (
                 <div className="space-y-4 max-w-5xl mx-auto">
 
-                  {/* ── TOOLBAR (đồng nhất) ── */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-xl px-5 py-4 flex flex-wrap gap-3 items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-black text-amber-400 uppercase tracking-wide flex items-center gap-2">💳 Payment Data</h3>
-                      <p className="text-[10px] text-slate-500 mt-0.5">
-                        {paymentData === null ? 'Nhấn "🔄 Load" để tải từ Google Sheets (sheet: Payment)' : `${(paymentData||[]).length} phiếu — tìm kiếm hoặc nhấn "Hiển Thị Tất Cả"`}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 flex-wrap items-center">
-                      <button onClick={loadPayments} disabled={paymentLoading}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white transition-all ${paymentLoading ? 'bg-slate-600 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                        {paymentLoading ? <span className="animate-spin inline-block">⟳</span> : '🔄'}{paymentLoading ? ' Loading...' : ' Load / Refresh'}
-                      </button>
-                      {paymentData !== null && (
-                        <>
+                  {/* ── TOOLBAR ── */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl px-5 py-4 space-y-3">
+                    <div className="flex flex-wrap gap-3 items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-black text-amber-400 uppercase tracking-wide flex items-center gap-2">💳 Payment Data</h3>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {paymentData === null ? 'Nhấn "🔄 Load" để tải từ Google Sheets (sheet: Payment)' : `${filteredPayments.length} / ${(paymentData||[]).length} phiếu${pymSelected.size > 0 ? ` · ${pymSelected.size} đã chọn` : ''}`}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 flex-wrap items-center">
+                        <button onClick={loadPayments} disabled={paymentLoading}
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white transition-all ${paymentLoading ? 'bg-slate-600 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                          {paymentLoading ? <span className="animate-spin inline-block">⟳</span> : '🔄'}{paymentLoading ? ' Loading...' : ' Load / Refresh'}
+                        </button>
+                        {paymentData !== null && (<>
                           <button onClick={() => { setPymShowAll(v=>!v); setPymPage(1); }}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">
-                            {pymShowAll ? '🔼 Thu gọn' : `📋 Hiển Thị Tất Cả (${(paymentData||[]).length})`}
+                            {pymShowAll ? '🔼 Thu gọn' : `📋 Hiển Thị Tất Cả`}
                           </button>
+                          {pymSelected.size > 0 && (
+                            <button onClick={() => {
+                              const rows = filteredPayments.filter(p => pymSelected.has(p['SỐ PTT']));
+                              const headers = ['NGÀY','SỐ PTT','SỐ TIỀN','NỘI DUNG','NGÀY ĐƯA KẾ TOÁN'];
+                              const wsData = [headers, ...rows.map(r => headers.map(h => r[h]||''))];
+                              const wb = XLSX.utils.book_new();
+                              const ws = XLSX.utils.aoa_to_sheet(wsData);
+                              XLSX.utils.book_append_sheet(wb, ws, 'Payment');
+                              XLSX.writeFile(wb, `Payment_${new Date().toISOString().slice(0,10)}.xlsx`);
+                              showNotification(`✅ Đã xuất ${rows.length} phiếu ra Excel!`);
+                            }}
+                              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white transition-all">
+                              📥 Xuất Excel ({pymSelected.size})
+                            </button>
+                          )}
                           <button onClick={() => { const ptuList = checkTrietTieu(filteredPayments); setPaymentCheckResult(ptuList); showNotification(`🔍 Tìm thấy ${ptuList.length} phiếu PTU.`); }}
                             disabled={!paymentData || paymentData.length === 0}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition-all disabled:opacity-40">
@@ -3335,19 +3396,55 @@
                     </div>
                   )}
 
-                  {/* ── SEARCH BAR (đồng nhất) ── */}
+                  {/* ── BỘ LỌC NHANH + NGÀY + TÌM KIẾM ── */}
                   {paymentData !== null && (
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">🔍</span>
-                      <input type="text"
-                        placeholder={`Tìm theo số PTT, nội dung, ngày trong ${(paymentData||[]).length} phiếu...`}
-                        value={paymentSearch}
-                        onChange={e => { setPaymentSearch(e.target.value); setPymPage(1); }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pl-9 pr-10 text-xs text-white focus:outline-none focus:border-amber-500 transition-colors"
-                      />
-                      {paymentSearch && (
-                        <button onClick={() => setPaymentSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs bg-slate-800 rounded px-1.5 py-0.5">✕</button>
-                      )}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl px-5 py-4 space-y-3">
+                      {/* Quick filter */}
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mr-1">Lọc nhanh:</span>
+                        {[
+                          { key: 'all',       label: '🗂 Tất cả' },
+                          { key: 'today',     label: '📅 Hôm nay' },
+                          { key: 'month',     label: '🗓 Tháng này' },
+                          { key: 'year',      label: '📆 Năm nay' },
+                          { key: 'prev_year', label: '📆 Năm trước' },
+                          { key: 'no_kt',     label: '⚠️ Chưa có Ngày KT' },
+                        ].map(f => (
+                          <button key={f.key}
+                            onClick={() => { setPymQuickFilter(f.key); setPymPage(1); if (f.key !== 'all') { setPymDateFrom(''); setPymDateTo(''); } }}
+                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${pymQuickFilter === f.key ? 'bg-amber-600 text-white border-amber-500' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'}`}>
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Date range + search */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[10px] text-slate-500 mb-1 uppercase font-bold">Từ ngày</label>
+                          <input type="date" value={pymDateFrom} onChange={e => { setPymDateFrom(e.target.value); setPymQuickFilter('all'); setPymPage(1); }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500" style={{colorScheme:'dark'}} />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-500 mb-1 uppercase font-bold">Đến ngày</label>
+                          <input type="date" value={pymDateTo} onChange={e => { setPymDateTo(e.target.value); setPymQuickFilter('all'); setPymPage(1); }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500" style={{colorScheme:'dark'}} />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-500 mb-1 uppercase font-bold">Từ khoá tra cứu</label>
+                          <div className="relative">
+                            <input type="text"
+                              placeholder="Tìm theo số PTT, nội dung, ngày..."
+                              value={paymentSearch}
+                              onChange={e => { setPaymentSearch(e.target.value); setPymPage(1); }}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg py-2 pl-3 pr-8 text-xs text-white focus:outline-none focus:border-amber-500"
+                            />
+                            {paymentSearch && (
+                              <button onClick={() => setPaymentSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs">✕</button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500">Hiển thị <strong className="text-white">{filteredPayments.length}</strong> phiếu</p>
                     </div>
                   )}
 
@@ -3455,7 +3552,13 @@
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
                             <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800 text-[10px]">
-                              <th className="px-4 py-3 text-center w-8">#</th>
+                              <th className="px-4 py-3 text-center w-8">
+                                <input type="checkbox"
+                                  checked={pagedPayments.length > 0 && pagedPayments.every(p => pymSelected.has(p['SỐ PTT']))}
+                                  onChange={e => { const n = new Set(pymSelected); pagedPayments.forEach(p => e.target.checked ? n.add(p['SỐ PTT']) : n.delete(p['SỐ PTT'])); setPymSelected(n); }}
+                                  className="accent-amber-500 cursor-pointer w-3.5 h-3.5"
+                                />
+                              </th>
                               <th className="px-4 py-3">Ngày</th>
                               <th className="px-4 py-3">Số PTT</th>
                               <th className="px-4 py-3 text-right">Số Tiền</th>
@@ -3472,8 +3575,15 @@
                               const parsed = parsePaymentContent(p['NỘI DUNG']);
                               const rowBg = parsed.isPTU ? 'bg-orange-950/20 hover:bg-orange-950/40' : parsed.isTrietTieu ? 'bg-blue-950/20 hover:bg-blue-950/40' : 'hover:bg-slate-800/40';
                               return (
-                                <tr key={idx} className={`text-slate-300 transition-colors ${rowBg}`}>
-                                  <td className="px-4 py-3 text-center text-slate-600 font-mono text-[10px]">{(pymPage-1)*10+idx+1}</td>
+                                <tr key={idx}
+                                  onClick={() => { const n = new Set(pymSelected); n.has(p['SỐ PTT']) ? n.delete(p['SỐ PTT']) : n.add(p['SỐ PTT']); setPymSelected(n); }}
+                                  className={`text-slate-300 transition-colors cursor-pointer ${rowBg} ${pymSelected.has(p['SỐ PTT']) ? '!bg-amber-950/30 ring-1 ring-inset ring-amber-500/40' : ''}`}>
+                                  <td className="px-4 py-3 text-center" onClick={e=>e.stopPropagation()}>
+                                    <input type="checkbox" checked={pymSelected.has(p['SỐ PTT'])}
+                                      onChange={e => { const n = new Set(pymSelected); e.target.checked ? n.add(p['SỐ PTT']) : n.delete(p['SỐ PTT']); setPymSelected(n); }}
+                                      className="accent-amber-500 cursor-pointer w-3.5 h-3.5"
+                                    />
+                                  </td>
                                   <td className="px-4 py-3 font-mono text-slate-400 whitespace-nowrap">{p['NGÀY']}</td>
                                   <td className="px-4 py-3 font-mono font-bold text-amber-300 whitespace-nowrap">{p['SỐ PTT']}</td>
                                   <td className="px-4 py-3 font-mono text-right font-bold text-emerald-400 whitespace-nowrap">{fmtVND(p['SỐ TIỀN'])}</td>
@@ -3738,17 +3848,23 @@
                         </thead>
                         <tbody className="divide-y divide-slate-855">
                           {displayLots.map(lot => {
-                            const etaDays = lot.eta ? Math.ceil((new Date(lot.eta) - new Date(today)) / 86400000) : null;
+                            const hasAtc    = lot.atc_date && lot.atc_date.trim() !== '';
+                            const etaDays   = (!hasAtc && lot.eta) ? Math.ceil((new Date(lot.eta) - new Date(today)) / 86400000) : null;
                             const isUrgent  = etaDays !== null && etaDays <= 7 && etaDays >= 0;
                             const isOverdue = etaDays !== null && etaDays < 0;
                             return (
-                              <tr key={lot.lot_no} className={`hover:bg-slate-850/40 ${isOverdue ? 'bg-rose-950/10' : isUrgent ? 'bg-amber-950/10' : ''}`}>
+                              <tr key={lot.lot_no} className={`hover:bg-slate-850/40 ${hasAtc ? 'bg-emerald-950/10' : isOverdue ? 'bg-rose-950/10' : isUrgent ? 'bg-amber-950/10' : ''}`}>
                                 <td className="p-3.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
                                 <td className="p-3.5 font-mono text-slate-300">{lot.bill_no || '—'}</td>
                                 <td className="p-3.5 text-slate-300">{lot.carrier || '—'}</td>
                                 <td className="p-3.5"><span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300">{lot.transport_type || 'SEA_CONT'}</span></td>
                                 <td className="p-3.5 text-center">
-                                  {lot.eta ? (
+                                  {hasAtc ? (
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      <span className="bg-emerald-950 text-emerald-400 text-[10px] px-2.5 py-1 rounded-lg font-bold border border-emerald-700/50">✅ Đã nhập kho</span>
+                                      <span className="text-emerald-600 text-[10px] font-mono">{fmtDisplayDate(lot.atc_date)}</span>
+                                    </div>
+                                  ) : lot.eta ? (
                                     <div>
                                       <span className={`font-mono font-bold ${isOverdue ? 'text-rose-400' : isUrgent ? 'text-amber-400' : 'text-cyan-400'}`}>{fmtDisplayDate(lot.eta)}</span>
                                       {etaDays !== null && <span className={`ml-2 text-[10px] ${isOverdue ? 'text-rose-500' : isUrgent ? 'text-amber-500' : 'text-slate-500'}`}>{isOverdue ? `Overdue ${-etaDays}d` : etaDays === 0 ? 'Today!' : `In ${etaDays}d`}</span>}
