@@ -680,7 +680,7 @@
         setPaymentLoading(true);
         showNotification('🔄 Đang tải Payment Data...');
         try {
-          const rows = await window.cyApiCall('getSheet', { sheet: 'payment' });
+          const rows = await window.cyApiCall('getSheet', { sheet: 'Payment' });
           setPaymentData(Array.isArray(rows) ? rows : []);
           showNotification(`✅ Đã tải ${Array.isArray(rows) ? rows.length : 0} phiếu thanh toán`);
         } catch(err) {
@@ -695,7 +695,7 @@
         setPaymentData(newData);
         if (!window.CY_API_URL) return;
         try {
-          await window.cyApiCall('setSheet', { sheet: 'payment', data: newData });
+          await window.cyApiCall('setSheet', { sheet: 'Payment', data: newData });
           showNotification('✅ Đã lưu Payment lên Google Sheets!');
         } catch(err) {
           showNotification('❌ Lỗi lưu Payment: ' + err.message, 'error');
@@ -1773,9 +1773,10 @@
 
       // Lọc từ điển gốc để hiển thị — chỉ trả dữ liệu khi có query
       const getFilteredDbDictionary = () => {
-  if (!dbSearchQuery.trim()) return []; // ẩn khi chưa search
-
   const dict = dbSelectedTab === 'E21' ? dictE21 : dictA12;
+  if (!dbSearchQuery.trim()) return []; // ẩn khi chưa search
+  if (dbSearchQuery === '*') return dict; // show all
+
   const q = dbSearchQuery.toLowerCase();
 
   return dict.filter(item => {
@@ -2263,7 +2264,7 @@
               </div>
             </div>
             <div className="p-3 text-center border-t border-slate-800 bg-slate-950/60 text-[10px] text-slate-500">
-              {menuExpanded ? <span>Version: <strong className="text-blue-500">v2.0.0-pro [20260608_080337]</strong></span> : <span>v2.0</span>}
+              {menuExpanded ? <span>Version: <strong className="text-blue-500">v2.1.0-pro [20260617_UNIFIED_MD]</strong></span> : <span>v2.1</span>}
             </div>
           </div>
 
@@ -2371,20 +2372,70 @@
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Tổng lô hàng đã nhập</p>
-                      <h3 className="text-2xl font-black text-white font-mono mt-1">{lots.length} Lô</h3>
-                    </div>
-                    <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-                      <p className="text-[10px] text-rose-400/80 uppercase tracking-wider font-bold">Chờ điền ngày nhập xưởng (No ATC)</p>
-                      <h3 className="text-2xl font-black text-rose-500 font-mono mt-1">{pendingAtcLots.length} Lô</h3>
-                    </div>
-                    <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Trị giá hàng hóa đã nhập</p>
-                      <h3 className="text-xl font-black text-amber-400 font-mono mt-1">{'$'}{totalImportValue.toLocaleString(undefined, {minimumFractionDigits: 2})}</h3>
-                    </div>
+                  {/* KPI CARDS ROW 1 — Shipment */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                      { label: 'Tổng lô hàng', value: lots.length + ' Lô', sub: `${lots.filter(l=>l.loai_hinh==='A12').length} A12 · ${lots.filter(l=>l.loai_hinh==='E21').length} E21`, color: 'text-white', icon: '📦', accent: 'border-slate-700' },
+                      { label: 'Chờ nhập xưởng (No ATC)', value: pendingAtcLots.length + ' Lô', sub: 'Chưa có ngày ATC', color: 'text-rose-400', icon: '⏳', accent: 'border-rose-900/60' },
+                      { label: 'Chờ điền ETA', value: lots.filter(l=>!l.eta||l.eta.trim()==='').length + ' Lô', sub: 'Chưa có ngày ETA', color: 'text-amber-400', icon: '🛬', accent: 'border-amber-900/60' },
+                      { label: 'Đã nhập xưởng', value: lots.filter(l=>l.atc_date&&l.atc_date.trim()!=='').length + ' Lô', sub: 'Có ngày ATC', color: 'text-emerald-400', icon: '✅', accent: 'border-emerald-900/60' },
+                    ].map((c,i) => (
+                      <div key={i} className={`bg-slate-900 border ${c.accent} p-4 rounded-xl`}>
+                        <div className="flex items-start justify-between">
+                          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold leading-tight">{c.label}</p>
+                          <span className="text-base opacity-60">{c.icon}</span>
+                        </div>
+                        <h3 className={`text-xl font-black font-mono mt-2 ${c.color}`}>{c.value}</h3>
+                        <p className="text-[10px] text-slate-600 mt-0.5">{c.sub}</p>
+                      </div>
+                    ))}
                   </div>
+
+                  {/* KPI CARDS ROW 2 — Finance & Master Data */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                      { label: 'Trị giá hàng đã nhập', value: '$' + totalImportValue.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}), sub: `Từ ${invoices.length} hóa đơn`, color: 'text-amber-300', icon: '💰', accent: 'border-amber-900/40' },
+                      { label: 'Danh mục HS Code', value: (dictA12.length + dictE21.length) + ' mục', sub: `A12: ${dictA12.length} · E21: ${dictE21.length}`, color: 'text-emerald-300', icon: '🏷', accent: 'border-emerald-900/40' },
+                      { label: 'Nhà cung cấp', value: (supplierData ? supplierData.length : '—') + (supplierData ? ' supplier' : ''), sub: supplierData ? 'Đã tải từ Sheets' : 'Vào Master Data để tải', color: 'text-violet-300', icon: '🏢', accent: 'border-violet-900/40' },
+                      { label: 'Phiếu thanh toán', value: (paymentData ? paymentData.length : '—') + (paymentData ? ' phiếu' : ''), sub: paymentData ? ('Tổng: ' + fmtVND(paymentData.reduce((s,p)=>s+Number(String(p['SỐ TIỀN']||'').replace(/[^0-9.-]/g,'')||0),0))) : 'Vào Master Data để tải', color: 'text-amber-300', icon: '💳', accent: 'border-amber-900/40' },
+                    ].map((c,i) => (
+                      <div key={i} className={`bg-slate-900 border ${c.accent} p-4 rounded-xl`}>
+                        <div className="flex items-start justify-between">
+                          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold leading-tight">{c.label}</p>
+                          <span className="text-base opacity-60">{c.icon}</span>
+                        </div>
+                        <h3 className={`text-xl font-black font-mono mt-2 ${c.color} break-all`}>{c.value}</h3>
+                        <p className="text-[10px] text-slate-600 mt-0.5">{c.sub}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* BREAKDOWN TABLE — Lots by loai_hinh this year */}
+                  {(() => {
+                    const thisYear = new Date().getFullYear().toString();
+                    const byType = {};
+                    lots.forEach(l => {
+                      const y = (l.lot_date||'').slice(0,4);
+                      if (y !== thisYear) return;
+                      const k = l.loai_hinh || 'UNKNOWN';
+                      byType[k] = (byType[k]||0) + 1;
+                    });
+                    const entries = Object.entries(byType).sort((a,b)=>b[1]-a[1]);
+                    if (!entries.length) return null;
+                    return (
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📊 Lô hàng năm {thisYear} theo loại hình</p>
+                        <div className="flex flex-wrap gap-2">
+                          {entries.map(([k,v])=>(
+                            <div key={k} className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg">
+                              <span className="text-xs font-bold text-slate-300">{k}</span>
+                              <span className="text-xs font-black text-blue-400 font-mono">{v}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -2407,6 +2458,11 @@
                           📥 Import Excel
                           <input type="file" accept=".xlsx, .xls, .csv" onChange={handleExcelImport} className="hidden" />
                         </label>
+                        <button
+                          onClick={() => { if (dbSearchQuery.trim()) { handleDbSearch(''); } else { handleDbSearch('*'); } }}
+                          className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1">
+                          {dbSearchQuery === '*' ? '🔼 Thu gọn' : `📋 Hiển Thị Tất Cả (${dbSelectedTab === 'A12' ? dictA12.length : dictE21.length})`}
+                        </button>
                         <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
                           <button onClick={() => handleDbTabChange('A12')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${dbSelectedTab === 'A12' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>A12 ({dictA12.length})</button>
                           <button onClick={() => handleDbTabChange('E21')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${dbSelectedTab === 'E21' ? 'bg-emerald-600 text-white' : 'text-slate-400'}`}>E21 ({dictE21.length})</button>
@@ -2436,6 +2492,7 @@
                         <div className="text-5xl opacity-20">🔍</div>
                         <p className="text-slate-400 text-sm font-semibold">Nhập từ khóa để tìm kiếm sản phẩm</p>
                         <p className="text-slate-600 text-xs">Tìm theo mã hàng, HS Code, tên tiếng Anh hoặc tên tiếng Việt</p>
+                        <p className="text-slate-600 text-xs">hoặc nhấn <span className="text-slate-300 font-bold">📋 Hiển Thị Tất Cả</span> để xem toàn bộ danh mục</p>
                         <div className="flex gap-4 mt-2 text-[11px] text-slate-500">
                           <span>📦 A12: <strong className="text-slate-300">{dictA12.length}</strong> sản phẩm</span>
                           <span>📦 E21: <strong className="text-slate-300">{dictE21.length}</strong> sản phẩm</span>
@@ -3018,25 +3075,42 @@
                 </div>
               )}
 
-              {/* --- SUPPLIER DATA VIEW --- */}
-              {activeMenu === 'SUPPLIER_DATA' && (
-                <div className="space-y-4">
-                  {/* Toolbar */}
-                  <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-5 py-3">
+              {/* ════════════════════════════════════════════
+                  MASTER DATA — SUPPLIER DATA (UNIFIED LAYOUT)
+                  ════════════════════════════════════════════ */}
+              {activeMenu === 'SUPPLIER_DATA' && (() => {
+                const MD_PAGE_SIZE = 10;
+                const [suppPage, setSuppPage] = React.useState(1);
+                const [suppShowAll, setSuppShowAll] = React.useState(false);
+                const showSuppTable = suppShowAll || supplierSearch.trim() !== '';
+                const totalSuppPages = Math.ceil(filteredSuppliers.length / MD_PAGE_SIZE);
+                const pagedSuppliers = showSuppTable
+                  ? (suppShowAll && !supplierSearch.trim()
+                      ? filteredSuppliers.slice((suppPage-1)*MD_PAGE_SIZE, suppPage*MD_PAGE_SIZE)
+                      : filteredSuppliers.slice(0, MD_PAGE_SIZE * suppPage))
+                  : [];
+                return (
+                <div className="space-y-4 max-w-5xl mx-auto">
+
+                  {/* ── TOOLBAR (đồng nhất) ── */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl px-5 py-4 flex flex-wrap gap-3 items-center justify-between">
                     <div>
-                      <h3 className="text-sm font-black text-violet-400 uppercase tracking-wide">🏢 Supplier Data</h3>
+                      <h3 className="text-sm font-black text-violet-400 uppercase tracking-wide flex items-center gap-2">🏢 Supplier Data</h3>
                       <p className="text-[10px] text-slate-500 mt-0.5">
-                        {supplierData === null
-                          ? 'Nhấn "Load" để tải dữ liệu từ Google Sheets'
-                          : `${filteredSuppliers.length} / ${supplierData.length} supplier`}
+                        {supplierData === null ? 'Nhấn "🔄 Load" để tải từ Google Sheets' : `${(supplierData||[]).length} suppliers — tìm kiếm hoặc nhấn "Hiển Thị Tất Cả"`}
                       </p>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-2 flex-wrap items-center">
                       <button onClick={loadSuppliers} disabled={supplierLoading}
                         className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white transition-all ${supplierLoading ? 'bg-slate-600 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                        {supplierLoading ? <span className="animate-spin inline-block">⟳</span> : '🔄'}
-                        {supplierLoading ? ' Loading...' : ' Load / Refresh'}
+                        {supplierLoading ? <span className="animate-spin inline-block">⟳</span> : '🔄'}{supplierLoading ? ' Loading...' : ' Load / Refresh'}
                       </button>
+                      {supplierData !== null && (
+                        <button onClick={() => { setSuppShowAll(v => !v); setSuppPage(1); }}
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${suppShowAll ? 'bg-slate-700 text-slate-300' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                          {suppShowAll ? '🔼 Thu gọn' : `📋 Hiển Thị Tất Cả (${(supplierData||[]).length})`}
+                        </button>
+                      )}
                       <button onClick={handleOpenAddSupplier}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 transition-all">
                         ➕ Thêm Supplier
@@ -3044,14 +3118,14 @@
                     </div>
                   </div>
 
-                  {/* Search */}
+                  {/* ── SEARCH BAR (đồng nhất) ── */}
                   {supplierData !== null && (
                     <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">🔍</span>
                       <input type="text"
-                        placeholder={`Tìm theo tên hoặc địa chỉ trong ${supplierData.length} supplier...`}
+                        placeholder={`Tìm theo tên hoặc địa chỉ trong ${(supplierData||[]).length} suppliers...`}
                         value={supplierSearch}
-                        onChange={e => setSupplierSearch(e.target.value)}
+                        onChange={e => { setSupplierSearch(e.target.value); setSuppPage(1); }}
                         className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pl-9 pr-10 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
                       />
                       {supplierSearch && (
@@ -3060,163 +3134,162 @@
                     </div>
                   )}
 
-                  {/* Form thêm/sửa */}
+                  {/* ── FORM THÊM/SỬA (đồng nhất) ── */}
                   {supplierForm !== null && (
                     <div className="bg-slate-900 border border-violet-800/50 rounded-xl p-5 space-y-3">
-                      <h4 className="text-sm font-bold text-violet-300">{supplierEditIdx !== null ? '✏️ Sửa Supplier' : '➕ Thêm Supplier mới'}</h4>
-                      {SUPPLIER_FIELDS.map(f => (
-                        <div key={f.key}>
-                          <label className="block text-[11px] text-slate-400 mb-1">{f.label}{f.required && <span className="text-rose-400 ml-1">*</span>}</label>
-                          {f.key === 'ADDRESS' ? (
-                            <textarea rows={2}
-                              value={supplierForm[f.key] || ''}
-                              onChange={e => setSupplierForm(p => ({ ...p, [f.key]: e.target.value }))}
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-violet-500 resize-none"
-                            />
-                          ) : f.key === 'SIGNATURE IMAGE ID' ? (
-                            <div className="space-y-1.5">
-                              <input type="text"
-                                placeholder="Dán link ảnh (Google Drive/URL công khai)..."
-                                value={supplierForm[f.key] || ''}
-                                onChange={e => setSupplierForm(p => ({ ...p, [f.key]: e.target.value }))}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-violet-500"
-                              />
-                              {supplierForm[f.key] && (() => {
-                                const raw = supplierForm[f.key].trim();
-                                const url = raw.startsWith('http')
-                                  ? raw
-                                  : `https://drive.google.com/uc?export=view&id=${raw}`;
-                                return (
-                                  <a href={url} target="_blank" rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-200 underline text-[11px]">
-                                    🖼 Xem ảnh
-                                  </a>
-                                );
-                              })()}
-                            </div>
-                          ) : (
-                            <input type="text"
-                              value={supplierForm[f.key] || ''}
-                              onChange={e => setSupplierForm(p => ({ ...p, [f.key]: e.target.value }))}
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-violet-500"
-                            />
-                          )}
-                        </div>
-                      ))}
-                      <div className="flex gap-2 pt-1">
-                        <button onClick={handleSaveSupplierForm}
-                          className="bg-violet-600 hover:bg-violet-700 text-white font-bold px-5 py-2 rounded-lg text-xs transition-colors">
-                          💾 Lưu
-                        </button>
-                        <button onClick={() => { setSupplierForm(null); setSupplierEditIdx(null); }}
-                          className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold px-4 py-2 rounded-lg text-xs transition-colors">
-                          Hủy
-                        </button>
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <h4 className="text-sm font-bold text-violet-300">{supplierEditIdx !== null ? '✏️ Sửa Supplier' : '➕ Thêm Supplier Mới'}</h4>
+                        <button onClick={() => { setSupplierForm(null); setSupplierEditIdx(null); }} className="text-slate-500 hover:text-white text-xs">✕ Hủy</button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {SUPPLIER_FIELDS.map(f => (
+                          <div key={f.key} className={f.key === 'ADDRESS' ? 'md:col-span-2' : ''}>
+                            <label className="block text-[11px] text-slate-400 mb-1 font-bold">{f.label}{f.required && <span className="text-rose-400 ml-1">*</span>}</label>
+                            {f.key === 'ADDRESS' ? (
+                              <textarea rows={2} value={supplierForm[f.key] || ''} onChange={e => setSupplierForm(p => ({ ...p, [f.key]: e.target.value }))}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-violet-500 resize-none" />
+                            ) : f.key === 'SIGNATURE IMAGE ID' ? (
+                              <div className="space-y-1.5">
+                                <input type="text" placeholder="Dán link ảnh hoặc Google Drive file ID..." value={supplierForm[f.key] || ''} onChange={e => setSupplierForm(p => ({ ...p, [f.key]: e.target.value }))}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-violet-500" />
+                                {supplierForm[f.key] && (() => { const raw = supplierForm[f.key].trim(); const url = raw.startsWith('http') ? raw : `https://drive.google.com/uc?export=view&id=${raw}`; return <a href={url} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-200 underline text-[11px]">🖼 Xem ảnh</a>; })()}
+                              </div>
+                            ) : (
+                              <input type="text" value={supplierForm[f.key] || ''} onChange={e => setSupplierForm(p => ({ ...p, [f.key]: e.target.value }))}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-violet-500" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <button onClick={handleSaveSupplierForm} className="bg-violet-600 hover:bg-violet-700 text-white font-bold px-5 py-2 rounded-lg text-xs">💾 Lưu</button>
+                        <button onClick={() => { setSupplierForm(null); setSupplierEditIdx(null); }} className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold px-4 py-2 rounded-lg text-xs">Hủy</button>
                       </div>
                     </div>
                   )}
 
-                  {/* Chưa load */}
+                  {/* ── EMPTY STATE ── */}
                   {supplierData === null && !supplierLoading && (
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-14 text-center">
                       <div className="text-5xl mb-4 opacity-20">🏢</div>
-                      <p className="text-slate-400 font-bold text-sm">Chưa có dữ liệu</p>
-                      <p className="text-slate-600 text-xs mt-1">Nhấn "🔄 Load / Refresh" để đọc từ Google Sheets</p>
+                      <p className="text-slate-400 font-bold text-sm mb-1">Chưa có dữ liệu</p>
+                      <p className="text-slate-600 text-xs">Nhấn <span className="text-blue-400 font-bold">🔄 Load / Refresh</span> để đọc từ Google Sheets</p>
                     </div>
                   )}
-
-                  {/* Loading */}
                   {supplierLoading && (
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
-                      <p className="text-violet-400 font-bold animate-pulse">⏳ Đang tải dữ liệu supplier...</p>
+                      <p className="text-violet-400 font-bold animate-pulse text-sm">⏳ Đang tải dữ liệu supplier...</p>
+                    </div>
+                  )}
+                  {supplierData !== null && !supplierLoading && !showSuppTable && !supplierSearch.trim() && (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-14 text-center">
+                      <div className="text-5xl mb-4 opacity-20">🔍</div>
+                      <p className="text-slate-300 font-bold text-sm mb-1">{(supplierData||[]).length} suppliers có sẵn</p>
+                      <p className="text-slate-600 text-xs">Nhập từ khóa để tìm kiếm, hoặc nhấn <span className="text-slate-300 font-bold">📋 Hiển Thị Tất Cả</span></p>
                     </div>
                   )}
 
-                  {/* Table */}
-                  {supplierData !== null && !supplierLoading && (
-                    <div className="overflow-x-auto border border-slate-800 rounded-xl">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                            <th className="p-3 text-center w-10">STT</th>
-                            <th className="p-3">Tên Supplier</th>
-                            <th className="p-3">Địa chỉ</th>
-                            <th className="p-3 text-center">Chữ ký/Mộc</th>
-                            <th className="p-3 text-center w-24">Thao tác</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-900">
-                          {filteredSuppliers.length === 0 ? (
-                            <tr>
-                              <td colSpan="5" className="p-10 text-center text-slate-500">
-                                {supplierSearch ? `Không tìm thấy supplier nào khớp với "${supplierSearch}"` : 'Chưa có dữ liệu supplier. Nhấn ➕ Thêm để bắt đầu.'}
-                              </td>
+                  {/* ── TABLE + PAGINATION ── */}
+                  {showSuppTable && !supplierLoading && (
+                    <>
+                      {/* Result count */}
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <span>Hiển thị <strong className="text-white">{Math.min(pagedSuppliers.length, filteredSuppliers.length)}</strong> / <strong className="text-white">{filteredSuppliers.length}</strong> kết quả</span>
+                        {supplierSearch && <span className="text-violet-400">Lọc: "{supplierSearch}"</span>}
+                      </div>
+                      <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800 text-[10px]">
+                              <th className="px-4 py-3 text-center w-10">#</th>
+                              <th className="px-4 py-3">Tên Supplier</th>
+                              <th className="px-4 py-3">Địa chỉ</th>
+                              <th className="px-4 py-3 text-center">Chữ ký / Mộc</th>
+                              <th className="px-4 py-3 text-center w-24">Thao tác</th>
                             </tr>
-                          ) : filteredSuppliers.map((s, idx) => {
-                            const realIdx = (supplierData || []).indexOf(s);
-                            return (
-                              <tr key={idx} className="hover:bg-slate-900/60 text-slate-300 transition-colors">
-                                <td className="p-3 text-center text-slate-500 font-mono">{idx + 1}</td>
-                                <td className="p-3 font-bold text-violet-300">{s['SUPPLIER NAME']}</td>
-                                <td className="p-3 text-slate-400 text-[11px] leading-relaxed">{s['ADDRESS'] || <span className="italic text-slate-600">—</span>}</td>
-                                <td className="p-3 text-center">
-                                  {s['SIGNATURE IMAGE ID'] ? (() => {
-                                    const raw = s['SIGNATURE IMAGE ID'].trim();
-                                    // Nếu là file ID thuần (không chứa http) → build Drive view URL
-                                    const url = raw.startsWith('http')
-                                      ? raw
-                                      : `https://drive.google.com/uc?export=view&id=${raw}`;
-                                    return (
-                                      <a href={url} target="_blank" rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-200 underline text-[11px] font-medium">
-                                        🖼 Xem ảnh
-                                      </a>
-                                    );
-                                  })() : <span className="text-slate-600 italic text-[10px]">—</span>}
-                                </td>
-                                <td className="p-3 text-center space-x-2" onClick={e => e.stopPropagation()}>
-                                  <button onClick={() => handleOpenEditSupplier(realIdx)} className="text-blue-400 hover:underline">Sửa</button>
-                                  <button onClick={() => handleDeleteSupplier(realIdx)} className="text-rose-500 hover:underline">Xóa</button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody className="divide-y divide-slate-900">
+                            {pagedSuppliers.length === 0 ? (
+                              <tr><td colSpan="5" className="p-10 text-center text-slate-500 italic">Không tìm thấy supplier nào khớp với "{supplierSearch}"</td></tr>
+                            ) : pagedSuppliers.map((s, idx) => {
+                              const realIdx = (supplierData || []).indexOf(s);
+                              return (
+                                <tr key={idx} className="hover:bg-slate-800/40 text-slate-300 transition-colors">
+                                  <td className="px-4 py-3 text-center text-slate-600 font-mono text-[10px]">{(suppPage-1)*MD_PAGE_SIZE + idx + 1}</td>
+                                  <td className="px-4 py-3 font-bold text-violet-300">{s['SUPPLIER NAME']}</td>
+                                  <td className="px-4 py-3 text-slate-400 text-[11px] leading-relaxed max-w-xs">{s['ADDRESS'] || <span className="italic text-slate-600">—</span>}</td>
+                                  <td className="px-4 py-3 text-center">
+                                    {s['SIGNATURE IMAGE ID'] ? (() => { const raw = s['SIGNATURE IMAGE ID'].trim(); const url = raw.startsWith('http') ? raw : `https://drive.google.com/uc?export=view&id=${raw}`; return <a href={url} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-200 underline text-[11px]">🖼 Xem ảnh</a>; })() : <span className="text-slate-600 italic text-[10px]">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-center space-x-3">
+                                    <button onClick={() => handleOpenEditSupplier(realIdx)} className="text-blue-400 hover:text-blue-200 text-[11px] font-bold hover:underline">✏️ Sửa</button>
+                                    <button onClick={() => handleDeleteSupplier(realIdx)} className="text-rose-500 hover:text-rose-300 text-[11px] font-bold hover:underline">🗑 Xóa</button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      {/* PAGINATION */}
+                      {suppShowAll && !supplierSearch.trim() && totalSuppPages > 1 && (
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => setSuppPage(p=>Math.max(1,p-1))} disabled={suppPage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 hover:bg-slate-700">← Trước</button>
+                          {Array.from({length:totalSuppPages},(_,i)=>i+1).map(p=>(
+                            <button key={p} onClick={()=>setSuppPage(p)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${p===suppPage?'bg-violet-600 text-white':'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{p}</button>
+                          ))}
+                          <button onClick={() => setSuppPage(p=>Math.min(totalSuppPages,p+1))} disabled={suppPage===totalSuppPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 hover:bg-slate-700">Sau →</button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
-              )}
+                );
+              })()}
 
-              {/* --- PAYMENT DATA --- */}
-              {activeMenu === 'PAYMENT_DATA' && (
-                <div className="space-y-4">
-                  {/* Toolbar */}
-                  <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-5 py-3">
+              {/* ════════════════════════════════════════════
+                  MASTER DATA — PAYMENT DATA (UNIFIED LAYOUT)
+                  ════════════════════════════════════════════ */}
+              {activeMenu === 'PAYMENT_DATA' && (() => {
+                const MD_PAGE_SIZE = 10;
+                const [pymPage, setPymPage] = React.useState(1);
+                const [pymShowAll, setPymShowAll] = React.useState(false);
+                const showPymTable = pymShowAll || paymentSearch.trim() !== '';
+                const totalPymPages = Math.ceil(filteredPayments.length / MD_PAGE_SIZE);
+                const pagedPayments = showPymTable
+                  ? (pymShowAll && !paymentSearch.trim()
+                      ? filteredPayments.slice((pymPage-1)*MD_PAGE_SIZE, pymPage*MD_PAGE_SIZE)
+                      : filteredPayments.slice(0, MD_PAGE_SIZE * pymPage))
+                  : [];
+                return (
+                <div className="space-y-4 max-w-5xl mx-auto">
+
+                  {/* ── TOOLBAR (đồng nhất) ── */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl px-5 py-4 flex flex-wrap gap-3 items-center justify-between">
                     <div>
-                      <h3 className="text-sm font-black text-amber-400 uppercase tracking-wide">💳 Payment Data</h3>
+                      <h3 className="text-sm font-black text-amber-400 uppercase tracking-wide flex items-center gap-2">💳 Payment Data</h3>
                       <p className="text-[10px] text-slate-500 mt-0.5">
-                        {paymentData === null
-                          ? 'Nhấn "Load" để tải dữ liệu từ Google Sheets (sheet: Payment)'
-                          : `${filteredPayments.length} / ${paymentData.length} phiếu`}
+                        {paymentData === null ? 'Nhấn "🔄 Load" để tải từ Google Sheets (sheet: Payment)' : `${(paymentData||[]).length} phiếu — tìm kiếm hoặc nhấn "Hiển Thị Tất Cả"`}
                       </p>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-2 flex-wrap items-center">
                       <button onClick={loadPayments} disabled={paymentLoading}
                         className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white transition-all ${paymentLoading ? 'bg-slate-600 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                        {paymentLoading ? <span className="animate-spin inline-block">⟳</span> : '🔄'}
-                        {paymentLoading ? ' Loading...' : ' Load / Refresh'}
+                        {paymentLoading ? <span className="animate-spin inline-block">⟳</span> : '🔄'}{paymentLoading ? ' Loading...' : ' Load / Refresh'}
                       </button>
-                      <button
-                        onClick={() => {
-                          const ptuList = checkTrietTieu(filteredPayments);
-                          setPaymentCheckResult(ptuList);
-                          showNotification(`🔍 Tìm thấy ${ptuList.length} phiếu PTU, kiểm tra xong.`);
-                        }}
-                        disabled={!paymentData || paymentData.length === 0}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition-all disabled:opacity-40">
-                        🔍 Kiểm Tra Triệt Tiêu
-                      </button>
+                      {paymentData !== null && (
+                        <>
+                          <button onClick={() => { setPymShowAll(v=>!v); setPymPage(1); }}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">
+                            {pymShowAll ? '🔼 Thu gọn' : `📋 Hiển Thị Tất Cả (${(paymentData||[]).length})`}
+                          </button>
+                          <button onClick={() => { const ptuList = checkTrietTieu(filteredPayments); setPaymentCheckResult(ptuList); showNotification(`🔍 Tìm thấy ${ptuList.length} phiếu PTU.`); }}
+                            disabled={!paymentData || paymentData.length === 0}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition-all disabled:opacity-40">
+                            🔍 Kiểm Tra Triệt Tiêu
+                          </button>
+                        </>
+                      )}
                       <button onClick={() => { setPaymentForm({ 'NGÀY': new Date().toISOString().slice(0,10), 'SỐ PTT': '', 'SỐ TIỀN': '', 'NỘI DUNG': '', 'NGÀY ĐƯA KẾ TOÁN': '' }); setPaymentEditIdx(null); }}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all">
                         ➕ Thêm Phiếu
@@ -3258,14 +3331,14 @@
                     </div>
                   )}
 
-                  {/* Search */}
+                  {/* ── SEARCH BAR (đồng nhất) ── */}
                   {paymentData !== null && (
                     <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">🔍</span>
                       <input type="text"
                         placeholder={`Tìm theo số PTT, nội dung, ngày trong ${(paymentData||[]).length} phiếu...`}
                         value={paymentSearch}
-                        onChange={e => setPaymentSearch(e.target.value)}
+                        onChange={e => { setPaymentSearch(e.target.value); setPymPage(1); }}
                         className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pl-9 pr-10 text-xs text-white focus:outline-none focus:border-amber-500 transition-colors"
                       />
                       {paymentSearch && (
@@ -3274,10 +3347,44 @@
                     </div>
                   )}
 
-                  {/* Form thêm/sửa */}
+                  {/* ── KẾT QUẢ KIỂM TRA TRIỆT TIÊU ── */}
+                  {paymentCheckResult !== null && (
+                    <div className="bg-slate-900 border border-amber-800/40 rounded-xl p-4 space-y-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-black text-amber-400 uppercase tracking-wide">🔍 Kết Quả Kiểm Tra ({paymentCheckResult.length} phiếu PTU)</p>
+                        <button onClick={() => setPaymentCheckResult(null)} className="text-slate-500 hover:text-white text-xs">✕ Đóng</button>
+                      </div>
+                      {paymentCheckResult.length === 0
+                        ? <p className="text-slate-500 italic text-xs">Không có phiếu tạm ứng (PTU) nào trong danh sách hiện tại.</p>
+                        : paymentCheckResult.map((item, i) => {
+                            const parsed = parsePaymentContent(item.phieu['NỘI DUNG']);
+                            const soTien = Number(String(item.phieu['SỐ TIỀN']||'').replace(/[^0-9.-]/g,''));
+                            return (
+                              <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border text-xs ${item.trietTieu ? 'bg-emerald-950/30 border-emerald-800/40' : 'bg-rose-950/30 border-rose-800/40'}`}>
+                                <span className="text-lg shrink-0">{item.trietTieu ? '✅' : '⚠️'}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono font-bold text-amber-300">{item.phieu['SỐ PTT']}</span>
+                                    <span className="text-slate-400">{item.phieu['NGÀY']}</span>
+                                    <span className="font-bold text-white">{fmtVND(soTien)}</span>
+                                  </div>
+                                  <p className="text-slate-400 mt-0.5 truncate">{item.phieu['NỘI DUNG']}</p>
+                                  {item.trietTieu ? <p className="text-emerald-400 mt-1">→ Triệt tiêu bởi <span className="font-mono font-bold">{item.trietTieu['SỐ PTT']}</span></p> : <p className="text-rose-400 mt-1 font-bold">→ CHƯA có phiếu triệt tiêu!</p>}
+                                </div>
+                              </div>
+                            );
+                          })
+                      }
+                    </div>
+                  )}
+
+                  {/* ── FORM THÊM/SỬA (đồng nhất) ── */}
                   {paymentForm !== null && (
                     <div className="bg-slate-900 border border-amber-800/50 rounded-xl p-5 space-y-3">
-                      <h4 className="text-sm font-bold text-amber-300">{paymentEditIdx !== null ? '✏️ Sửa Phiếu Thanh Toán' : '➕ Thêm Phiếu Mới'}</h4>
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <h4 className="text-sm font-bold text-amber-300">{paymentEditIdx !== null ? '✏️ Sửa Phiếu Thanh Toán' : '➕ Thêm Phiếu Mới'}</h4>
+                        <button onClick={() => { setPaymentForm(null); setPaymentEditIdx(null); }} className="text-slate-500 hover:text-white text-xs">✕ Hủy</button>
+                      </div>
                       <div className="grid grid-cols-2 gap-3">
                         {[
                           { key: 'NGÀY', label: 'Ngày', type: 'date', req: true },
@@ -3286,121 +3393,119 @@
                           { key: 'NGÀY ĐƯA KẾ TOÁN', label: 'Ngày Đưa Kế Toán', type: 'date', req: false },
                         ].map(f => (
                           <div key={f.key}>
-                            <label className="block text-[11px] text-slate-400 mb-1">{f.label}{f.req && <span className="text-rose-400 ml-1">*</span>}</label>
-                            <input type={f.type}
-                              value={paymentForm[f.key] || ''}
-                              onChange={e => setPaymentForm(p => ({ ...p, [f.key]: e.target.value }))}
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
-                            />
+                            <label className="block text-[11px] text-slate-400 mb-1 font-bold">{f.label}{f.req && <span className="text-rose-400 ml-1">*</span>}</label>
+                            <input type={f.type} value={paymentForm[f.key] || ''} onChange={e => setPaymentForm(p => ({ ...p, [f.key]: e.target.value }))}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-amber-500" />
                           </div>
                         ))}
                       </div>
                       <div>
-                        <label className="block text-[11px] text-slate-400 mb-1">Nội Dung <span className="text-rose-400">*</span></label>
-                        <input type="text"
-                          placeholder="VD: CH6KD-26  hoặc  PTU YM YMJAZ567057926  hoặc  WH [002FA08290, 002FA08586]"
-                          value={paymentForm['NỘI DUNG'] || ''}
-                          onChange={e => setPaymentForm(p => ({ ...p, 'NỘI DUNG': e.target.value }))}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
-                        />
-                        {paymentForm['NỘI DUNG'] && (() => {
-                          const parsed = parsePaymentContent(paymentForm['NỘI DUNG']);
-                          return (
-                            <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
-                              {parsed.isPTU && <span className="bg-orange-900/50 text-orange-300 text-[10px] px-2 py-0.5 rounded-full font-bold border border-orange-800">TẠM ỨNG</span>}
-                              {parsed.isTrietTieu && <span className="bg-blue-900/50 text-blue-300 text-[10px] px-2 py-0.5 rounded-full font-bold border border-blue-800">TRIỆT TIÊU</span>}
-                              {parsed.bills.map(b => <span key={b} className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-mono border border-slate-700">{b}</span>)}
-                            </div>
-                          );
-                        })()}
+                        <label className="block text-[11px] text-slate-400 mb-1 font-bold">Nội Dung <span className="text-rose-400">*</span></label>
+                        <input type="text" placeholder="VD: CH6KD-26  hoặc  PTU YM YMJAZ567057926  hoặc  WH [002FA08290, 002FA08586]"
+                          value={paymentForm['NỘI DUNG'] || ''} onChange={e => setPaymentForm(p => ({ ...p, 'NỘI DUNG': e.target.value }))}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-amber-500" />
+                        {paymentForm['NỘI DUNG'] && (() => { const parsed = parsePaymentContent(paymentForm['NỘI DUNG']); return (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
+                            {parsed.isPTU && <span className="bg-orange-900/50 text-orange-300 text-[10px] px-2 py-0.5 rounded-full font-bold border border-orange-800">TẠM ỨNG</span>}
+                            {parsed.isTrietTieu && <span className="bg-blue-900/50 text-blue-300 text-[10px] px-2 py-0.5 rounded-full font-bold border border-blue-800">TRIỆT TIÊU</span>}
+                            {parsed.bills.map(b => <span key={b} className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-mono border border-slate-700">{b}</span>)}
+                          </div>
+                        ); })()}
                       </div>
-                      <div className="flex gap-2 pt-1">
+                      <div className="flex gap-2 pt-2">
                         <button onClick={handleSavePaymentForm} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-5 py-2 rounded-lg text-xs">💾 Lưu</button>
                         <button onClick={() => { setPaymentForm(null); setPaymentEditIdx(null); }} className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold px-4 py-2 rounded-lg text-xs">Hủy</button>
                       </div>
                     </div>
                   )}
 
-                  {/* Empty states */}
+                  {/* ── EMPTY STATES ── */}
                   {paymentData === null && !paymentLoading && (
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-14 text-center">
                       <div className="text-5xl mb-4 opacity-20">💳</div>
-                      <p className="text-slate-400 font-bold text-sm">Chưa có dữ liệu</p>
-                      <p className="text-slate-600 text-xs mt-1">Nhấn "🔄 Load / Refresh" để đọc từ sheet "Payment" trên Google Sheets</p>
+                      <p className="text-slate-400 font-bold text-sm mb-1">Chưa có dữ liệu</p>
+                      <p className="text-slate-600 text-xs">Nhấn <span className="text-blue-400 font-bold">🔄 Load / Refresh</span> để đọc từ sheet "Payment" trên Google Sheets</p>
                     </div>
                   )}
                   {paymentLoading && (
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
-                      <p className="text-amber-400 font-bold animate-pulse">⏳ Đang tải phiếu thanh toán...</p>
+                      <p className="text-amber-400 font-bold animate-pulse text-sm">⏳ Đang tải phiếu thanh toán...</p>
+                    </div>
+                  )}
+                  {paymentData !== null && !paymentLoading && !showPymTable && !paymentSearch.trim() && (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-14 text-center">
+                      <div className="text-5xl mb-4 opacity-20">🔍</div>
+                      <p className="text-slate-300 font-bold text-sm mb-1">{(paymentData||[]).length} phiếu thanh toán có sẵn</p>
+                      <p className="text-slate-600 text-xs">Nhập từ khóa để tìm kiếm, hoặc nhấn <span className="text-slate-300 font-bold">📋 Hiển Thị Tất Cả</span></p>
                     </div>
                   )}
 
-                  {/* Table */}
-                  {paymentData !== null && !paymentLoading && (
-                    <div className="overflow-x-auto border border-slate-800 rounded-xl">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800 text-[10px]">
-                            <th className="p-3 w-8 text-center">#</th>
-                            <th className="p-3">Ngày</th>
-                            <th className="p-3">Số PTT</th>
-                            <th className="p-3 text-right">Số Tiền</th>
-                            <th className="p-3">Nội Dung</th>
-                            <th className="p-3">Ngày KT</th>
-                            <th className="p-3 text-center w-20">Thao tác</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-900">
-                          {filteredPayments.length === 0 ? (
-                            <tr><td colSpan="7" className="p-10 text-center text-slate-500">
-                              {paymentSearch ? `Không tìm thấy phiếu nào khớp "${paymentSearch}"` : 'Chưa có phiếu thanh toán.'}
-                            </td></tr>
-                          ) : filteredPayments.map((p, idx) => {
-                            const realIdx = (paymentData||[]).indexOf(p);
-                            const parsed = parsePaymentContent(p['NỘI DUNG']);
-                            const rowBg = parsed.isPTU
-                              ? 'bg-orange-950/20 hover:bg-orange-950/40'
-                              : parsed.isTrietTieu
-                              ? 'bg-blue-950/20 hover:bg-blue-950/40'
-                              : 'hover:bg-slate-900/60';
-                            return (
-                              <tr key={idx} className={`text-slate-300 transition-colors ${rowBg}`}>
-                                <td className="p-3 text-center text-slate-500 font-mono text-[10px]">{idx+1}</td>
-                                <td className="p-3 font-mono text-slate-400 whitespace-nowrap">{p['NGÀY']}</td>
-                                <td className="p-3 font-mono font-bold text-amber-300 whitespace-nowrap">{p['SỐ PTT']}</td>
-                                <td className="p-3 font-mono text-right font-bold text-emerald-400 whitespace-nowrap">{fmtVND(p['SỐ TIỀN'])}</td>
-                                <td className="p-3 max-w-xs">
-                                  <div className="flex flex-wrap gap-1 items-center">
-                                    {parsed.isPTU && <span className="bg-orange-900/60 text-orange-300 text-[9px] px-1.5 py-0.5 rounded font-bold shrink-0">PTU</span>}
-                                    {parsed.isTrietTieu && <span className="bg-blue-900/60 text-blue-300 text-[9px] px-1.5 py-0.5 rounded font-bold shrink-0">TRIỆT TIÊU</span>}
-                                    <span className="truncate">{p['NỘI DUNG']}</span>
-                                  </div>
-                                </td>
-                                <td className="p-3 font-mono text-slate-500 whitespace-nowrap text-[10px]">{p['NGÀY ĐƯA KẾ TOÁN'] || '—'}</td>
-                                <td className="p-3 text-center space-x-2" onClick={e => e.stopPropagation()}>
-                                  <button onClick={() => { setPaymentForm({...p}); setPaymentEditIdx(realIdx); }} className="text-blue-400 hover:underline text-[11px]">Sửa</button>
-                                  <button onClick={() => handleDeletePayment(realIdx)} className="text-rose-500 hover:underline text-[11px]">Xóa</button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot>
-                          <tr className="border-t border-slate-700 bg-slate-950">
-                            <td colSpan="3" className="p-3 text-[10px] text-slate-500 font-bold uppercase">
-                              Tổng {filteredPayments.length} phiếu
-                            </td>
-                            <td className="p-3 text-right font-mono font-black text-emerald-300 text-xs">
-                              {fmtVND(filteredPayments.reduce((s,p) => s + Number(String(p['SỐ TIỀN']||'').replace(/[^0-9.-]/g,'')||0), 0))}
-                            </td>
-                            <td colSpan="3"></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
+                  {/* ── TABLE + PAGINATION ── */}
+                  {showPymTable && !paymentLoading && (
+                    <>
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <span>Hiển thị <strong className="text-white">{pagedPayments.length}</strong> / <strong className="text-white">{filteredPayments.length}</strong> phiếu</span>
+                        <span className="font-mono text-emerald-400 font-bold">Tổng: {fmtVND(filteredPayments.reduce((s,p)=>s+Number(String(p['SỐ TIỀN']||'').replace(/[^0-9.-]/g,'')||0),0))}</span>
+                      </div>
+                      <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800 text-[10px]">
+                              <th className="px-4 py-3 text-center w-8">#</th>
+                              <th className="px-4 py-3">Ngày</th>
+                              <th className="px-4 py-3">Số PTT</th>
+                              <th className="px-4 py-3 text-right">Số Tiền</th>
+                              <th className="px-4 py-3">Nội Dung</th>
+                              <th className="px-4 py-3">Ngày KT</th>
+                              <th className="px-4 py-3 text-center w-24">Thao tác</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-900">
+                            {pagedPayments.length === 0 ? (
+                              <tr><td colSpan="7" className="p-10 text-center text-slate-500 italic">Không tìm thấy phiếu nào khớp "{paymentSearch}"</td></tr>
+                            ) : pagedPayments.map((p, idx) => {
+                              const realIdx = (paymentData||[]).indexOf(p);
+                              const parsed = parsePaymentContent(p['NỘI DUNG']);
+                              const rowBg = parsed.isPTU ? 'bg-orange-950/20 hover:bg-orange-950/40' : parsed.isTrietTieu ? 'bg-blue-950/20 hover:bg-blue-950/40' : 'hover:bg-slate-800/40';
+                              return (
+                                <tr key={idx} className={`text-slate-300 transition-colors ${rowBg}`}>
+                                  <td className="px-4 py-3 text-center text-slate-600 font-mono text-[10px]">{(pymPage-1)*10+idx+1}</td>
+                                  <td className="px-4 py-3 font-mono text-slate-400 whitespace-nowrap">{p['NGÀY']}</td>
+                                  <td className="px-4 py-3 font-mono font-bold text-amber-300 whitespace-nowrap">{p['SỐ PTT']}</td>
+                                  <td className="px-4 py-3 font-mono text-right font-bold text-emerald-400 whitespace-nowrap">{fmtVND(p['SỐ TIỀN'])}</td>
+                                  <td className="px-4 py-3 max-w-xs">
+                                    <div className="flex flex-wrap gap-1 items-center">
+                                      {parsed.isPTU && <span className="bg-orange-900/60 text-orange-300 text-[9px] px-1.5 py-0.5 rounded font-bold shrink-0">PTU</span>}
+                                      {parsed.isTrietTieu && <span className="bg-blue-900/60 text-blue-300 text-[9px] px-1.5 py-0.5 rounded font-bold shrink-0">TRIỆT TIÊU</span>}
+                                      <span className="truncate text-[11px]">{p['NỘI DUNG']}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 font-mono text-slate-500 whitespace-nowrap text-[10px]">{p['NGÀY ĐƯA KẾ TOÁN'] || '—'}</td>
+                                  <td className="px-4 py-3 text-center space-x-3">
+                                    <button onClick={() => { setPaymentForm({...p}); setPaymentEditIdx(realIdx); }} className="text-blue-400 hover:text-blue-200 text-[11px] font-bold hover:underline">✏️ Sửa</button>
+                                    <button onClick={() => handleDeletePayment(realIdx)} className="text-rose-500 hover:text-rose-300 text-[11px] font-bold hover:underline">🗑 Xóa</button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      {/* PAGINATION */}
+                      {pymShowAll && !paymentSearch.trim() && totalPymPages > 1 && (
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => setPymPage(p=>Math.max(1,p-1))} disabled={pymPage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 hover:bg-slate-700">← Trước</button>
+                          {Array.from({length:totalPymPages},(_,i)=>i+1).map(p=>(
+                            <button key={p} onClick={()=>setPymPage(p)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${p===pymPage?'bg-amber-600 text-white':'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{p}</button>
+                          ))}
+                          <button onClick={() => setPymPage(p=>Math.min(totalPymPages,p+1))} disabled={pymPage===totalPymPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 hover:bg-slate-700">Sau →</button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
-              )}
+                );
+              })()}
 
               {/* --- DAILY ATC REPORT VIEW --- */}
               {activeMenu === 'LIST_HANG' && (() => {
@@ -3438,13 +3543,13 @@
                 return (
                   <div className="space-y-4">
                     {/* Toolbar */}
-                    <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-5 py-3">
+                    <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-5 py-4">
                       <div>
                         <h3 className="text-sm font-black text-yellow-400 uppercase tracking-wide">📊 Daily ATC Report</h3>
                         <p className="text-[10px] text-slate-500 mt-0.5">
                           {listHangData === null
-                            ? 'Press "🔄 Load / Refresh" to read data from Google Sheets'
-                            : `Showing ${filteredRows.length} pending lots (no ATC) · ${listHangHeaders.length} columns · Total in sheet: ${listHangData.length}`}
+                            ? 'Nhấn "🔄 Load" để đọc dữ liệu từ Google Sheets'
+                            : `${filteredRows.length} lô chưa ATC · ${listHangData.length} tổng trong sheet`}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -3461,7 +3566,7 @@
                       </div>
                     </div>
 
-                    {/* Not yet loaded */}
+                    {/* Not yet loaded */
                     {listHangData === null && !listHangLoading && (
                       <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
                         <div className="text-5xl mb-4 opacity-20">📊</div>
