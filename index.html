@@ -605,6 +605,14 @@
       });
 
       // ══════════════════════════════════════════════════════════════
+      // MASTER DATA PAGINATION STATES
+      // ══════════════════════════════════════════════════════════════
+      const [suppPage, setSuppPage]       = useState(1);
+      const [suppShowAll, setSuppShowAll] = useState(false);
+      const [pymPage, setPymPage]         = useState(1);
+      const [pymShowAll, setPymShowAll]   = useState(false);
+
+      // ══════════════════════════════════════════════════════════════
       // PAYMENT DATA — Phiếu Thanh Toán
       // ══════════════════════════════════════════════════════════════
       const [paymentData, setPaymentData]       = useState(null); // null=chưa load
@@ -2177,14 +2185,14 @@
                         <span>🏷</span> HS Code Category
                       </button>
                       <button
-                        onClick={() => { setActiveMenu('SUPPLIER_DATA'); setSupplierSearch(''); }}
+                        onClick={() => { setActiveMenu('SUPPLIER_DATA'); setSupplierSearch(''); setSuppPage(1); setSuppShowAll(false); }}
                         className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
                           ${activeMenu === 'SUPPLIER_DATA' ? 'bg-violet-600/20 text-violet-400 font-bold border border-violet-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                       >
                         <span>🏢</span> Supplier Data
                       </button>
                       <button
-                        onClick={() => { setActiveMenu('PAYMENT_DATA'); setPaymentSearch(''); setPaymentCheckResult(null); }}
+                        onClick={() => { setActiveMenu('PAYMENT_DATA'); setPaymentSearch(''); setPaymentCheckResult(null); setPymPage(1); setPymShowAll(false); }}
                         className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
                           ${activeMenu === 'PAYMENT_DATA' ? 'bg-amber-600/20 text-amber-400 font-bold border border-amber-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                       >
@@ -3080,8 +3088,6 @@
                   ════════════════════════════════════════════ */}
               {activeMenu === 'SUPPLIER_DATA' && (() => {
                 const MD_PAGE_SIZE = 10;
-                const [suppPage, setSuppPage] = React.useState(1);
-                const [suppShowAll, setSuppShowAll] = React.useState(false);
                 const showSuppTable = suppShowAll || supplierSearch.trim() !== '';
                 const totalSuppPages = Math.ceil(filteredSuppliers.length / MD_PAGE_SIZE);
                 const pagedSuppliers = showSuppTable
@@ -3252,8 +3258,6 @@
                   ════════════════════════════════════════════ */}
               {activeMenu === 'PAYMENT_DATA' && (() => {
                 const MD_PAGE_SIZE = 10;
-                const [pymPage, setPymPage] = React.useState(1);
-                const [pymShowAll, setPymShowAll] = React.useState(false);
                 const showPymTable = pymShowAll || paymentSearch.trim() !== '';
                 const totalPymPages = Math.ceil(filteredPayments.length / MD_PAGE_SIZE);
                 const pagedPayments = showPymTable
