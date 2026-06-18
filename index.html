@@ -2350,7 +2350,7 @@
                   <button
                     onClick={handleSyncListHang}
                     disabled={syncingListHang}
-                    title="Sync all lots → write to sheet 'LIST HÀNG NHẬP CHANGYANG'"
+                    title="Sync all lots → write to sheet 'LIST HANG NHAP CHANGYANG'"
                     className={`text-[11px] px-3 py-1.5 rounded-lg border font-bold transition-all flex items-center gap-1.5 ${syncingListHang ? 'border-amber-800 bg-amber-950 text-amber-400 cursor-wait' : 'border-emerald-800 bg-emerald-950 text-emerald-400 hover:bg-emerald-900'}`}>
                     {syncingListHang ? <span className="animate-spin inline-block">⟳</span> : '📋'}
                     {syncingListHang ? 'Exporting...' : 'Export LIST'}
@@ -2405,7 +2405,7 @@
                     <form onSubmit={handlePortalQuickSearch} className="flex gap-2 max-w-2xl mx-auto">
                       <input 
                         type="text" 
-                        placeholder="Gõ mã lô hàng, số vận đơn (Bill), nhà cung cấp..." 
+                        placeholder="Type lot no., Bill of Lading, supplier..." 
                         value={homeSearchQuery}
                         onChange={(e) => setHomeSearchQuery(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-xs text-white placeholder-slate-600 focus:outline-none"
@@ -2529,7 +2529,7 @@
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
                       <input
                         type="text"
-                        placeholder={`Nhập mã hàng, HS Code, tên sản phẩm... để tìm trong ${dbSelectedTab === 'A12' ? dictA12.length : dictE21.length} mục`}
+                        placeholder={`Search item code, HS Code, product name... in ${dbSelectedTab === 'A12' ? dictA12.length : dictE21.length} items`}
                         value={dbSearchQuery}
                         onChange={(e) => handleDbSearch(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pl-9 pr-10 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors"
@@ -2781,14 +2781,14 @@
                       </div>
                       <div className="flex-1 min-w-[200px]">
                         <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Từ Khóa Tra Cứu</label>
-                        <input type="text" placeholder="Tìm theo mã lô, số Bill..." value={filterLotNo === '__ALL__' ? '' : filterLotNo} onChange={(e) => { setFilterLotNo(e.target.value); setSelectedLotNo(null); setSelectedInvoiceNo(null); }} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                        <input type="text" placeholder="Search by lot no., Bill no..." value={filterLotNo === '__ALL__' ? '' : filterLotNo} onChange={(e) => { setFilterLotNo(e.target.value); setSelectedLotNo(null); setSelectedInvoiceNo(null); }} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                       </div>
                       <div className="flex gap-2">
                         <button onClick={handleExportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Xuất Excel CSV</button>
                       {window.CY_API_URL && (
                         <button onClick={handleSyncSummary}
                           disabled={syncStatus === 'syncing'}
-                          title="Sync all lot data to sheet LIST HÀNG NHẬP CHANGYANG"
+                          title="Sync all lot data to sheet LIST HANG NHAP CHANGYANG"
                           className={`font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all ${
                             syncStatus === 'syncing' ? 'bg-amber-600 cursor-wait text-white' :
                             syncStatus === 'ok'      ? 'bg-cyan-600 text-white' :
@@ -3175,7 +3175,7 @@
                     <div className="relative">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">🔍</span>
                       <input type="text"
-                        placeholder={`Tìm theo tên hoặc địa chỉ trong ${(supplierData||[]).length} suppliers...`}
+                        placeholder={`Search by name or address in ${(supplierData||[]).length} suppliers...`}
                         value={supplierSearch}
                         onChange={e => { setSupplierSearch(e.target.value); setSuppPage(1); }}
                         className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pl-9 pr-10 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
@@ -3202,7 +3202,7 @@
                                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-violet-500 resize-none" />
                             ) : f.key === 'SIGNATURE IMAGE ID' ? (
                               <div className="space-y-1.5">
-                                <input type="text" placeholder="Dán link ảnh hoặc Google Drive file ID..." value={supplierForm[f.key] || ''} onChange={e => setSupplierForm(p => ({ ...p, [f.key]: e.target.value }))}
+                                <input type="text" placeholder="Paste image link or Google Drive file ID..." value={supplierForm[f.key] || ''} onChange={e => setSupplierForm(p => ({ ...p, [f.key]: e.target.value }))}
                                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-violet-500" />
                                 {supplierForm[f.key] && (() => { const raw = supplierForm[f.key].trim(); const url = raw.startsWith('http') ? raw : `https://drive.google.com/uc?export=view&id=${raw}`; return <a href={url} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-200 underline text-[11px]">🖼 Xem ảnh</a>; })()}
                               </div>
@@ -3433,7 +3433,7 @@
                           <label className="block text-[10px] text-slate-500 mb-1 uppercase font-bold">Từ khoá tra cứu</label>
                           <div className="relative">
                             <input type="text"
-                              placeholder="Tìm theo số PTT, nội dung, ngày..."
+                              placeholder="Search by payment no., content, date..."
                               value={paymentSearch}
                               onChange={e => { setPaymentSearch(e.target.value); setPymPage(1); }}
                               className="w-full bg-slate-950 border border-slate-700 rounded-lg py-2 pl-3 pr-8 text-xs text-white focus:outline-none focus:border-amber-500"
@@ -3502,7 +3502,7 @@
                       </div>
                       <div>
                         <label className="block text-[11px] text-slate-400 mb-1 font-bold">Nội Dung <span className="text-rose-400">*</span></label>
-                        <input type="text" placeholder="VD: CH6KD-26  hoặc  PTU YM YMJAZ567057926  hoặc  WH [002FA08290, 002FA08586]"
+                        <input type="text" placeholder="E.g.: CH6KD-26  or  PTU YM YMJAZ567057926  or  WH [002FA08290, 002FA08586]"
                           value={paymentForm['NỘI DUNG'] || ''} onChange={e => setPaymentForm(p => ({ ...p, 'NỘI DUNG': e.target.value }))}
                           className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-amber-500" />
                         {paymentForm['NỘI DUNG'] && (() => { const parsed = parsePaymentContent(paymentForm['NỘI DUNG']); return (
@@ -4474,7 +4474,7 @@
                           <label className="block text-[11px] text-slate-400 mb-1">Nhà Cung Ứng (Supplier)</label>
                           <input type="text" list="supplier-history-list" value={invoiceForm.supplier}
                             onChange={(e) => setInvoiceForm({...invoiceForm, supplier: e.target.value})}
-                            placeholder="Gõ hoặc chọn nhà cung ứng..."
+                            placeholder="Type or select supplier..."
                             className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                           <datalist id="supplier-history-list">
                             {supplierHistory.map((s, i) => <option key={i} value={s} />)}
@@ -4577,7 +4577,7 @@
                           </label>
                           <input type="text" list="bill-no-suggestions" value={invoiceForm.bill_no}
                             onChange={(e) => setInvoiceForm({...invoiceForm, bill_no: e.target.value.toUpperCase()})}
-                            placeholder="Nhập vài ký tự để tìm bill..."
+                            placeholder="Type a few characters to search bill..."
                             className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono" />
                           <datalist id="bill-no-suggestions">
                             {[...new Set(lots.filter(l => l.bill_no).map(l => l.bill_no))].map((b, i) => (
@@ -4660,7 +4660,7 @@
                           </div>
                           <div>
                             <label className="block text-[11px] text-slate-300 mb-1">Ghi chú phí khác</label>
-                            <input type="text" value={invoiceForm.other_charges_note || ''} onChange={(e) => setInvoiceForm({...invoiceForm, other_charges_note: e.target.value})} placeholder="VD: Phí lưu kho, phụ phí..." className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-slate-300" />
+                            <input type="text" value={invoiceForm.other_charges_note || ''} onChange={(e) => setInvoiceForm({...invoiceForm, other_charges_note: e.target.value})} placeholder="E.g.: Storage fee, surcharge..." className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-slate-300" />
                           </div>
                         </div>
                         <div className="flex justify-end">
