@@ -586,14 +586,14 @@
       const handleDeleteSupplier = (idx) => {
         setConfirmState({
           isOpen: true,
-          title: '⚠️ Xóa Supplier',
+          title: '⚠️ Delete Supplier',
           message: `Bạn có chắc muốn xóa supplier "${(supplierData[idx] || {})['SUPPLIER NAME']}"? Thao tác không thể hoàn tác.`,
           onConfirm: () => {
             const newData = (supplierData || []).filter((_, i) => i !== idx);
             saveSuppliers(newData);
           },
-          confirmLabel: 'Xóa',
-          cancelLabel: 'Hủy',
+          confirmLabel: 'Delete',
+          cancelLabel: 'Cancel',
         });
       };
 
@@ -735,14 +735,14 @@
       const handleDeletePayment = (idx) => {
         setConfirmState({
           isOpen: true,
-          title: '⚠️ Xóa Phiếu Thanh Toán',
+          title: '⚠️ Delete Payment',
           message: `Xóa phiếu "${(paymentData[idx]||{})['SỐ PTT']}"? Thao tác không thể hoàn tác.`,
           onConfirm: () => {
             const newData = (paymentData || []).filter((_, i) => i !== idx);
             savePayments(newData);
             setConfirmState(prev => ({ ...prev, isOpen: false }));
           },
-          confirmLabel: 'Xóa', cancelLabel: 'Hủy',
+          confirmLabel: 'Delete', cancelLabel: 'Cancel',
         });
       };
 
@@ -1127,8 +1127,8 @@
       // Tab 4: Finalize lot — create lot_no from loai_hinh + assign invoices to it
       const handleFinalizeLot = () => {
         const { loai_hinh, loai_hinh_con, selectedInvoiceNos } = lotAssignForm;
-        if (!loai_hinh) return showNotification("Chọn loại hình hải quan!", "error");
-        if (selectedInvoiceNos.length === 0) return showNotification("Chọn ít nhất 1 invoice!", "error");
+        if (!loai_hinh) return showNotification("Select loại hình hải quan!", "error");
+        if (selectedInvoiceNos.length === 0) return showNotification("Select ít nhất 1 invoice!", "error");
         const stt = Number(lotAssignForm.stt || lotForm.stt || 1);
         if (!stt) return showNotification("Nhập Số STT hợp lệ!", "error");
         const lot_no = generateLotNoString(loai_hinh, loai_hinh_con, stt);
@@ -1689,7 +1689,7 @@
         const lotGoodsCount = goods.filter(g => invoices.filter(i => i.lot_no === lotNo).map(i => String(i.invoice_no)).includes(String(g.invoice_no))).length;
         setConfirmState({
           isOpen: true,
-          title: '⚠️ Xóa Lô Hàng — Thao tác không thể hoàn tác',
+          title: '⚠️ Delete Lot — This cannot be undone',
           message: 'Lô hàng [' + lotNo + '] chứa ' + lotInvCount + ' hóa đơn và ' + lotGoodsCount + ' mặt hàng sẽ bị xóa vĩnh viễn theo cơ chế Cascading. Bạn có chắc chắn?',
           onConfirm: () => executeDeleteLot(lotNo)
         });
@@ -1864,7 +1864,7 @@
           return next;
         });
       };
-      // Chọn/bỏ tất cả dòng đang hiển thị
+      // Select/bỏ tất cả dòng đang hiển thị
       const toggleSelectAll = () => {
         if (selectedDictItems.size === dbPagedDict.length && dbPagedDict.length > 0) {
           setSelectedDictItems(new Set());
@@ -2105,7 +2105,7 @@
                     <li>Vào menu <strong className="text-white">Extensions → Apps Script</strong></li>
                     <li>Xóa code cũ, dán toàn bộ code từ file <code className="bg-slate-800 px-1 rounded">Code.gs</code> đi kèm</li>
                     <li>Nhấn <strong className="text-white">Deploy → New Deployment</strong></li>
-                    <li>Chọn type: <strong className="text-white">Web App</strong> → Execute as: <strong className="text-white">Me</strong> → Who has access: <strong className="text-white">Anyone</strong></li>
+                    <li>Select type: <strong className="text-white">Web App</strong> → Execute as: <strong className="text-white">Me</strong> → Who has access: <strong className="text-white">Anyone</strong></li>
                     <li>Nhấn <strong className="text-white">Deploy</strong> → Copy URL → dán vào ô bên dưới</li>
                   </ol>
                 </div>
@@ -2124,11 +2124,11 @@
                       disabled={!apiUrlInput.trim()}
                       className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-lg text-xs"
                     >
-                      ✅ Kết nối & Tải dữ liệu
+                      ✅ Connect & Load Data
                     </button>
                     {isConnected && (
                       <button onClick={() => setShowApiSetup(false)} className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">
-                        Hủy
+                        Cancel
                       </button>
                     )}
                   </div>
@@ -2136,7 +2136,7 @@
 
                 {!isConnected && (
                   <button onClick={() => setShowApiSetup(false)} className="w-full text-center text-slate-600 hover:text-slate-400 text-xs underline">
-                    Bỏ qua, dùng tạm offline (dữ liệu lưu trên trình duyệt này)
+                    Skip, use offline (data saved in this browser)
                   </button>
                 )}
               </div>
@@ -2345,21 +2345,21 @@
               </h2>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {/* Xuất LIST HÀNG — tạm ẩn, chờ deploy Apps Script v3_1 */}
+                {/* Export LIST — tạm ẩn, chờ deploy Apps Script v3_1 */}
                 {false && isConnected && (
                   <button
                     onClick={handleSyncListHang}
                     disabled={syncingListHang}
-                    title="Tổng hợp tất cả lô hàng → ghi vào sheet 'LIST HÀNG NHẬP CHANGYANG'"
+                    title="Sync all lots → write to sheet 'LIST HÀNG NHẬP CHANGYANG'"
                     className={`text-[11px] px-3 py-1.5 rounded-lg border font-bold transition-all flex items-center gap-1.5 ${syncingListHang ? 'border-amber-800 bg-amber-950 text-amber-400 cursor-wait' : 'border-emerald-800 bg-emerald-950 text-emerald-400 hover:bg-emerald-900'}`}>
                     {syncingListHang ? <span className="animate-spin inline-block">⟳</span> : '📋'}
-                    {syncingListHang ? 'Đang xuất...' : 'Xuất LIST HÀNG'}
+                    {syncingListHang ? 'Exporting...' : 'Export LIST'}
                   </button>
                 )}
                 {isConnected && (
                   <button
                     onClick={handleResyncAll}
-                    title="Ghi lại toàn bộ dữ liệu lên Sheet với schema đầy đủ (backfill cột mới)"
+                    title="Write all data to Sheet with full schema (backfill new columns)"
                     className="text-[11px] px-3 py-1.5 rounded-lg border border-cyan-800 bg-cyan-950 text-cyan-400 font-bold hover:bg-cyan-900 transition-all flex items-center gap-1.5">
                     🔄 Sync Schema
                   </button>
@@ -2370,17 +2370,17 @@
                       syncStatus === 'error'   ? 'bg-rose-950 border-rose-800 text-rose-400' :
                       syncStatus === 'ok'      ? 'bg-emerald-950 border-emerald-800 text-emerald-400' :
                       'bg-slate-950 border-slate-850 text-emerald-400'}`}
-                    onClick={() => setShowApiSetup(true)} title="Nhấn để đổi cấu hình API">
+                    onClick={() => setShowApiSetup(true)} title="Click to change API config">
                     {syncStatus === 'syncing' ? <span className="animate-spin">⟳</span> :
                      syncStatus === 'error'   ? '⚠' : '●'}
                     {syncStatus === 'syncing' ? 'Đang đồng bộ...' :
-                     syncStatus === 'error'   ? 'Lỗi đồng bộ' :
-                     syncStatus === 'ok'      ? 'Đã lưu ✓' : 'GOOGLE SHEETS'}
+                     syncStatus === 'error'   ? 'Sync error' :
+                     syncStatus === 'ok'      ? 'Saved ✓' : 'GOOGLE SHEETS'}
                   </div>
                 ) : (
                   <div className="text-[11px] bg-amber-950 border border-amber-800 px-3 py-1.5 rounded-lg text-amber-400 font-mono font-bold flex items-center gap-2 cursor-pointer hover:opacity-80"
                     onClick={() => setShowApiSetup(true)}>
-                    ⚠ OFFLINE — Nhấn để kết nối Sheets
+                    ⚠ OFFLINE — Click to connect Sheets
                   </div>
                 )}
               </div>
@@ -2415,11 +2415,11 @@
                     <div className="flex gap-2 justify-center flex-wrap mt-2">
                       <span className="text-[10px] text-slate-500 self-center">Lọc nhanh:</span>
                       {[
-                        { label: '📅 Hôm nay', fn: () => { const d = new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
-                        { label: '📆 Tháng này', fn: () => { const n = new Date(); const from = new Date(n.getFullYear(), n.getMonth(), 1).toISOString().slice(0,10); const to = new Date(n.getFullYear(), n.getMonth()+1, 0).toISOString().slice(0,10); setFilterFromDate(from); setFilterToDate(to); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
-                        { label: '🗓 Năm nay', fn: () => { const y = new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
-                        { label: '🗓 Năm trước', fn: () => { const y = new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
-                        { label: '📋 Tất cả', fn: () => { setFilterFromDate(''); setFilterToDate(''); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
+                        { label: '📅 Today', fn: () => { const d = new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
+                        { label: '📆 This month', fn: () => { const n = new Date(); const from = new Date(n.getFullYear(), n.getMonth(), 1).toISOString().slice(0,10); const to = new Date(n.getFullYear(), n.getMonth()+1, 0).toISOString().slice(0,10); setFilterFromDate(from); setFilterToDate(to); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
+                        { label: '🗓 This year', fn: () => { const y = new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
+                        { label: '🗓 Last year', fn: () => { const y = new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
+                        { label: '📋 All', fn: () => { setFilterFromDate(''); setFilterToDate(''); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
                       ].map((btn, i) => (
                         <button key={i} onClick={btn.fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] px-3 py-1.5 rounded-lg border border-slate-700 transition-colors font-bold">{btn.label}</button>
                       ))}
@@ -2506,7 +2506,7 @@
                       </div>
                       <div className="flex flex-wrap gap-2 items-center">
                         <button onClick={handleOpenAddDict} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1">
-                          ➕ Thêm sản phẩm
+                          ➕ Add Product
                         </button>
                         <label className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1 cursor-pointer">
                           📥 Import Excel
@@ -2570,7 +2570,7 @@
                               onClick={handleBulkDelete}
                               className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors"
                             >
-                              🗑 Xóa {selectedDictItems.size} dòng đã chọn
+                              🗑 Delete {selectedDictItems.size} selected rows
                             </button>
                           )}
                         </div>
@@ -2586,7 +2586,7 @@
                                     checked={dbPagedDict.length > 0 && selectedDictItems.size === dbPagedDict.length}
                                     onChange={toggleSelectAll}
                                     className="accent-rose-500 cursor-pointer w-3.5 h-3.5"
-                                    title="Chọn/bỏ tất cả trang này"
+                                    title="Select/deselect all on this page"
                                   />
                                 </th>
                                 <th className="p-3 w-12 text-center">STT</th>
@@ -2622,8 +2622,8 @@
                                     <td className="p-3 text-slate-400 italic leading-relaxed">{item.goods_name_local}</td>
                                     <td className="p-3 text-center font-bold text-sky-400">{item.goods_unit_en} / {item.goods_unit_local}</td>
                                     <td className="p-3 text-center space-x-2" onClick={e => e.stopPropagation()}>
-                                      <button onClick={(e) => handleOpenEditDict(item, e)} className="text-blue-400 hover:underline">Sửa</button>
-                                      <button onClick={(e) => handleDeleteDictConfirm(item, e)} className="text-rose-500 hover:underline">Xóa</button>
+                                      <button onClick={(e) => handleOpenEditDict(item, e)} className="text-blue-400 hover:underline">Edit</button>
+                                      <button onClick={(e) => handleDeleteDictConfirm(item, e)} className="text-rose-500 hover:underline">Delete</button>
                                     </td>
                                   </tr>
                                 );
@@ -2680,7 +2680,7 @@
                           </div>
                           <button onClick={() => { setModalMode('add'); setModalTab('assign'); setShowAddModal(true); }}
                             className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
-                            ✦ Tạo Mã Lô Ngay
+                            ✦ Create Lot Now
                           </button>
                         </div>
                         <div className="overflow-x-auto">
@@ -2727,7 +2727,7 @@
                       <button onClick={() => {
                         setConfirmState({
                           isOpen: true,
-                          title: `Xóa ${selectedLotNos.size} lô hàng`,
+                          title: `Delete ${selectedLotNos.size} lots`,
                           message: 'Bạn chắc chắn muốn xóa ' + selectedLotNos.size + ' lô hàng đã chọn? Tất cả invoice và hàng hóa liên quan sẽ bị xóa vĩnh viễn.',
                           onConfirm: () => {
                             let remainLots = lots.filter(l => !selectedLotNos.has(l.lot_no));
@@ -2747,7 +2747,7 @@
                             showNotification(`Đã xóa ${selectedLotNos.size} lô hàng`);
                           }
                         });
-                      }} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-1.5 rounded text-xs">🗑 Xóa {selectedLotNos.size} lô đã chọn</button>
+                      }} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-1.5 rounded text-xs">🗑 Delete {selectedLotNos.size} selected lots</button>
                     </div>
                   )}
 
@@ -2757,11 +2757,11 @@
                     <div className="flex flex-wrap gap-2 items-center">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">Lọc nhanh:</span>
                       {[
-                        ['📅 Hôm nay', () => { const d=new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
-                        ['📆 Tháng này', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
-                        ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
-                        ['🗓 Năm trước', () => { const y=new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
-                        ['📋 Tất cả', () => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo('__ALL__'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                        ['📅 Today', () => { const d=new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                        ['📆 This month', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                        ['🗓 This year', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                        ['🗓 Last year', () => { const y=new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                        ['📋 All', () => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo('__ALL__'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
                       ].map(([l, fn], i) => (
                         <button key={i} onClick={fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] px-3 py-1.5 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
                       ))}
@@ -2788,7 +2788,7 @@
                       {window.CY_API_URL && (
                         <button onClick={handleSyncSummary}
                           disabled={syncStatus === 'syncing'}
-                          title="Tổng hợp tất cả dữ liệu lô hàng vào sheet LIST HÀNG NHẬP CHANGYANG"
+                          title="Sync all lot data to sheet LIST HÀNG NHẬP CHANGYANG"
                           className={`font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all ${
                             syncStatus === 'syncing' ? 'bg-amber-600 cursor-wait text-white' :
                             syncStatus === 'ok'      ? 'bg-cyan-600 text-white' :
@@ -2814,10 +2814,10 @@
                       </div>
                       <div className="flex gap-2 flex-wrap justify-center">
                         {[
-                          ['📅 Hôm nay', () => { const d=new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
-                          ['📆 Tháng này', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
-                          ['🗓 Năm nay', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
-                          ['📋 Tất cả lô', () => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo('__ALL__'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                          ['📅 Today', () => { const d=new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                          ['📆 This month', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                          ['🗓 This year', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                          ['📋 All lô', () => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo('__ALL__'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
                         ].map(([l, fn], i) => (
                           <button key={i} onClick={fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs px-4 py-2 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
                         ))}
@@ -2917,7 +2917,7 @@
                             setInvoiceForm(prev => ({...prev, lot_no: selectedLotNo, bill_no: selLot?.bill_no || '', bill_stt: selLot?.stt || 0, invoice_no: '', total_amount: 0, invoice_date: new Date().toISOString().substring(0,10)}));
                             setShowAddModal(true);
                           }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
-                            ➕ Thêm Hóa Đơn
+                            ➕ Add Invoice
                           </button>
                         )}
                       </div>
@@ -2925,7 +2925,7 @@
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
                             <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
-                              <th className="p-3 w-12 text-center">Chọn</th>
+                              <th className="p-3 w-12 text-center">Select</th>
                               <th className="p-3">Số Hóa Đơn</th>
                               <th className="p-3">Ngày HĐ</th>
                               <th className="p-3">Incoterm</th>
@@ -2956,8 +2956,8 @@
                                 <td className="p-3 font-bold text-pink-500">{inv.incoterm}</td>
                                 <td className="p-3 text-right text-amber-400 font-bold font-mono">{'$'}{getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                                 <td className="p-3 text-center space-x-2">
-                                  <button onClick={(e) => startEditInvoice(inv, e)} className="text-blue-400 hover:underline">Sửa</button>
-                                  <button onClick={(e) => triggerDeleteInvoiceConfirm(inv.invoice_no, e)} className="text-rose-500 hover:underline">Xóa</button>
+                                  <button onClick={(e) => startEditInvoice(inv, e)} className="text-blue-400 hover:underline">Edit</button>
+                                  <button onClick={(e) => triggerDeleteInvoiceConfirm(inv.invoice_no, e)} className="text-rose-500 hover:underline">Delete</button>
                                 </td>
                               </tr>
                             ))}
@@ -2990,7 +2990,7 @@
                                 'Mã Hàng',
                                 'Tên Hàng',
                                 ...(isA12 ? ['HS Code'] : []),
-                                'Xuất Xứ',
+                                'Origin',
                                 'Số Lượng 1', 'ĐVT 1',
                                 'Số Lượng 2', 'ĐVT 2',
                                 'Đơn Giá', 'Thành Tiền',
@@ -3038,7 +3038,7 @@
                               XLSX.writeFile(wb, `HangHoa_${selectedLotNo}_${isA12 ? 'A12' : 'E21'}_${new Date().toISOString().slice(0,10)}.xlsx`);
                               showNotification(`Đã xuất ${lotGoods.length} dòng hàng hóa lô ${selectedLotNo} (${isA12 ? 'A12 — có HS Code + Mã Thuế' : 'E21'})`);
                             }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
-                              📥 Xuất Excel
+                              📥 Export Excel
                             </button>
                           )}
                           {selectedInvoiceNo && (
@@ -3048,7 +3048,7 @@
                               setModalTab('goods');
                               setShowAddModal(true);
                             }} className="bg-emerald-800 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
-                              ➕ Thêm Hàng
+                              ➕ Add Item
                             </button>
                           )}
                         </div>
@@ -3165,7 +3165,7 @@
                       )}
                       <button onClick={handleOpenAddSupplier}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 transition-all">
-                        ➕ Thêm Supplier
+                        ➕ Add Supplier
                       </button>
                     </div>
                   </div>
@@ -3190,7 +3190,7 @@
                   {supplierForm !== null && (
                     <div className="bg-slate-900 border border-violet-800/50 rounded-xl p-5 space-y-3">
                       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                        <h4 className="text-sm font-bold text-violet-300">{supplierEditIdx !== null ? '✏️ Sửa Supplier' : '➕ Thêm Supplier Mới'}</h4>
+                        <h4 className="text-sm font-bold text-violet-300">{supplierEditIdx !== null ? '✏️ Edit Supplier' : '➕ Add Supplier Mới'}</h4>
                         <button onClick={() => { setSupplierForm(null); setSupplierEditIdx(null); }} className="text-slate-500 hover:text-white text-xs">✕ Hủy</button>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -3215,7 +3215,7 @@
                       </div>
                       <div className="flex gap-2 pt-2">
                         <button onClick={handleSaveSupplierForm} className="bg-violet-600 hover:bg-violet-700 text-white font-bold px-5 py-2 rounded-lg text-xs">💾 Lưu</button>
-                        <button onClick={() => { setSupplierForm(null); setSupplierEditIdx(null); }} className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold px-4 py-2 rounded-lg text-xs">Hủy</button>
+                        <button onClick={() => { setSupplierForm(null); setSupplierEditIdx(null); }} className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold px-4 py-2 rounded-lg text-xs">Cancel</button>
                       </div>
                     </div>
                   )}
@@ -3274,7 +3274,7 @@
                                     {s['SIGNATURE IMAGE ID'] ? (() => { const raw = s['SIGNATURE IMAGE ID'].trim(); const url = raw.startsWith('http') ? raw : `https://drive.google.com/uc?export=view&id=${raw}`; return <a href={url} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-200 underline text-[11px]">🖼 Xem ảnh</a>; })() : <span className="text-slate-600 italic text-[10px]">—</span>}
                                   </td>
                                   <td className="px-4 py-3 text-center space-x-3">
-                                    <button onClick={() => handleOpenEditSupplier(realIdx)} className="text-blue-400 hover:text-blue-200 text-[11px] font-bold hover:underline">✏️ Sửa</button>
+                                    <button onClick={() => handleOpenEditSupplier(realIdx)} className="text-blue-400 hover:text-blue-200 text-[11px] font-bold hover:underline">✏️ Edit</button>
                                     <button onClick={() => handleDeleteSupplier(realIdx)} className="text-rose-500 hover:text-rose-300 text-[11px] font-bold hover:underline">🗑 Xóa</button>
                                   </td>
                                 </tr>
@@ -3286,11 +3286,11 @@
                       {/* PAGINATION */}
                       {suppShowAll && !supplierSearch.trim() && totalSuppPages > 1 && (
                         <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => setSuppPage(p=>Math.max(1,p-1))} disabled={suppPage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 hover:bg-slate-700">← Trước</button>
+                          <button onClick={() => setSuppPage(p=>Math.max(1,p-1))} disabled={suppPage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 hover:bg-slate-700">← Prev</button>
                           {Array.from({length:totalSuppPages},(_,i)=>i+1).map(p=>(
                             <button key={p} onClick={()=>setSuppPage(p)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${p===suppPage?'bg-violet-600 text-white':'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{p}</button>
                           ))}
-                          <button onClick={() => setSuppPage(p=>Math.min(totalSuppPages,p+1))} disabled={suppPage===totalSuppPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 hover:bg-slate-700">Sau →</button>
+                          <button onClick={() => setSuppPage(p=>Math.min(totalSuppPages,p+1))} disabled={suppPage===totalSuppPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 hover:bg-slate-700">Next →</button>
                         </div>
                       )}
                     </>
@@ -3345,19 +3345,19 @@
                               showNotification(`✅ Đã xuất ${rows.length} phiếu ra Excel!`);
                             }}
                               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white transition-all">
-                              📥 Xuất Excel ({pymSelected.size})
+                              📥 Export Excel ({pymSelected.size})
                             </button>
                           )}
                           <button onClick={() => { const ptuList = checkTrietTieu(filteredPayments); setPaymentCheckResult(ptuList); showNotification(`🔍 Tìm thấy ${ptuList.length} phiếu PTU.`); }}
                             disabled={!paymentData || paymentData.length === 0}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition-all disabled:opacity-40">
-                            🔍 Kiểm Tra Triệt Tiêu
+                            🔍 Check Offset
                           </button>
                         </>
                       )}
                       <button onClick={() => { setPaymentForm({ 'NGÀY': new Date().toISOString().slice(0,10), 'SỐ PTT': '', 'SỐ TIỀN': '', 'NỘI DUNG': '', 'NGÀY ĐƯA KẾ TOÁN': '' }); setPaymentEditIdx(null); }}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all">
-                        ➕ Thêm Phiếu
+                        ➕ Add Voucher
                       </button>
                     </div>
                   </div>
@@ -3404,7 +3404,7 @@
                         <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mr-1">Lọc nhanh:</span>
                         {[
                           { key: 'all',       label: '🗂 Tất cả' },
-                          { key: 'today',     label: '📅 Hôm nay' },
+                          { key: 'today',     label: '📅 Today' },
                           { key: 'month',     label: '🗓 Tháng này' },
                           { key: 'year',      label: '📆 Năm nay' },
                           { key: 'prev_year', label: '📆 Năm trước' },
@@ -3483,7 +3483,7 @@
                   {paymentForm !== null && (
                     <div className="bg-slate-900 border border-amber-800/50 rounded-xl p-5 space-y-3">
                       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                        <h4 className="text-sm font-bold text-amber-300">{paymentEditIdx !== null ? '✏️ Sửa Phiếu Thanh Toán' : '➕ Thêm Phiếu Mới'}</h4>
+                        <h4 className="text-sm font-bold text-amber-300">{paymentEditIdx !== null ? '✏️ Edit Payment' : '➕ Add Payment Mới'}</h4>
                         <button onClick={() => { setPaymentForm(null); setPaymentEditIdx(null); }} className="text-slate-500 hover:text-white text-xs">✕ Hủy</button>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -3515,7 +3515,7 @@
                       </div>
                       <div className="flex gap-2 pt-2">
                         <button onClick={handleSavePaymentForm} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-5 py-2 rounded-lg text-xs">💾 Lưu</button>
-                        <button onClick={() => { setPaymentForm(null); setPaymentEditIdx(null); }} className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold px-4 py-2 rounded-lg text-xs">Hủy</button>
+                        <button onClick={() => { setPaymentForm(null); setPaymentEditIdx(null); }} className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold px-4 py-2 rounded-lg text-xs">Cancel</button>
                       </div>
                     </div>
                   )}
@@ -3596,7 +3596,7 @@
                                   </td>
                                   <td className="px-4 py-3 font-mono text-slate-500 whitespace-nowrap text-[10px]">{p['NGÀY ĐƯA KẾ TOÁN'] || '—'}</td>
                                   <td className="px-4 py-3 text-center space-x-3">
-                                    <button onClick={() => { setPaymentForm({...p}); setPaymentEditIdx(realIdx); }} className="text-blue-400 hover:text-blue-200 text-[11px] font-bold hover:underline">✏️ Sửa</button>
+                                    <button onClick={() => { setPaymentForm({...p}); setPaymentEditIdx(realIdx); }} className="text-blue-400 hover:text-blue-200 text-[11px] font-bold hover:underline">✏️ Edit</button>
                                     <button onClick={() => handleDeletePayment(realIdx)} className="text-rose-500 hover:text-rose-300 text-[11px] font-bold hover:underline">🗑 Xóa</button>
                                   </td>
                                 </tr>
@@ -3608,11 +3608,11 @@
                       {/* PAGINATION */}
                       {pymShowAll && !paymentSearch.trim() && totalPymPages > 1 && (
                         <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => setPymPage(p=>Math.max(1,p-1))} disabled={pymPage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 hover:bg-slate-700">← Trước</button>
+                          <button onClick={() => setPymPage(p=>Math.max(1,p-1))} disabled={pymPage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 hover:bg-slate-700">← Prev</button>
                           {Array.from({length:totalPymPages},(_,i)=>i+1).map(p=>(
                             <button key={p} onClick={()=>setPymPage(p)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${p===pymPage?'bg-amber-600 text-white':'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{p}</button>
                           ))}
-                          <button onClick={() => setPymPage(p=>Math.min(totalPymPages,p+1))} disabled={pymPage===totalPymPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 hover:bg-slate-700">Sau →</button>
+                          <button onClick={() => setPymPage(p=>Math.min(totalPymPages,p+1))} disabled={pymPage===totalPymPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 hover:bg-slate-700">Next →</button>
                         </div>
                       )}
                     </>
@@ -4057,7 +4057,7 @@
               <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl">
                 <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex justify-between items-center">
                   <h3 className="font-bold text-xs uppercase tracking-wider text-white">
-                    {dictModalMode === 'add' ? '➕ Thêm sản phẩm' : '✏️ Sửa sản phẩm'} (Danh mục gốc {dbSelectedTab})
+                    {dictModalMode === 'add' ? '➕ Add product' : '✏️ Edit product'} (Danh mục gốc {dbSelectedTab})
                   </h3>
                   <button onClick={() => setShowDictModal(false)} className="text-slate-400 hover:text-white font-black">✕</button>
                 </div>
@@ -4091,8 +4091,8 @@
                     </div>
                   </div>
                   <div className="pt-4 border-t border-slate-800 flex justify-end gap-2">
-                    <button type="button" onClick={() => setShowDictModal(false)} className="bg-slate-800 px-4 py-2 text-xs rounded text-slate-300">Đóng</button>
-                    <button type="submit" className="bg-emerald-600 px-4 py-2 text-xs rounded text-white font-bold">Lưu sản phẩm</button>
+                    <button type="button" onClick={() => setShowDictModal(false)} className="bg-slate-800 px-4 py-2 text-xs rounded text-slate-300">Close</button>
+                    <button type="submit" className="bg-emerald-600 px-4 py-2 text-xs rounded text-white font-bold">Save Product</button>
                   </div>
                 </form>
               </div>
@@ -4202,7 +4202,7 @@
                         </div>
                       </div>
 
-                      {/* ROW 4: Cảng Đi + Cảng Đến + Xuất Xứ */}
+                      {/* ROW 4: Cảng Đi + Cảng Đến + Origin */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Cảng Đi (POL)</label>
@@ -4213,7 +4213,7 @@
                           <input type="text" value={lotForm.pod} onChange={(e) => setLotForm({...lotForm, pod: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                         </div>
                         <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">Xuất Xứ Hàng Hóa</label>
+                          <label className="block text-[11px] text-slate-400 mb-1">Origin Hàng Hóa</label>
                           <input type="text" list="origin-country-list" value={lotForm.origin_country}
                             onChange={(e) => setLotForm({...lotForm, origin_country: e.target.value.toUpperCase()})}
                             className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
@@ -4387,7 +4387,7 @@
                         )}
                         <button type="submit"
                           className={`ml-auto px-6 py-2.5 rounded-lg text-xs font-bold text-white ${modalMode === 'edit' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                          {modalMode === 'edit' ? '✔ Cập Nhật Thông Tin Bill' : 'Lưu Thông Tin Bill → Nhập Invoice ➔'}
+                          {modalMode === 'edit' ? '✔ Update Bill Info' : 'Save Bill Info → Enter Invoice ➔'}
                         </button>
                       </div>
                     </form>
@@ -4408,7 +4408,7 @@
                         return (
                           <div className="bg-indigo-950/20 border border-indigo-800/40 rounded-xl overflow-hidden">
                             <div className="bg-indigo-950/40 px-4 py-2.5 border-b border-indigo-900/30">
-                              <p className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider">📋 Chọn Hóa Đơn Để Sửa — Lô {selectedLotNo}</p>
+                              <p className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider">📋 Select Hóa Đơn Để Sửa — Lô {selectedLotNo}</p>
                             </div>
                             <div className="p-3 flex flex-wrap gap-2">
                               {lotInvoices.map(inv => (
@@ -4493,7 +4493,7 @@
                               setLotAssignForm(prev => ({...prev, stt}));
                             }}
                             className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-amber-400 font-bold font-mono">
-                            <option value="">— Chọn STT từ Bill đã nhập —</option>
+                            <option value="">— Select STT từ Bill đã nhập —</option>
                             {/* STT hiện tại từ lotForm (draft) */}
                             {lotForm.stt > 0 && (
                               <option value={lotForm.stt}>
@@ -4731,7 +4731,7 @@
                                           setInvoiceForm({...inv});
                                           setDraftInvoiceNos(prev => prev.filter(n => n !== inv.invoice_no));
                                         }}
-                                        className="text-blue-400 hover:text-blue-300 text-[10px] font-bold">✏️ Sửa</button>
+                                        className="text-blue-400 hover:text-blue-300 text-[10px] font-bold">✏️ Edit</button>
                                       <button type="button"
                                         onClick={() => {
                                           setConfirmState({ isOpen: true,
@@ -4746,7 +4746,7 @@
                                             }
                                           });
                                         }}
-                                        className="text-rose-500 hover:text-rose-400 text-[10px] font-bold">🗑️ Xoá</button>
+                                        className="text-rose-500 hover:text-rose-400 text-[10px] font-bold">🗑️ Delete</button>
                                     </td>
                                   </tr>
                                 ))}
@@ -4788,7 +4788,7 @@
                                     <td className="px-3 py-2 text-center">
                                       <button type="button"
                                         onClick={() => startEditInvoice(inv)}
-                                        className="text-blue-400 hover:text-blue-300 text-[10px] font-bold">✏️ Sửa</button>
+                                        className="text-blue-400 hover:text-blue-300 text-[10px] font-bold">✏️ Edit</button>
                                     </td>
                                   </tr>
                                 ))}
@@ -4836,11 +4836,11 @@
                                 }));
                               }}
                               className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-xs font-bold border border-slate-600">
-                              ➕ Lưu &amp; Thêm Invoice Khác
+                              ➕ Save &amp; Add Another Invoice
                             </button>
                             <div className="flex gap-2">
                               <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-bold">
-                                Lưu → Nhập Hàng Hóa ➔
+                                Save → Enter Goods ➔
                               </button>
                               <button type="button"
                                 onClick={() => {
@@ -4864,7 +4864,7 @@
                                   setModalTab('assign');
                                 }}
                                 className="bg-amber-600 hover:bg-amber-500 text-white px-5 py-2 rounded-lg text-xs font-bold">
-                                Lưu → Tạo Mã Lô ✦
+                                Save → Create Lot ✦
                               </button>
                             </div>
                           </div>
@@ -4891,7 +4891,7 @@
                         return (
                           <div className="bg-emerald-950/20 border border-emerald-800/40 rounded-xl overflow-hidden">
                             <div className="bg-emerald-950/40 px-4 py-2.5 border-b border-emerald-900/30">
-                              <p className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">📦 Chọn Mặt Hàng Để Sửa — Invoice {selectedInvoiceNo}</p>
+                              <p className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">📦 Select Mặt Hàng Để Sửa — Invoice {selectedInvoiceNo}</p>
                             </div>
                             <div className="divide-y divide-slate-900">
                               {invGoods.map(g => (
@@ -4904,7 +4904,7 @@
                                   </div>
                                   <div className="flex items-center gap-4">
                                     <span className="text-[11px] font-mono text-amber-400">{'$'}{Number(g.sale_amount||0).toLocaleString(undefined,{minimumFractionDigits:2})}</span>
-                                    <button type="button" className="text-blue-400 hover:text-blue-300 text-[10px] font-bold px-2 py-1 border border-blue-800 rounded">✏️ Sửa</button>
+                                    <button type="button" className="text-blue-400 hover:text-blue-300 text-[10px] font-bold px-2 py-1 border border-blue-800 rounded">✏️ Edit</button>
                                   </div>
                                 </div>
                               ))}
@@ -5224,7 +5224,7 @@
                           <h4 className="text-sm font-black text-amber-400 uppercase tracking-wide">✦ Tạo Mã Lô Hàng</h4>
                           <p className="text-[11px] text-slate-400 mt-1">
                             Hệ thống tự động nhóm invoice theo STT và loại hình → tạo các mã lô tương ứng.
-                            Tick chọn invoice → bấm <strong className="text-amber-400">Tạo Lô Từ Invoice Đã Chọn</strong>.
+                            Tick chọn invoice → bấm <strong className="text-amber-400">Tạo Lô Từ Invoice Đã Select</strong>.
                           </p>
                           <div className="mt-2 text-[10px] text-amber-700 space-y-0.5">
                             <p>A12 KD → <span className="font-mono text-amber-400">CH[stt]KD-[yy]</span> &nbsp;|&nbsp;
@@ -5265,7 +5265,7 @@
                         ) : (
                           <div className="space-y-3">
                             <div className="flex justify-between items-center">
-                              <label className="text-[11px] text-slate-400 font-bold uppercase">Chọn Invoice Để Tạo Lô</label>
+                              <label className="text-[11px] text-slate-400 font-bold uppercase">Select Invoice Để Tạo Lô</label>
                               <button type="button"
                                 onClick={() => setLotAssignForm(prev => ({
                                   ...prev,
@@ -5273,7 +5273,7 @@
                                     ? [] : unassignedInvoices.map(i => i.invoice_no)
                                 }))}
                                 className="text-[10px] text-blue-400 hover:text-blue-300">
-                                {lotAssignForm.selectedInvoiceNos.length === unassignedInvoices.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                                {lotAssignForm.selectedInvoiceNos.length === unassignedInvoices.length ? 'Bỏ chọn tất cả' : 'Select tất cả'}
                               </button>
                             </div>
 
@@ -5362,7 +5362,7 @@
                         <div className="pt-4 border-t border-slate-800 flex gap-3 justify-end">
                           <button type="button"
                             onClick={() => {
-                              if (lotAssignForm.selectedInvoiceNos.length === 0) return showNotification("Chọn ít nhất 1 invoice!", "error");
+                              if (lotAssignForm.selectedInvoiceNos.length === 0) return showNotification("Select ít nhất 1 invoice!", "error");
                               const selInvs = invoices.filter(i => lotAssignForm.selectedInvoiceNos.includes(i.invoice_no));
                               // Group by STT + loai_hinh + loai_hinh_con
                               const groups = {};
@@ -5414,7 +5414,7 @@
                             }}
                             disabled={lotAssignForm.selectedInvoiceNos.length === 0}
                             className="bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-black px-6 py-2.5 rounded-lg text-xs transition-all">
-                            ✦ Tạo Lô Từ Invoice Đã Chọn
+                            ✦ Create Lots from Selected Invoices
                           </button>
                           <button type="button"
                             onClick={() => {
@@ -5429,7 +5429,7 @@
                               setSelectedFactories([]);
                             }}
                             className="bg-emerald-700 hover:bg-emerald-600 text-white font-black px-5 py-2.5 rounded-lg text-xs transition-all">
-                            ✅ Kết Thúc — Xem Danh Sách Lô
+                            ✅ Done — View Lot List
                           </button>
                         </div>
                       </div>
@@ -5452,7 +5452,7 @@
                   <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 max-w-md text-center">
                     <p className="text-amber-400 font-bold text-sm mb-2">⚠️ Bảng kê chỉ áp dụng khi lô có nhiều hóa đơn cùng loại hình</p>
                     <p className="text-slate-400 text-xs mb-4">Lô <strong>{selectedLotNo}</strong> hiện có {printInvoices.length} hóa đơn.</p>
-                    <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-700 text-white px-4 py-2 rounded text-xs font-bold">Đóng</button>
+                    <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-700 text-white px-4 py-2 rounded text-xs font-bold">Close</button>
                   </div>
                 </div>
               );
@@ -5470,7 +5470,7 @@
                     <div className="flex gap-2">
                       <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">🖨️ In Bảng Kê</button>
                       <button onClick={() => exportBangKeWord(selectedLotNo, printInvoices, totalVal, currency, supplier)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">📄 Tải Word</button>
-                      <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-800 text-slate-300 font-bold px-3 py-2 rounded text-xs">Đóng</button>
+                      <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-800 text-slate-300 font-bold px-3 py-2 rounded text-xs">Close</button>
                     </div>
                   </div>
 
