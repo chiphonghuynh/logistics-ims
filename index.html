@@ -871,6 +871,7 @@
       const [dbCurrentPage, setDbCurrentPage] = useState(1);
       const DB_PAGE_SIZE = 50;
       const [selectedDictItems, setSelectedDictItems] = useState(new Set()); // multi-select cho xóa hàng loạt
+      const [hsCodeFilter, setHsCodeFilter] = useState(''); // lọc danh mục theo prefix HS Code
 
       const [homeSearchQuery, setHomeSearchQuery] = useState('');
 
