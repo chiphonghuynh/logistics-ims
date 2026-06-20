@@ -4602,25 +4602,96 @@
                       {/* ROW 5: Shipping type */}
                       <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 space-y-4">
                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">🚢 Shipping method</label>
-                        <div className="flex gap-3 flex-wrap">
-                          {[
-                            { val: 'AIR', label: '✈ AIR', color: 'sky' },
-                            { val: 'EXPRESS', label: '📦 EXPRESS (DHL/FedEx)', color: 'purple' },
-                            { val: 'SEA_CONT', label: '🚢 SEA – CONT', color: 'blue' },
-                            { val: 'SEA_CFS', label: '⚓ SEA – CFS (LCL)', color: 'indigo' },
-                            { val: 'NGOAI_QUAN', label: '🏭 Bonded Warehouse', color: 'amber' },
-                            { val: 'BY_TRUCK', label: '🚛 By Truck', color: 'green' },
-                          ].map(opt => (
-                            <button type="button" key={opt.val}
-                              onClick={() => setLotForm(prev => ({...prev, transport_type: opt.val, is_cont: opt.val === 'SEA_CONT'}))}
-                              className={`px-4 py-2 rounded-lg text-xs font-bold border transition-all
-                                ${lotForm.transport_type === opt.val
-                                  ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/40'
-                                  : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
-                              {opt.label}
-                            </button>
-                          ))}
-                        </div>
+                        {(() => {
+                          // 5 nhóm chính. SEA và EXPRESS có loại con — chọn nhóm xong sẽ hiện dòng phụ để chọn loại con.
+                          // Lưu ý: transport_type vẫn lưu đúng giá trị cũ (AIR/EXPRESS/SEA_CONT/SEA_CFS/NGOAI_QUAN/BY_TRUCK) — không đổi cấu trúc dữ liệu.
+                          const SHIPPING_GROUPS = [
+                            { group: 'AIR', label: '✈ AIR', sub: [{ val: 'AIR', label: 'AIR' }] },
+                            { group: 'SEA', label: '🚢 SEA', sub: [
+                                { val: 'SEA_CONT', label: '🚢 CONT (FCL)' },
+                                { val: 'SEA_CFS', label: '⚓ CFS (LCL)' },
+                              ] },
+                            { group: 'EXPRESS', label: '📦 EXPRESS', sub: [
+                                { val: 'EXPRESS', label: 'DHL', carrier: 'DHL' },
+                                { val: 'EXPRESS', label: 'FedEx', carrier: 'FedEx' },
+                              ] },
+                            { group: 'NGOAI_QUAN', label: '🏭 Bonded Warehouse', sub: [{ val: 'NGOAI_QUAN', label: 'Bonded Warehouse' }] },
+                            { group: 'BY_TRUCK', label: '🚛 By Truck', sub: [{ val: 'BY_TRUCK', label: 'By Truck' }] },
+                          ];
+                          // Nhóm hiện tại đang active dựa theo transport_type + carrier hiện tại của lô
+                          const activeGroup = SHIPPING_GROUPS.find(g => g.sub.some(s => s.val === lotForm.transport_type)) ;
+                          const activeGroupKey = activeGroup ? activeGroup.group : null;
+                          // Với EXPRESS: xác định DHL hay FedEx đang được chọn dựa vào carrier hiện tại
+                          const activeExpressSub = lotForm.transport_type === 'EXPRESS'
+                            ? (String(lotForm.carrier||'').toUpperCase().includes('FEDEX') ? 'FedEx' : 'DHL')
+                            : null;
+                          return (
+                            <>
+                              <div className="flex gap-3 flex-wrap">
+                                {SHIPPING_GROUPS.map(g => {
+                                  const isMultiSub = g.sub.length > 1;
+                                  const isActive = activeGroupKey === g.group;
+                                  return (
+                                    <button type="button" key={g.group}
+                                      onClick={() => {
+                                        if (isMultiSub) {
+                                          // Nhóm có loại con (SEA/EXPRESS): chọn loại con đầu tiên làm mặc định nếu chưa chọn nhóm này
+                                          if (isActive) return; // đã active rồi, để dòng phụ xử lý chọn loại con
+                                          const first = g.sub[0];
+                                          setLotForm(prev => ({
+                                            ...prev, transport_type: first.val, is_cont: first.val === 'SEA_CONT',
+                                            ...(first.carrier ? { carrier: first.carrier } : {})
+                                          }));
+                                        } else {
+                                          const only = g.sub[0];
+                                          setLotForm(prev => ({...prev, transport_type: only.val, is_cont: only.val === 'SEA_CONT'}));
+                                        }
+                                      }}
+                                      className={`px-4 py-2 rounded-lg text-xs font-bold border transition-all
+                                        ${isActive
+                                          ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/40'
+                                          : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                                      {g.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Dòng phụ: chọn loại con cho SEA (Cont/CFS) */}
+                              {activeGroupKey === 'SEA' && (
+                                <div className="flex gap-2 flex-wrap pl-2 border-l-2 border-blue-800/50">
+                                  {SHIPPING_GROUPS.find(g => g.group === 'SEA').sub.map(s => (
+                                    <button type="button" key={s.val}
+                                      onClick={() => setLotForm(prev => ({...prev, transport_type: s.val, is_cont: s.val === 'SEA_CONT'}))}
+                                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all
+                                        ${lotForm.transport_type === s.val
+                                          ? 'bg-indigo-600 border-indigo-500 text-white'
+                                          : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                                      {s.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Dòng phụ: chọn hãng cho EXPRESS (DHL/FedEx) — chỉ điền vào ô Carrier, transport_type vẫn là EXPRESS */}
+                              {activeGroupKey === 'EXPRESS' && (
+                                <div className="flex gap-2 flex-wrap pl-2 border-l-2 border-purple-800/50">
+                                  {SHIPPING_GROUPS.find(g => g.group === 'EXPRESS').sub.map(s => (
+                                    <button type="button" key={s.label}
+                                      onClick={() => setLotForm(prev => ({...prev, transport_type: 'EXPRESS', carrier: s.carrier}))}
+                                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all
+                                        ${activeExpressSub === s.label
+                                          ? 'bg-purple-600 border-purple-500 text-white'
+                                          : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                                      {s.label}
+                                    </button>
+                                  ))}
+                                  <span className="text-[10px] text-slate-600 self-center ml-1">Hãng sẽ tự điền vào ô Carrier — có thể sửa tay nếu cần</span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
 
                         {/* SEA CONT: Multi-container list */}
                         {lotForm.transport_type === 'SEA_CONT' && (
