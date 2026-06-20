@@ -935,6 +935,8 @@
         goods_name_local: '',
         goods_unit_en: 'PCS',
         goods_unit_local: 'Pcs',
+        goods_unit_en2: '',
+        goods_unit_local2: '',
         original_goods_no: '' // Theo dõi mã hàng khi edit để sửa đúng dòng
       });
 
@@ -1162,7 +1164,17 @@
         }
         // ADD mode: Save bill/transport info (no lot_no yet), move to invoice tab
         // Store in a temporary "draft" state keyed by stt
-        const draftLot = { ...lotForm, lot_no: '', stt: Number(lotForm.stt), pkg_qty: Number(lotForm.pkg_qty)||0, gw: Number(lotForm.gw)||0, cbm: Number(lotForm.cbm)||0 };
+        // Serialize contList → containers (JSON) + backward compat fields (giống edit mode, để dữ liệu cont không bị mất)
+        const validContsAdd = (lotForm.contList || []).filter(c => c.cont_no && c.cont_no.trim());
+        const primaryContAdd = validContsAdd[0] || {};
+        const draftLot = {
+          ...lotForm, lot_no: '', stt: Number(lotForm.stt),
+          pkg_qty: Number(lotForm.pkg_qty)||0, gw: Number(lotForm.gw)||0, cbm: Number(lotForm.cbm)||0,
+          containers: serializeContainers(validContsAdd.length > 0 ? validContsAdd : [{cont_no:'',seal_no:'',cont_type:lotForm.cont_type||'40HC'}]),
+          cont_no:   primaryContAdd.cont_no   || '',
+          seal_no:   primaryContAdd.seal_no   || '',
+          cont_type: primaryContAdd.cont_type || lotForm.cont_type || '40HC',
+        };
         if (draftLot.carrier) addCarrierHistory(draftLot.carrier.trim());
         setLotForm(draftLot);
         // Pre-fill lotAssignForm STT from lotForm
@@ -1192,10 +1204,17 @@
         const finalPkgQty = totalInvPkg > 0 ? totalInvPkg : Number(lotForm.pkg_qty)||0;
         const finalGw     = totalInvGw  > 0 ? totalInvGw  : Number(lotForm.gw)||0;
 
+        // Re-serialize containers từ contList ngay tại bước finalize, đảm bảo dữ liệu cont luôn đúng
+        const validContsFinal = (lotForm.contList || []).filter(c => c.cont_no && c.cont_no.trim());
+        const primaryContFinal = validContsFinal[0] || {};
         const finalLot = {
           ...lotForm, lot_no, stt, loai_hinh, loai_hinh_con,
           factory_no: selectedFactories.join(', '),
           pkg_qty: finalPkgQty, gw: finalGw,
+          containers: serializeContainers(validContsFinal.length > 0 ? validContsFinal : [{cont_no:'',seal_no:'',cont_type:lotForm.cont_type||'40HC'}]),
+          cont_no:   primaryContFinal.cont_no   || '',
+          seal_no:   primaryContFinal.seal_no   || '',
+          cont_type: primaryContFinal.cont_type || lotForm.cont_type || '40HC',
         };
         if (finalLot.carrier) addCarrierHistory(finalLot.carrier.trim());
         saveLotsToStorage([finalLot, ...lots]);
@@ -1359,7 +1378,7 @@
         setDictModalMode('add');
         setDictForm({
           goods_no: '', hs_code: '', goods_name_en: '', goods_name_local: '',
-          goods_unit_en: 'PCS', goods_unit_local: 'Pcs', original_goods_no: ''
+          goods_unit_en: 'PCS', goods_unit_local: 'Pcs', goods_unit_en2: '', goods_unit_local2: '', original_goods_no: ''
         });
         setShowDictModal(true);
       };
@@ -1369,7 +1388,9 @@
         setDictModalMode('edit');
         setDictForm({
           goods_no: item.goods_no, hs_code: item.hs_code, goods_name_en: item.goods_name_en, goods_name_local: item.goods_name_local,
-          goods_unit_en: item.goods_unit_en || 'PCS', goods_unit_local: item.goods_unit_local || 'Cái', original_goods_no: item.goods_no
+          goods_unit_en: item.goods_unit_en || 'PCS', goods_unit_local: item.goods_unit_local || 'Cái',
+          goods_unit_en2: item.goods_unit_en2 || '', goods_unit_local2: item.goods_unit_local2 || '',
+          original_goods_no: item.goods_no
         });
         setShowDictModal(true);
       };
@@ -1387,7 +1408,9 @@
           goods_name_en: dictForm.goods_name_en.trim(),
           goods_name_local: dictForm.goods_name_local.trim() || 'Hàng nhập khẩu',
           goods_unit_en: dictForm.goods_unit_en.trim() || 'PCS',
-          goods_unit_local: dictForm.goods_unit_local.trim() || 'Cái'
+          goods_unit_local: dictForm.goods_unit_local.trim() || 'Cái',
+          goods_unit_en2: (dictForm.goods_unit_en2 || '').trim(),
+          goods_unit_local2: (dictForm.goods_unit_local2 || '').trim()
         };
 
         let updatedDict = [];
@@ -1443,6 +1466,7 @@
             // Tiền xử lý dòng tiêu đề (loại bỏ dấu tiếng Việt, viết thường, loại bỏ khoảng trắng VÀ ký tự đặc biệt)
             const headers = rawJson[0].map(h => h
               ? h.toString().toLowerCase().trim()
+                  .replace(/đ/g, "d")                               // xử lý riêng chữ "đ" (không bị tách dấu bởi NFD)
                   .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // bỏ dấu tiếng Việt
                   .replace(/[^a-z0-9]/g, '')                        // bỏ tất cả ký tự không phải chữ/số (kể cả ngoặc, gạch ngang...)
               : '');
@@ -1867,7 +1891,12 @@
           const { item: matched, score } = result;
           setGoodsForm(prev => ({
             ...prev, goods_name_en: engName, goods_no: matched.goods_no, goods_name_local: matched.goods_name_local,
-            hs_code: matched.hs_code, goods_unit_en: matched.goods_unit_en || 'PCS', goods_unit_local: matched.goods_unit_local || 'Cái'
+            hs_code: matched.hs_code,
+            goods_unit_en: matched.goods_unit_en || 'PCS', goods_unit_local: matched.goods_unit_local || 'Cái',
+            goods_unit_en2: matched.goods_unit_en2 || '', goods_unit_local2: matched.goods_unit_local2 || '',
+            // Tự động điền ĐƠN VỊ TÍNH 1 / ĐƠN VỊ TÍNH 2 từ HS Code dictionary: Unit(1) -> unit1, Unit(2) -> unit2
+            unit1: matched.goods_unit_en || 'PCS',
+            unit2: matched.goods_unit_en2 || ''
           }));
           const pct = Math.round(score * 100);
           showNotification(pct === 100 ? `Exact match: ${matched.goods_no}` : `Best match (${pct}%): ${matched.goods_no}`);
@@ -2689,7 +2718,7 @@
                                 <th className="p-3 text-center">HS Code</th>
                                 <th className="p-3">English Name</th>
                                 <th className="p-3">Vietnamese Name</th>
-                                <th className="p-3 text-center">Unit</th>
+                                <th className="p-3 text-center">Unit (1/2)</th>
                                 <th className="p-3 text-center w-24">Action</th>
                               </tr>
                             </thead>
@@ -2715,7 +2744,12 @@
                                     <td className="p-3 text-center font-mono text-white font-bold">{item.hs_code}</td>
                                     <td className="p-3 text-slate-100 font-medium">{item.goods_name_en}</td>
                                     <td className="p-3 text-slate-400 italic leading-relaxed">{item.goods_name_local}</td>
-                                    <td className="p-3 text-center font-bold text-sky-400">{item.goods_unit_en} / {item.goods_unit_local}</td>
+                                    <td className="p-3 text-center font-bold text-sky-400">
+                                      <div>{item.goods_unit_en} / {item.goods_unit_local}</div>
+                                      {(item.goods_unit_en2 || item.goods_unit_local2) && (
+                                        <div className="text-[10px] text-slate-500 font-normal mt-0.5">({item.goods_unit_en2 || '—'} / {item.goods_unit_local2 || '—'})</div>
+                                      )}
+                                    </td>
                                     <td className="p-3 text-center space-x-2" onClick={e => e.stopPropagation()}>
                                       <button onClick={(e) => handleOpenEditDict(item, e)} className="text-blue-400 hover:underline">Edit</button>
                                       <button onClick={(e) => handleDeleteDictConfirm(item, e)} className="text-rose-500 hover:underline">Delete</button>
@@ -4213,12 +4247,22 @@
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Unit (EN)</label>
+                      <label className="block text-[11px] text-slate-400 mb-1">Unit (1) <span className="text-slate-500 font-normal">— ĐVT 1</span></label>
                       <input type="text" value={dictForm.goods_unit_en} onChange={e => setDictForm({...dictForm, goods_unit_en: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white" />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Unit (VN)</label>
+                      <label className="block text-[11px] text-slate-400 mb-1">Unit (2) <span className="text-slate-500 font-normal">— ĐVT 2</span></label>
+                      <input type="text" value={dictForm.goods_unit_en2} onChange={e => setDictForm({...dictForm, goods_unit_en2: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Unit (1) — Vietnamese</label>
                       <input type="text" value={dictForm.goods_unit_local} onChange={e => setDictForm({...dictForm, goods_unit_local: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Unit (2) — Vietnamese</label>
+                      <input type="text" value={dictForm.goods_unit_local2} onChange={e => setDictForm({...dictForm, goods_unit_local2: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white" />
                     </div>
                   </div>
                   <div className="pt-4 border-t border-slate-800 flex justify-end gap-2">
@@ -5077,7 +5121,7 @@
                                   const ws = wb.Sheets[wb.SheetNames[0]];
                                   const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
                                   if (rows.length < 2) return showNotification("Excel file is empty!", "error");
-                                  const norm = h => h ? h.toString().toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,'') : '';
+                                  const norm = h => h ? h.toString().toLowerCase().trim().replace(/đ/g,"d").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,'') : '';
                                   const headers = rows[0].map(norm);
                                   const idxInv   = headers.findIndex(h => h.includes('invoice') || h.includes('hoadon') || h === 'invoiceno');
                                   const idxName  = headers.findIndex(h => h.includes('tienganh') || h.includes('english') || h.includes('name') || h.includes('ten'));
@@ -5111,11 +5155,14 @@
                                       goods_name_en: dm?.goods_name_en || nameVal,
                                       goods_name_local: dm?.goods_name_local || '',
                                       hs_code: dm?.hs_code || '', goods_unit_en: dm?.goods_unit_en || 'PCS',
-                                      goods_unit_local: dm?.goods_unit_local || '', invoice_description: nameVal,
+                                      goods_unit_local: dm?.goods_unit_local || '',
+                                      goods_unit_en2: dm?.goods_unit_en2 || '', goods_unit_local2: dm?.goods_unit_local2 || '',
+                                      invoice_description: nameVal,
                                       origin_country: idxOrig !== -1 ? String(row[idxOrig]||'TAIWAN').trim().toUpperCase() : 'TAIWAN',
-                                      qty1: qty1v, unit1: idxUnit1 !== -1 ? String(row[idxUnit1]||'PCS').trim() : 'PCS',
+                                      // Unit1/Unit2: ưu tiên cột trong Excel, nếu không có thì lấy từ HS Code dictionary (Unit 1/Unit 2)
+                                      qty1: qty1v, unit1: idxUnit1 !== -1 ? String(row[idxUnit1]||'PCS').trim() : (dm?.goods_unit_en || 'PCS'),
                                       qty2: idxQty2 !== -1 ? Number(row[idxQty2])||0 : 0,
-                                      unit2: idxUnit2 !== -1 ? String(row[idxUnit2]||'').trim() : '',
+                                      unit2: idxUnit2 !== -1 ? String(row[idxUnit2]||'').trim() : (dm?.goods_unit_en2 || ''),
                                       unit_price: pv, sale_amount: qty1v * pv,
                                     });
                                     count++;
