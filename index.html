@@ -872,6 +872,7 @@
       const DB_PAGE_SIZE = 50;
       const [selectedDictItems, setSelectedDictItems] = useState(new Set()); // multi-select cho xóa hàng loạt
       const [hsCodeFilter, setHsCodeFilter] = useState(''); // lọc danh mục theo prefix HS Code
+      const [showHsFilterPanel, setShowHsFilterPanel] = useState(false); // hiện/ẩn bảng phân loại theo HS Code
 
       const [homeSearchQuery, setHomeSearchQuery] = useState('');
 
@@ -1836,9 +1837,11 @@
       const getFilteredDbDictionary = () => {
         const dict = dbSelectedTab === 'E21' ? dictE21 : dictA12;
         let result = dict;
-        // Apply HS Code prefix filter first
+        // Apply HS Code category filter first (exact group match; '(No HS Code)' = items without an HS Code)
         if (hsCodeFilter) {
-          result = result.filter(item => String(item?.hs_code || '').startsWith(hsCodeFilter));
+          result = hsCodeFilter === '(No HS Code)'
+            ? result.filter(item => !String(item?.hs_code || '').trim())
+            : result.filter(item => String(item?.hs_code || '').trim() === hsCodeFilter);
         }
         if (!dbSearchQuery.trim()) return hsCodeFilter ? result : []; // show if HS filter active
         if (dbSearchQuery === '*') return result; // show all
@@ -1858,6 +1861,23 @@
       const dbPagedDict = filteredDbDict.slice((dbSafePage - 1) * DB_PAGE_SIZE, dbSafePage * DB_PAGE_SIZE);
       const handleDbTabChange = (tab) => { setDbSelectedTab(tab); setDbCurrentPage(1); setDbSearchQuery(''); setSelectedDictItems(new Set()); setHsCodeFilter(''); };
       const handleDbSearch = (q) => { setDbSearchQuery(q); setDbCurrentPage(1); setSelectedDictItems(new Set()); };
+
+      // Phân loại danh mục hiện tại (A12/E21) theo HS Code — đếm số sản phẩm mỗi mã HS
+      const hsCodeGroups = (() => {
+        const dict = dbSelectedTab === 'E21' ? dictE21 : dictA12;
+        const map = {};
+        dict.forEach(item => {
+          const code = String(item?.hs_code || '').trim() || '(No HS Code)';
+          map[code] = (map[code] || 0) + 1;
+        });
+        return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
+      })();
+      const handleSelectHsCodeFilter = (code) => {
+        setDbCurrentPage(1);
+        setSelectedDictItems(new Set());
+        setHsCodeFilter(prev => prev === code ? '' : code);
+      };
+      const handleClearHsCodeFilter = () => { setHsCodeFilter(''); setDbCurrentPage(1); setSelectedDictItems(new Set()); };
 
       // Toggle chọn 1 dòng
       const toggleDictSelect = (goodsNo) => {
@@ -2520,6 +2540,11 @@
                           className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1">
                           {dbSearchQuery === '*' ? '🔼 Collapse' : `📋 Show All (${dbSelectedTab === 'A12' ? dictA12.length : dictE21.length})`}
                         </button>
+                        <button
+                          onClick={() => setShowHsFilterPanel(v => !v)}
+                          className={`font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1 transition-all ${showHsFilterPanel || hsCodeFilter ? 'bg-amber-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-300'}`}>
+                          🏷️ By HS Code {hsCodeFilter ? `(${hsCodeFilter})` : ''}
+                        </button>
                         <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
                           <button onClick={() => handleDbTabChange('A12')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${dbSelectedTab === 'A12' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>A12 ({dictA12.length})</button>
                           <button onClick={() => handleDbTabChange('E21')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${dbSelectedTab === 'E21' ? 'bg-emerald-600 text-white' : 'text-slate-400'}`}>E21 ({dictE21.length})</button>
@@ -2527,7 +2552,30 @@
                       </div>
                     </div>
 
-                    {/* SEARCH BOX */}
+                    {/* HS CODE CATEGORY PANEL — phân loại / lọc theo HS Code */}
+                    {showHsFilterPanel && (
+                      <div className="bg-slate-950 border border-amber-900/40 rounded-xl p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[11px] text-amber-400 font-bold uppercase tracking-wide">🏷️ Categories by HS Code — {dbSelectedTab} ({hsCodeGroups.length} mã)</p>
+                          {hsCodeFilter && (
+                            <button onClick={handleClearHsCodeFilter} className="text-[11px] text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded px-2 py-1 font-bold">✕ Clear filter</button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {hsCodeGroups.length === 0 && (
+                            <p className="text-xs text-slate-600 italic">No products in this dictionary yet.</p>
+                          )}
+                          {hsCodeGroups.map(([code, count]) => (
+                            <button
+                              key={code}
+                              onClick={() => handleSelectHsCodeFilter(code)}
+                              className={`px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold border transition-all ${hsCodeFilter === code ? 'bg-amber-600 text-white border-amber-500' : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'}`}>
+                              {code} <span className="opacity-70">({count})</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="relative">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
                       <input
@@ -2544,12 +2592,12 @@
                     </div>
 
                     {/* EMPTY STATE — NOT SEARCHED YET */}
-                    {!dbSearchQuery.trim() && (
+                    {!dbSearchQuery.trim() && !hsCodeFilter && (
                       <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
                         <div className="text-5xl opacity-20">🔍</div>
                         <p className="text-slate-400 text-sm font-semibold">Enter keyword to search products</p>
                         <p className="text-slate-600 text-xs">Search by item code, HS Code, English or Vietnamese name</p>
-                        <p className="text-slate-600 text-xs">or click <span className="text-slate-300 font-bold">📋 Show All</span> to view full catalogue</p>
+                        <p className="text-slate-600 text-xs">or click <span className="text-slate-300 font-bold">📋 Show All</span> to view full catalogue, or <span className="text-amber-400 font-bold">🏷️ By HS Code</span> to browse by category</p>
                         <div className="flex gap-4 mt-2 text-[11px] text-slate-500">
                           <span>📦 A12: <strong className="text-slate-300">{dictA12.length}</strong> products</span>
                           <span>📦 E21: <strong className="text-slate-300">{dictE21.length}</strong> products</span>
@@ -2558,12 +2606,15 @@
                     )}
 
                     {/* SEARCH RESULTS */}
-                    {dbSearchQuery.trim() && (
+                    {(dbSearchQuery.trim() || hsCodeFilter) && (
                       <>
                         {/* Action bar when rows selected */}
                         <div className="flex items-center justify-between">
                           <div className="text-[11px] text-slate-400">
                             Found <strong className="text-white">{filteredDbDict.length}</strong> products
+                            {hsCodeFilter && (
+                              <span className="ml-2 text-amber-400">— HS Code: <strong className="font-mono">{hsCodeFilter}</strong></span>
+                            )}
                             {selectedDictItems.size > 0 && (
                               <span className="ml-2 text-amber-400 font-bold">— {selectedDictItems.size} rows selected</span>
                             )}
@@ -3523,7 +3574,7 @@
                                     </div>
                                   </td>
                                   <td className="px-4 py-3 font-mono text-slate-500 whitespace-nowrap text-[10px]">{p['NGÀY ĐƯA KẾ TOÁN'] || '—'}</td>
-                                  <td className="px-4 py-3 text-center space-x-3">
+                                  <td className="px-4 py-3 text-center space-x-3" onClick={e => e.stopPropagation()}>
                                     <button onClick={() => { setPaymentForm({...p}); setPaymentEditIdx(realIdx); setShowPaymentModal(true); }} className="text-blue-400 hover:text-blue-200 text-[11px] font-bold hover:underline">✏️ Edit</button>
                                     <button onClick={() => handleDeletePayment(realIdx)} className="text-rose-500 hover:text-rose-300 text-[11px] font-bold hover:underline">🗑 Xóa</button>
                                   </td>
