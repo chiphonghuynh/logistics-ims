@@ -567,6 +567,47 @@
         setSupplierEditIdx(idx);
       };
 
+      // Đọc 1 file ảnh từ máy tính, resize + nén nhỏ lại rồi lưu thành data URL (nhúng thẳng, không cần link ngoài)
+      const handleSupplierImageFile = (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = ''; // cho phép chọn lại cùng 1 file lần sau
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+          showNotification('⚠️ Please choose an image file (PNG/JPG)!', 'error');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            const MAX_DIM = 500;
+            let { width, height } = img;
+            if (width > MAX_DIM || height > MAX_DIM) {
+              const scale = MAX_DIM / Math.max(width, height);
+              width = Math.round(width * scale);
+              height = Math.round(height * scale);
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width; canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+            if (dataUrl.length > 45000) {
+              showNotification('⚠️ Image still too large after compression. Please choose a simpler/smaller image.', 'error');
+              return;
+            }
+            setSupplierForm(p => ({ ...p, 'SIGNATURE IMAGE ID': dataUrl }));
+            showNotification('✅ Image selected — remember to click Save Supplier to keep it.');
+          };
+          img.onerror = () => showNotification('❌ Could not read this image file.', 'error');
+          img.src = ev.target.result;
+        };
+        reader.onerror = () => showNotification('❌ Could not read this image file.', 'error');
+        reader.readAsDataURL(file);
+      };
+
       const handleSaveSupplierForm = () => {
         const name = (supplierForm['SUPPLIER NAME'] || '').trim();
         if (!name) { showNotification('⚠️ Please enter Supplier name!', 'error'); return; }
@@ -3291,7 +3332,7 @@
                                   <td className="px-4 py-3 font-bold text-violet-300">{s['SUPPLIER NAME']}</td>
                                   <td className="px-4 py-3 text-slate-400 text-[11px] leading-relaxed max-w-xs">{s['ADDRESS'] || <span className="italic text-slate-600">—</span>}</td>
                                   <td className="px-4 py-3 text-center">
-                                    {s['SIGNATURE IMAGE ID'] ? (() => { const raw = s['SIGNATURE IMAGE ID'].trim(); const url = raw.startsWith('http') ? raw : `https://drive.google.com/uc?export=view&id=${raw}`; return <a href={url} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-200 underline text-[11px]">🖼 Xem ảnh</a>; })() : <span className="text-slate-600 italic text-[10px]">—</span>}
+                                    {s['SIGNATURE IMAGE ID'] ? (() => { const raw = s['SIGNATURE IMAGE ID'].trim(); const url = raw.startsWith('data:') ? raw : (raw.startsWith('http') ? raw : `https://drive.google.com/uc?export=view&id=${raw}`); return <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-violet-400 hover:text-violet-200 text-[11px]"><img src={url} alt="" className="h-7 w-auto max-w-[60px] object-contain bg-white rounded border border-slate-700 p-0.5" onError={e => { e.target.style.display = 'none'; }} />🖼 Xem ảnh</a>; })() : <span className="text-slate-600 italic text-[10px]">—</span>}
                                   </td>
                                   <td className="px-4 py-3 text-center space-x-3">
                                     <button onClick={() => handleOpenEditSupplier(realIdx)} className="text-blue-400 hover:text-blue-200 text-[11px] font-bold hover:underline">✏️ Edit</button>
@@ -4050,10 +4091,27 @@
                           <textarea rows={2} value={supplierForm[f.key] || ''} onChange={e => setSupplierForm(p => ({...p, [f.key]: e.target.value}))}
                             className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 resize-none" />
                         ) : f.key === 'SIGNATURE IMAGE ID' ? (
-                          <div className="space-y-1.5">
-                            <input type="text" placeholder="Paste image link or Google Drive file ID..." value={supplierForm[f.key] || ''} onChange={e => setSupplierForm(p => ({...p, [f.key]: e.target.value}))}
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200" />
-                            {supplierForm[f.key] && (() => { const raw = supplierForm[f.key].trim(); const url = raw.startsWith('http') ? raw : `https://drive.google.com/uc?export=view&id=${raw}`; return <a href={url} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-200 underline text-[11px]">🖼 Preview image</a>; })()}
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <input type="text" placeholder="Paste image link or Google Drive file ID..." value={supplierForm[f.key] || ''} onChange={e => setSupplierForm(p => ({...p, [f.key]: e.target.value}))}
+                                className="flex-1 min-w-0 bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200" />
+                              <label className="shrink-0 bg-violet-700 hover:bg-violet-600 text-white text-[11px] font-bold px-3 py-2.5 rounded-lg cursor-pointer flex items-center gap-1 transition-colors">
+                                📁 Choose file
+                                <input type="file" accept="image/*" onChange={handleSupplierImageFile} className="hidden" />
+                              </label>
+                            </div>
+                            <p className="text-[10px] text-slate-600">Choose an image from your computer, or paste a direct link / Google Drive file ID above.</p>
+                            {supplierForm[f.key] && (() => {
+                              const raw = supplierForm[f.key].trim();
+                              const url = raw.startsWith('data:') ? raw : (raw.startsWith('http') ? raw : `https://drive.google.com/uc?export=view&id=${raw}`);
+                              return (
+                                <div className="flex items-center gap-3 bg-slate-950 border border-slate-800 rounded-lg p-2">
+                                  <img src={url} alt="Signature/Stamp preview" className="h-14 w-auto max-w-[140px] object-contain bg-white rounded border border-slate-700 p-1"
+                                    onError={e => { e.target.style.display = 'none'; }} />
+                                  <button type="button" onClick={() => setSupplierForm(p => ({...p, [f.key]: ''}))} className="text-rose-400 hover:text-rose-300 text-[11px] font-bold hover:underline">✕ Remove image</button>
+                                </div>
+                              );
+                            })()}
                           </div>
                         ) : (
                           <input type="text" value={supplierForm[f.key] || ''} onChange={e => setSupplierForm(p => ({...p, [f.key]: e.target.value}))}
