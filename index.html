@@ -307,6 +307,15 @@
       // Helper: ép về string an toàn (tránh Apps Script trả về number cho mã dạng text)
       const toStr = (v) => (v === null || v === undefined || v === '') ? '' : String(v).trim();
 
+      // Helper: parse boolean an toàn — xử lý đúng cả khi gõ tay text "TRUE"/"FALSE" trên Google Sheets
+      // (Boolean("FALSE") === true trong JS thuần, vì chuỗi không rỗng luôn truthy → đây là lỗi cần tránh)
+      const toBool = (v) => {
+        if (typeof v === 'boolean') return v;
+        if (v === null || v === undefined || v === '') return false;
+        const s = String(v).trim().toLowerCase();
+        return s === 'true' || s === '1' || s === 'x' || s === 'yes' || s === 'có';
+      };
+
       const sanitizeLot = (lot) => ({
         lot_no:             toStr(lot.lot_no),
         stt:                Number(lot.stt)         || 0,
@@ -318,8 +327,8 @@
         carrier:            toStr(lot.carrier),
         pol:                toStr(lot.pol),
         pod:                toStr(lot.pod),
-        transport_type:     toStr(lot.transport_type) || (lot.is_cont ? 'SEA_CONT' : 'SEA_CFS'),
-        is_cont:            lot.is_cont !== undefined ? Boolean(lot.is_cont) : true,
+        transport_type:     toStr(lot.transport_type) || (toBool(lot.is_cont) ? 'SEA_CONT' : 'SEA_CFS'),
+        is_cont:            lot.is_cont !== undefined && lot.is_cont !== '' ? toBool(lot.is_cont) : true,
         cont_no:            toStr(lot.cont_no),
         seal_no:            toStr(lot.seal_no),
         cont_type:          toStr(lot.cont_type)    || '40HC',
@@ -334,7 +343,7 @@
         loai_hinh_con:      toStr(lot.loai_hinh_con) || 'DEFAULT',
         factory_no:         toStr(lot.factory_no),
         supplier:           toStr(lot.supplier),
-        is_hang_chung_bill: Boolean(lot.is_hang_chung_bill),
+        is_hang_chung_bill: toBool(lot.is_hang_chung_bill),
         sale_qty:           Number(lot.sale_qty)    || 0,
         contract_start:     normalizeDate(lot.contract_start),
         contract_end:       normalizeDate(lot.contract_end),
@@ -360,7 +369,7 @@
         other_charges_note: toStr(inv.other_charges_note),
         inv_pkg_qty:        Number(inv.inv_pkg_qty)        || 0,
         inv_gw:             Number(inv.inv_gw)             || 0,
-        is_hang_chung_bill: Boolean(inv.is_hang_chung_bill),
+        is_hang_chung_bill: toBool(inv.is_hang_chung_bill),
         contract_start:     normalizeDate(inv.contract_start),
         contract_end:       normalizeDate(inv.contract_end),
       });
@@ -1786,23 +1795,51 @@
         return true;
       });
 
-      // Shared container detection
+      // Shared container detection — quét cả container chính (cont_no) và các container phụ trong containers (JSON multi-cont)
       const sharedContNos = (() => {
         const contMap = {};
         lots.forEach(l => {
-          if (l.cont_no && l.cont_no.trim()) {
-            const key = l.cont_no.trim().toUpperCase();
+          const conts = parseContainers(l).filter(c => c.cont_no && c.cont_no.trim());
+          const uniqueContKeys = new Set(conts.map(c => c.cont_no.trim().toUpperCase()));
+          uniqueContKeys.forEach(key => {
             if (!contMap[key]) contMap[key] = [];
             contMap[key].push(l.lot_no);
+          });
+        });
+        const shared = new Set();
+        Object.values(contMap).forEach(arr => { if (new Set(arr).size > 1) arr.forEach(n => shared.add(n)); });
+        return shared;
+      })();
+
+      // Shared Bill detection — các lô cùng Bill No. (hàng chung bill, tách thành nhiều lô khác loại hình)
+      const sharedBillNos = (() => {
+        const billMap = {};
+        lots.forEach(l => {
+          if (l.bill_no && l.bill_no.trim()) {
+            const key = l.bill_no.trim().toUpperCase();
+            if (!billMap[key]) billMap[key] = [];
+            billMap[key].push(l.lot_no);
           }
         });
         const shared = new Set();
-        Object.values(contMap).forEach(arr => { if (arr.length > 1) arr.forEach(n => shared.add(n)); });
+        Object.values(billMap).forEach(arr => { if (new Set(arr).size > 1) arr.forEach(n => shared.add(n)); });
         return shared;
       })();
+
+      // Số lượng invoice của mỗi lô — dùng để cảnh báo lô có nhiều invoice
+      const lotInvoiceCounts = (() => {
+        const map = {};
+        invoices.forEach(inv => {
+          if (!inv.lot_no) return;
+          map[inv.lot_no] = (map[inv.lot_no] || 0) + 1;
+        });
+        return map;
+      })();
+
       const currentInvoices = invoices.filter(inv => inv.lot_no === selectedLotNo);
       const currentGoods = goods.filter(g => String(g.invoice_no) === String(selectedInvoiceNo));
       const pendingAtcLots = lots.filter(lot => !lot.atc_date || lot.atc_date.trim() === '');
+
 
       const getInvoiceValueSum = (inv) => {
         const base = goods.filter(g => String(g.invoice_no) === String(inv.invoice_no)).reduce((sum, item) => sum + (Number(item.sale_amount) || 0), 0);
@@ -2955,6 +2992,22 @@
                   )}
                   {hasActiveFilter && (
                   <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+                    {/* Legend — chú thích các badge/màu trong bảng */}
+                    <div className="flex flex-wrap items-center gap-4 px-4 py-2 bg-slate-950/60 border-b border-slate-850 text-[10px] text-slate-400">
+                      <span className="font-bold text-slate-500 uppercase tracking-wider">Ghi chú:</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="bg-purple-900/40 text-purple-300 border border-purple-700 px-1.5 py-0.5 rounded font-mono font-bold">🔗</span>
+                        Chung Container (cùng số cont với lô khác)
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="bg-orange-900/40 text-orange-300 border border-orange-700 px-1.5 py-0.5 rounded font-mono font-bold">🔗</span>
+                        Chung Bill (cùng số Bill với lô khác)
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="bg-indigo-900/40 text-indigo-300 border border-indigo-700 px-1.5 py-0.5 rounded font-bold">📑 N</span>
+                        Lô có nhiều hơn 1 Invoice
+                      </span>
+                    </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs border-collapse min-w-[1500px]">
                         <thead>
@@ -2983,7 +3036,7 @@
                             const isSelected = selectedLotNo === lot.lot_no;
                             const lotVal = invoices.filter(i => i.lot_no === lot.lot_no).reduce((sum, inv) => sum + getInvoiceValueSum(inv), 0);
                             return (
-                              <tr key={lot.lot_no} onClick={() => { setSelectedLotNo(lot.lot_no); setSelectedInvoiceNo(null); setViewDetailLot(lot); }} className={`cursor-pointer transition-all duration-300 ${recentlyUpdatedLots.has(lot.lot_no) ? 'bg-emerald-900/30 border-l-4 border-emerald-500 text-white' : isSelected ? 'bg-blue-950/20 text-white border-l-2 border-blue-500' : sharedContNos.has(lot.lot_no) ? 'bg-purple-950/10 hover:bg-purple-950/20 text-slate-300' : 'hover:bg-slate-850/40 text-slate-300'}`}>
+                              <tr key={lot.lot_no} onClick={() => { setSelectedLotNo(lot.lot_no); setSelectedInvoiceNo(null); setViewDetailLot(lot); }} className={`cursor-pointer transition-all duration-300 ${recentlyUpdatedLots.has(lot.lot_no) ? 'bg-emerald-900/30 border-l-4 border-emerald-500 text-white' : isSelected ? 'bg-blue-950/20 text-white border-l-2 border-blue-500' : sharedContNos.has(lot.lot_no) ? 'bg-purple-950/10 hover:bg-purple-950/20 text-slate-300' : sharedBillNos.has(lot.lot_no) ? 'bg-orange-950/10 hover:bg-orange-950/20 text-slate-300' : 'hover:bg-slate-850/40 text-slate-300'}`}>
                                 <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
                                   <input type="checkbox" className="accent-rose-500 w-3.5 h-3.5 cursor-pointer"
                                     checked={selectedLotNos.has(lot.lot_no)}
@@ -2992,6 +3045,11 @@
                                 <td className="p-3 text-center"><input type="radio" checked={isSelected} readOnly className="accent-blue-500" /></td>
                                 <td className="p-3 font-mono font-bold text-amber-400">
                                   {lot.lot_no}
+                                  {lotInvoiceCounts[lot.lot_no] > 1 && (
+                                    <span className="ml-1.5 text-[9px] bg-indigo-900/40 border border-indigo-700 text-indigo-300 px-1.5 py-0.5 rounded font-bold font-sans" title={`${lotInvoiceCounts[lot.lot_no]} invoices trong lô này`}>
+                                      📑 {lotInvoiceCounts[lot.lot_no]}
+                                    </span>
+                                  )}
                                   {showAddModal && modalMode === 'edit' && modalTab === 'lot' && lotForm.lot_no === lot.lot_no && (
                                     <span className="ml-1.5 text-[9px] bg-amber-600/30 border border-amber-700 text-amber-400 px-1.5 py-0.5 rounded font-sans">✏️ editing</span>
                                   )}
@@ -3002,7 +3060,13 @@
                                 </td>
                                 <td className="p-3 font-mono">{fmtDisplayDate(lot.lot_date)}</td>
                                 <td className="p-3 font-bold text-slate-300">{lot.factory_no || '-'}</td>
-                                <td className="p-3 font-mono font-bold">{lot.bill_no || '-'}</td>
+                                <td className="p-3 font-mono font-bold">
+                                  {sharedBillNos.has(lot.lot_no) ? (
+                                    <span className="bg-orange-900/40 text-orange-300 border border-orange-700 px-2 py-0.5 rounded font-mono font-bold text-[10px]" title="⚠️ Chung Bill với lô khác">
+                                      🔗 {lot.bill_no || '-'}
+                                    </span>
+                                  ) : (lot.bill_no || '-')}
+                                </td>
                                 <td className="p-3">{lot.pol} ➔ {lot.pod}</td>
                                 <td className="p-3 text-center">
                                   {lot.is_cont ? (
