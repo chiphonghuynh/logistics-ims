@@ -2794,7 +2794,7 @@
                         <p className="text-xs text-slate-500 mt-1">Search to display data. Supports add, edit, single delete and bulk delete.</p>
                       </div>
                       <div className="flex flex-wrap gap-2 items-center">
-                        <button onClick={handleOpenAddDict} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1">
+                        <button onClick={handleOpenAddDict} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1">
                           ➕ Add Product
                         </button>
                         <label className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1 cursor-pointer">
@@ -3268,7 +3268,7 @@
                             setModalTab('invoice');
                             setInvoiceForm(prev => ({...prev, lot_no: selectedLotNo, bill_no: selLot?.bill_no || '', bill_stt: selLot?.stt || 0, invoice_no: '', total_amount: 0, invoice_date: new Date().toISOString().substring(0,10)}));
                             setShowAddModal(true);
-                          }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
+                          }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
                             ➕ Add Invoice
                           </button>
                         )}
@@ -3399,7 +3399,7 @@
                               setGoodsForm(prev => ({...prev, invoice_no: selectedInvoiceNo}));
                               setModalTab('goods');
                               setShowAddModal(true);
-                            }} className="bg-emerald-800 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
+                            }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
                               ➕ Add Item
                             </button>
                           )}
@@ -3516,7 +3516,7 @@
                         </button>
                       )}
                       <button onClick={handleOpenAddSupplier}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 transition-all">
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all">
                         ➕ Add Supplier
                       </button>
                     </div>
@@ -3681,7 +3681,7 @@
                         </>
                       )}
                       <button onClick={() => { setPaymentForm({ 'NGÀY': new Date().toISOString().slice(0,10), 'SỐ PTT': '', 'SỐ TIỀN': '', 'NỘI DUNG': '', 'NGÀY ĐƯA KẾ TOÁN': '' }); setPaymentEditIdx(null); setShowPaymentModal(true); }}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all">
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all">
                         ➕ Add Voucher
                       </button>
                     </div>
