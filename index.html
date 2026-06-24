@@ -2319,16 +2319,16 @@
             </div>
           )}
 
-          {/* --- DIALOG 1: HỎI LOAD TOÀN BỘ DỮ LIỆU PHỤ LÚC MỞ APP --- */}
+          {/* --- DIALOG 1: ASK TO LOAD ALL SECONDARY DATA ON APP START --- */}
           {showExtraLoadPrompt && !showExtraLoadPicker && (
             <div className="fixed inset-0 z-[9999] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-7 shadow-2xl space-y-5">
                 <div className="text-center space-y-2">
                   <div className="text-4xl">📥</div>
-                  <h2 className="text-base font-black text-white">Load toàn bộ dữ liệu?</h2>
+                  <h2 className="text-base font-black text-white">Load all data?</h2>
                   <p className="text-slate-400 text-xs leading-relaxed">
-                    Hệ thống còn 3 mục dữ liệu (List Hàng, Supplier, Payment) chưa được load tự động.
-                    Bạn có muốn load toàn bộ ngay bây giờ không?
+                    3 data sections (List Hàng, Supplier, Payment) are not loaded automatically.
+                    Would you like to load them all now?
                   </p>
                 </div>
                 <div className="flex gap-3">
@@ -2337,14 +2337,14 @@
                     disabled={extraLoadInProgress}
                     className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-xs"
                   >
-                    {extraLoadInProgress ? '⏳ Đang load...' : '✅ Có, load tất cả'}
+                    {extraLoadInProgress ? 'Loading...' : 'Yes, load all'}
                   </button>
                   <button
                     onClick={() => setShowExtraLoadPicker(true)}
                     disabled={extraLoadInProgress}
                     className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-bold py-2.5 rounded-lg text-xs"
                   >
-                    Không, để tôi chọn
+                    No, let me choose
                   </button>
                 </div>
                 <button
@@ -2352,26 +2352,26 @@
                   disabled={extraLoadInProgress}
                   className="w-full text-center text-slate-600 hover:text-slate-400 text-xs underline disabled:opacity-50"
                 >
-                  Bỏ qua, load sau (vào từng mục để load thủ công)
+                  Skip, load later (load manually from each section)
                 </button>
               </div>
             </div>
           )}
 
-          {/* --- DIALOG 2: CHỌN TỪNG MỤC DỮ LIỆU CẦN LOAD --- */}
+          {/* --- DIALOG 2: PICK WHICH DATA SECTIONS TO LOAD --- */}
           {showExtraLoadPrompt && showExtraLoadPicker && (
             <div className="fixed inset-0 z-[9999] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-7 shadow-2xl space-y-5">
                 <div className="text-center space-y-2">
                   <div className="text-4xl">🗂️</div>
-                  <h2 className="text-base font-black text-white">Chọn dữ liệu cần load</h2>
-                  <p className="text-slate-400 text-xs leading-relaxed">Tích chọn các mục bạn muốn load sẵn ngay bây giờ.</p>
+                  <h2 className="text-base font-black text-white">Choose data to load</h2>
+                  <p className="text-slate-400 text-xs leading-relaxed">Tick the sections you want to load now.</p>
                 </div>
                 <div className="space-y-2">
                   {[
-                    { key: 'listHang', label: '📋 List Hàng', sub: 'Daily ATC Report — danh sách hàng nhập' },
-                    { key: 'supplier', label: '🏭 Supplier Data', sub: 'Danh sách nhà cung cấp' },
-                    { key: 'payment',  label: '💳 Payment Data', sub: 'Phiếu thanh toán / PTU' },
+                    { key: 'listHang', label: 'List Hàng', sub: 'Daily ATC Report — import goods list' },
+                    { key: 'supplier', label: 'Supplier Data', sub: 'Supplier directory' },
+                    { key: 'payment',  label: 'Payment Data', sub: 'Payment vouchers / PTU' },
                   ].map(item => (
                     <label key={item.key} className="flex items-center gap-3 bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 cursor-pointer hover:border-slate-600 transition-all">
                       <input
@@ -2393,14 +2393,14 @@
                     disabled={extraLoadInProgress || !(extraLoadSelection.listHang || extraLoadSelection.supplier || extraLoadSelection.payment)}
                     className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-lg text-xs"
                   >
-                    {extraLoadInProgress ? '⏳ Đang load...' : '✅ Load mục đã chọn'}
+                    {extraLoadInProgress ? 'Loading...' : 'Load selected'}
                   </button>
                   <button
                     onClick={() => { setShowExtraLoadPrompt(false); setShowExtraLoadPicker(false); }}
                     disabled={extraLoadInProgress}
                     className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 rounded-lg text-xs font-semibold"
                   >
-                    Bỏ qua
+                    Skip
                   </button>
                 </div>
               </div>
@@ -2598,14 +2598,14 @@
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
                 </button>
               <h2 className="text-xs font-bold tracking-widest text-slate-300 uppercase truncate">
-                {activeMenu === 'DASHBOARD' && '📊 DASHBOARD'}
-                {activeMenu === 'DATABASE_VIEW' && '🏷 MASTER DATA — HS CODE CATEGORY'}
-                {activeMenu === 'SUPPLIER_DATA' && '🏢 MASTER DATA — SUPPLIER DATA'}
-                {activeMenu === 'PAYMENT_DATA' && '💳 MASTER DATA — PAYMENT DATA'}
-                {activeMenu === 'E010' && '📦 OPERATIONS — SHIPMENT PROFILES'}
-                {activeMenu === 'NO_ATC' && '⏳ OPERATIONS — PENDING STORAGE'}
-                {activeMenu === 'ETA_MGMT' && '🛬 OPERATIONS — ENTER ETA'}
-                {activeMenu === 'LIST_HANG' && '📊 Daily ATC Report'}
+                {activeMenu === 'DASHBOARD' && 'Dashboard'}
+                {activeMenu === 'DATABASE_VIEW' && 'Master Data — HS Code Category'}
+                {activeMenu === 'SUPPLIER_DATA' && 'Master Data — Supplier Data'}
+                {activeMenu === 'PAYMENT_DATA' && 'Master Data — Payment Data'}
+                {activeMenu === 'E010' && 'Operations — Shipment Profiles'}
+                {activeMenu === 'NO_ATC' && 'Operations — Pending Storage'}
+                {activeMenu === 'ETA_MGMT' && 'Operations — Enter ETA'}
+                {activeMenu === 'LIST_HANG' && 'Operations — Daily ATC Report'}
               </h2>
               </div>
               <div className="flex items-center gap-2 shrink-0">
