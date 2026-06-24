@@ -2423,8 +2423,8 @@
                 <h3 className="text-sm font-bold text-white uppercase flex items-center gap-2">⚠️ {confirmState.title}</h3>
                 <p className="text-slate-300 text-xs leading-relaxed">{confirmState.message}</p>
                 <div className="flex justify-end gap-3 pt-2">
-                  <button onClick={() => setConfirmState(prev => ({ ...prev, isOpen: false }))} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">Hủy bỏ</button>
-                  <button onClick={confirmState.onConfirm} className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold">Đồng ý</button>
+                  <button onClick={() => setConfirmState(prev => ({ ...prev, isOpen: false }))} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">Cancel</button>
+                  <button onClick={confirmState.onConfirm} className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold">Confirm</button>
                 </div>
               </div>
             </div>
@@ -5930,7 +5930,7 @@
                   <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 max-w-md text-center">
                     <p className="text-amber-400 font-bold text-sm mb-2">⚠️ Invoice list only applies when lot has multiple invoices of the same customs type</p>
                     <p className="text-slate-400 text-xs mb-4">Lot <strong>{selectedLotNo}</strong> currently has {printInvoices.length} invoices.</p>
-                    <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-700 text-white px-4 py-2 rounded text-xs font-bold">Close</button>
+                    <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold">Close</button>
                   </div>
                 </div>
               );
@@ -5946,8 +5946,8 @@
                   <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex justify-between items-center shrink-0">
                     <h3 className="font-bold text-xs uppercase text-amber-400">📋 Invoice List – Form 02/BKHĐ/GSQL</h3>
                     <div className="flex gap-2">
-                      <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">🖨️ In Bảng Kê</button>
-                      <button onClick={() => exportBangKeWord(selectedLotNo, printInvoices, totalVal, currency, supplier)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">📄 Tải Word</button>
+                      <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Print</button>
+                      <button onClick={() => exportBangKeWord(selectedLotNo, printInvoices, totalVal, currency, supplier)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Download Word</button>
                       <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-800 text-slate-300 font-bold px-3 py-2 rounded text-xs">Close</button>
                     </div>
                   </div>
