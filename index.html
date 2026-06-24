@@ -1573,7 +1573,7 @@
             if (idxNameEn === -1)   missingCols.push('English Name (col C)');
             if (missingCols.length === 3) {
               // Hoàn toàn không nhận diện được → báo lỗi kèm hướng dẫn
-              return showNotification(`Column not recognized! System is using default column positions A/B/C/D. Please ensure row 1 header không bị trống.`, "error");
+              return showNotification(`Column not recognized! System is using default column positions A/B/C/D. Please ensure row 1 header is not empty.`, "error");
             }
 
             const importedItems = [];
@@ -2287,9 +2287,9 @@
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2 text-xs text-slate-400 leading-relaxed">
                   <p className="font-bold text-slate-300 uppercase tracking-wider text-[10px]">📋 How to get the URL (one-time setup):</p>
                   <ol className="list-decimal list-inside space-y-1.5">
-                    <li>Mở <strong className="text-white">Google Sheets</strong> → tạo file mới, đặt tên <code className="bg-slate-800 px-1 rounded">ChangYang IMS</code></li>
-                    <li>Vào menu <strong className="text-white">Extensions → Apps Script</strong></li>
-                    <li>Delete old code, paste all code from file <code className="bg-slate-800 px-1 rounded">Code.gs</code> đi kèm</li>
+                    <li>Open <strong className="text-white">Google Sheets</strong> → create a new file, name it <code className="bg-slate-800 px-1 rounded">ChangYang IMS</code></li>
+                    <li>Go to menu <strong className="text-white">Extensions → Apps Script</strong></li>
+                    <li>Delete old code, paste all code from the included <code className="bg-slate-800 px-1 rounded">Code.gs</code> file</li>
                     <li>Click <strong className="text-white">Deploy → New Deployment</strong></li>
                     <li>Select type: <strong className="text-white">Web App</strong> → Execute as: <strong className="text-white">Me</strong> → Who has access: <strong className="text-white">Anyone</strong></li>
                     <li>Click <strong className="text-white">Deploy</strong> → Copy URL → paste into the field below</li>
@@ -2699,7 +2699,7 @@
                         onChange={(e) => setHomeSearchQuery(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-xs text-white placeholder-slate-600 focus:outline-none"
                       />
-                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 rounded-xl transition-colors">Truy Vấn</button>
+                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 rounded-xl transition-colors">Search</button>
                     </form>
                     <div className="flex gap-2 justify-center flex-wrap mt-2">
                       <span className="text-[10px] text-slate-500 self-center">Quick filter:</span>
@@ -2737,7 +2737,7 @@
                   {/* KPI CARDS ROW 2 — Finance & Master Data */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[
-                      { label: 'Total import value', value: '$' + totalImportValue.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}), sub: `Từ ${invoices.length} hóa đơn`, color: 'text-amber-300', icon: '💰', accent: 'border-amber-900/40' },
+                      { label: 'Total import value', value: '$' + totalImportValue.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}), sub: `From ${invoices.length} invoices`, color: 'text-amber-300', icon: '💰', accent: 'border-amber-900/40' },
                       { label: 'HS Code dictionary', value: (dictA12.length + dictE21.length) + ' items', sub: `A12: ${dictA12.length} · E21: ${dictE21.length}`, color: 'text-emerald-300', icon: '🏷', accent: 'border-emerald-900/40' },
                       { label: 'Suppliers', value: (supplierData ? supplierData.length : '—') + (supplierData ? ' supplier' : ''), sub: supplierData ? 'Loaded from Sheets' : 'Go to Master Data to load', color: 'text-violet-300', icon: '🏢', accent: 'border-violet-900/40' },
                       { label: 'Payment vouchers', value: (paymentData ? paymentData.length : '—') + (paymentData ? ' vouchers' : ''), sub: paymentData ? ('Total: ' + fmtVND(paymentData.reduce((s,p)=>s+Number(String(p['SỐ TIỀN']||'').replace(/[^0-9.-]/g,'')||0),0))) : 'Go to Master Data to load', color: 'text-amber-300', icon: '💳', accent: 'border-amber-900/40' },
@@ -2791,7 +2791,7 @@
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-4">
                       <div>
                         <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">📂 Source Product Dictionary</h3>
-                        <p className="text-xs text-slate-500 mt-1">Search to display data. Supports add, edit, single delete and bulk delete hàng loạt.</p>
+                        <p className="text-xs text-slate-500 mt-1">Search to display data. Supports add, edit, single delete and bulk delete.</p>
                       </div>
                       <div className="flex flex-wrap gap-2 items-center">
                         <button onClick={handleOpenAddDict} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1">
@@ -2822,7 +2822,7 @@
                     {showHsFilterPanel && (
                       <div className="bg-slate-950 border border-amber-900/40 rounded-xl p-4 space-y-2">
                         <div className="flex items-center justify-between">
-                          <p className="text-[11px] text-amber-400 font-bold uppercase tracking-wide">🏷️ Categories by HS Code — {dbSelectedTab} ({hsCodeGroups.length} mã)</p>
+                          <p className="text-[11px] text-amber-400 font-bold uppercase tracking-wide">🏷️ Categories by HS Code — {dbSelectedTab} ({hsCodeGroups.length} codes)</p>
                           {hsCodeFilter && (
                             <button onClick={handleClearHsCodeFilter} className="text-[11px] text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded px-2 py-1 font-bold">✕ Clear filter</button>
                           )}
@@ -3109,7 +3109,7 @@
                         <input type="text" placeholder="Search by lot no., Bill no..." value={filterLotNo === '__ALL__' ? '' : filterLotNo} onChange={(e) => { setFilterLotNo(e.target.value); setSelectedLotNo(null); setSelectedInvoiceNo(null); }} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={handleExportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Xuất Excel CSV</button>
+                        <button onClick={handleExportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Export Excel CSV</button>
                       {window.CY_API_URL && (
                         <button onClick={handleSyncSummary}
                           disabled={syncStatus === 'syncing'}
@@ -3125,7 +3125,7 @@
                       </div>
                     </div>
                     {hasActiveFilter && filteredLots.length > 0 && (
-                      <p className="text-[10px] text-slate-500">Showing <strong className="text-slate-300">{filteredLots.length}</strong> lots{filterFromDate ? ` từ ${filterFromDate}` : ''}{filterToDate ? ` đến ${filterToDate}` : ''}</p>
+                      <p className="text-[10px] text-slate-500">Showing <strong className="text-slate-300">{filteredLots.length}</strong> lots{filterFromDate ? ` from ${filterFromDate}` : ''}{filterToDate ? ` to ${filterToDate}` : ''}</p>
                     )}
                   </div>
 
@@ -3153,18 +3153,18 @@
                   <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
                     {/* Legend — chú thích các badge/màu trong bảng */}
                     <div className="flex flex-wrap items-center gap-4 px-4 py-2 bg-slate-950/60 border-b border-slate-850 text-[10px] text-slate-400">
-                      <span className="font-bold text-slate-500 uppercase tracking-wider">Ghi chú:</span>
+                      <span className="font-bold text-slate-500 uppercase tracking-wider">Legend:</span>
                       <span className="flex items-center gap-1.5">
                         <span className="bg-purple-900/40 text-purple-300 border border-purple-700 px-1.5 py-0.5 rounded font-mono font-bold">🔗</span>
-                        Chung Container (cùng số cont với lô khác)
+                        Shared Container (same container no. as another lot)
                       </span>
                       <span className="flex items-center gap-1.5">
                         <span className="bg-orange-900/40 text-orange-300 border border-orange-700 px-1.5 py-0.5 rounded font-mono font-bold">🔗</span>
-                        Chung Bill (cùng số Bill với lô khác)
+                        Shared Bill (same Bill No. as another lot)
                       </span>
                       <span className="flex items-center gap-1.5">
                         <span className="bg-indigo-900/40 text-indigo-300 border border-indigo-700 px-1.5 py-0.5 rounded font-bold">📑 N</span>
-                        Lô có nhiều hơn 1 Invoice
+                        Lot has more than 1 Invoice
                       </span>
                     </div>
                     <div className="overflow-x-auto">
@@ -3221,7 +3221,7 @@
                                 <td className="p-3 font-bold text-slate-300">{lot.factory_no || '-'}</td>
                                 <td className="p-3 font-mono font-bold">
                                   {sharedBillNos.has(lot.lot_no) ? (
-                                    <span className="bg-orange-900/40 text-orange-300 border border-orange-700 px-2 py-0.5 rounded font-mono font-bold text-[10px]" title="⚠️ Chung Bill với lô khác">
+                                    <span className="bg-orange-900/40 text-orange-300 border border-orange-700 px-2 py-0.5 rounded font-mono font-bold text-[10px]" title="⚠️ Shared Bill with another lot">
                                       🔗 {lot.bill_no || '-'}
                                     </span>
                                   ) : (lot.bill_no || '-')}
@@ -3543,7 +3543,7 @@
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-14 text-center">
                       <div className="text-5xl mb-4 opacity-20">🏢</div>
                       <p className="text-slate-400 font-bold text-sm mb-1">No data available</p>
-                      <p className="text-slate-600 text-xs">Click <span className="text-blue-400 font-bold">🔄 Load / Refresh</span> tể đọc từ Google Sheets</p>
+                      <p className="text-slate-600 text-xs">Click <span className="text-blue-400 font-bold">🔄 Load / Refresh</span> to read from Google Sheets</p>
                     </div>
                   )}
                   {supplierLoading && (
@@ -3593,7 +3593,7 @@
                                   </td>
                                   <td className="px-4 py-3 text-center space-x-3">
                                     <button onClick={() => handleOpenEditSupplier(realIdx)} className="text-blue-400 hover:text-blue-200 text-[11px] font-bold hover:underline">✏️ Edit</button>
-                                    <button onClick={() => handleDeleteSupplier(realIdx)} className="text-rose-500 hover:text-rose-300 text-[11px] font-bold hover:underline">🗑 Xóa</button>
+                                    <button onClick={() => handleDeleteSupplier(realIdx)} className="text-rose-500 hover:text-rose-300 text-[11px] font-bold hover:underline">🗑 Delete</button>
                                   </td>
                                 </tr>
                               );
@@ -3673,7 +3673,7 @@
                               📥 Export Excel ({pymSelected.size})
                             </button>
                           )}
-                          <button onClick={() => { const ptuList = checkTrietTieu(filteredPayments); setPaymentCheckResult(ptuList); showNotification(`🔍 Tìm thấy ${ptuList.length} phiếu PTU.`); }}
+                          <button onClick={() => { const ptuList = checkTrietTieu(filteredPayments); setPaymentCheckResult(ptuList); showNotification(`🔍 Found ${ptuList.length} PTU voucher(s).`); }}
                             disabled={!paymentData || paymentData.length === 0}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition-all disabled:opacity-40">
                             🔍 Check Offset
@@ -3829,7 +3829,7 @@
                   {showPymTable && !paymentLoading && (
                     <>
                       <div className="flex items-center justify-between text-[11px] text-slate-400">
-                        <span>Showing <strong className="text-white">{pagedPayments.length}</strong> / <strong className="text-white">{filteredPayments.length}</strong> phiếu</span>
+                        <span>Showing <strong className="text-white">{pagedPayments.length}</strong> / <strong className="text-white">{filteredPayments.length}</strong> vouchers</span>
                         <span className="font-mono text-emerald-400 font-bold">Total: {fmtVND(filteredPayments.reduce((s,p)=>s+Number(String(p['SỐ TIỀN']||'').replace(/[^0-9.-]/g,'')||0),0))}</span>
                       </div>
                       <div className="overflow-x-auto border border-slate-800 rounded-xl">
@@ -3881,7 +3881,7 @@
                                   <td className="px-4 py-3 font-mono text-slate-500 whitespace-nowrap text-[10px]">{p['NGÀY ĐƯA KẾ TOÁN'] || '—'}</td>
                                   <td className="px-4 py-3 text-center space-x-3" onClick={e => e.stopPropagation()}>
                                     <button onClick={() => { setPaymentForm({...p}); setPaymentEditIdx(realIdx); setShowPaymentModal(true); }} className="text-blue-400 hover:text-blue-200 text-[11px] font-bold hover:underline">✏️ Edit</button>
-                                    <button onClick={() => handleDeletePayment(realIdx)} className="text-rose-500 hover:text-rose-300 text-[11px] font-bold hover:underline">🗑 Xóa</button>
+                                    <button onClick={() => handleDeletePayment(realIdx)} className="text-rose-500 hover:text-rose-300 text-[11px] font-bold hover:underline">🗑 Delete</button>
                                   </td>
                                 </tr>
                               );
@@ -4743,7 +4743,7 @@
                                       {s.label}
                                     </button>
                                   ))}
-                                  <span className="text-[10px] text-slate-600 self-center ml-1">Hãng sẽ tự điền vào ô Carrier — có thể sửa tay nếu cần</span>
+                                  <span className="text-[10px] text-slate-600 self-center ml-1">Carrier name auto-fills — you can edit it manually if needed</span>
                                 </div>
                               )}
                             </>
@@ -5175,7 +5175,7 @@
 
                       {/* ── RECEIVING FACTORY (Invoice level) ── */}
                       <div className="bg-slate-950/40 p-4 border border-slate-800 rounded-xl space-y-3">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">🏭 Receiving Factory (Invoice này)</label>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">🏭 Receiving Factory (this Invoice)</label>
                         <div className="flex gap-2 flex-wrap">
                           {FACTORY_OPTIONS.map((fac) => {
                             const invFactories = (invoiceForm.factory_no || '').split(',').map(s=>s.trim()).filter(Boolean);
@@ -6270,7 +6270,7 @@
                                 )}
                               </div>
                               {paymentData === null ? (
-                                <p className="text-slate-600 italic text-[11px]">Payment data not loaded. Go to <span className="text-amber-400 font-bold">💳 Payment Data</span> để Load.</p>
+                                <p className="text-slate-600 italic text-[11px]">Payment data not loaded. Go to <span className="text-amber-400 font-bold">💳 Payment Data</span> to load.</p>
                               ) : lotPayments.length === 0 ? (
                                 <p className="text-slate-600 italic text-[11px]">No payment records for this lot.</p>
                               ) : (
