@@ -657,7 +657,7 @@
         setConfirmState({
           isOpen: true,
           title: '⚠️ Delete Supplier',
-          message: `Are you sure you want to delete supplier "${(supplierData[idx] || {})['SUPPLIER NAME']}"? This action cannotg thể hoàn tác.`,
+          message: `Are you sure you want to delete supplier "${(supplierData[idx] || {})['SUPPLIER NAME']}"? This action cannot be undone.`,
           onConfirm: () => {
             const newData = (supplierData || []).filter((_, i) => i !== idx);
             saveSuppliers(newData);
@@ -1323,6 +1323,31 @@
           contract_end: normalizeDate(invoiceForm.contract_end),
         };
 
+        // Tách phần lưu thật ra hàm riêng để gọi lại được từ nhánh "vẫn lưu" khi có cảnh báo lệch số tiền
+        const proceedSaveInvoice = () => {
+          if (finalInvoice.supplier) addSupplierHistory(finalInvoice.supplier.trim());
+          let newInvoices = [];
+          if (modalMode === 'add') {
+            if (invoices.some(i => String(i.invoice_no||'').toLowerCase() === String(invoiceForm.invoice_no||'').trim().toLowerCase())) {
+              return showNotification("Invoice No. already exists!", "error");
+            }
+            newInvoices = [finalInvoice, ...invoices];
+            setDraftInvoiceNos(prev => prev.includes(finalInvoice.invoice_no) ? prev : [...prev, finalInvoice.invoice_no]);
+            setGoodsForm(prev => ({ ...prev, invoice_no: finalInvoice.invoice_no, goods_no: '', goods_name_en: '', goods_name_local: '', hs_code: '', sale_amount: 0, qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: '' }));
+            setModalTab('goods');
+          } else {
+            newInvoices = invoices.map(i => String(i.invoice_no) === String(finalInvoice.invoice_no) ? finalInvoice : i);
+            showNotification(`✅ Invoice ${finalInvoice.invoice_no} updated`);
+            setRecentlyUpdatedInvoices(prev => new Set([...prev, finalInvoice.invoice_no]));
+            setTimeout(() => setRecentlyUpdatedInvoices(prev => { const n = new Set(prev); n.delete(finalInvoice.invoice_no); return n; }), 5000);
+            setShowAddModal(false);
+          }
+          saveInvoicesToStorage(newInvoices);
+          setSelectedLotNo(targetLotNo);
+          setSelectedInvoiceNo(finalInvoice.invoice_no);
+          showNotification(`✅ Invoice ${finalInvoice.invoice_no} saved`);
+        };
+
         // ── Kiểm tra tiền hoá đơn khớp tổng hàng + phí ──────────────────────
         // Chỉ kiểm tra khi đã có goods (tránh block khi mới tạo invoice chưa có hàng)
         const invGoods = goods.filter(g => String(g.invoice_no) === String(finalInvoice.invoice_no));
@@ -1335,44 +1360,29 @@
             - (Number(finalInvoice.foc_amount)        || 0);
           const diff = Math.abs(finalInvoice.total_amount - expectedTotal);
           if (diff > 0.01) { // cho phép sai số tối đa $0.01 do làm tròn
-            const proceed = window.confirm(
-              `⚠️ Invoice amount MISMATCH!\n\n` +
-              `Total goods:     ${goodsTotal.toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
-              `+ Sea freight:    ${(Number(finalInvoice.plus_sea_freight)||0).toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
-              `+ Handling:       ${(Number(finalInvoice.handling_charges)||0).toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
-              `+ Other charges:  ${(Number(finalInvoice.other_charges)||0).toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
-              `- FOC:            ${(Number(finalInvoice.foc_amount)||0).toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
-              `──────────────────────────────\n` +
-              `= Expected:       ${expectedTotal.toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
-              `≠ Entered:        ${finalInvoice.total_amount.toLocaleString('en-US', {minimumFractionDigits:2})} USD\n` +
-              `Difference:       ${diff.toLocaleString('en-US', {minimumFractionDigits:2})} USD\n\n` +
-              `Click OK to save anyway, Cancel to revise.`
-            );
-            if (!proceed) return;
+            const fmt = (n) => Number(n||0).toLocaleString('en-US', {minimumFractionDigits:2}) + ' USD';
+            setConfirmState({
+              isOpen: true,
+              title: 'Invoice Amount Mismatch',
+              message: 'The entered Total Amount does not match Goods Total + Charges. Review the breakdown below, or continue to save anyway.',
+              details: [
+                { label: 'Total goods',    value: fmt(goodsTotal) },
+                { label: '+ Sea freight',  value: fmt(finalInvoice.plus_sea_freight) },
+                { label: '+ Handling',     value: fmt(finalInvoice.handling_charges) },
+                { label: '+ Other charges', value: fmt(finalInvoice.other_charges) },
+                { label: '− FOC',          value: fmt(finalInvoice.foc_amount) },
+                { divider: true },
+                { label: 'Expected',       value: fmt(expectedTotal), bold: true, colorClass: 'text-emerald-400' },
+                { label: 'Entered',        value: fmt(finalInvoice.total_amount), bold: true, colorClass: 'text-amber-400' },
+                { label: 'Difference',     value: fmt(diff), bold: true, colorClass: 'text-rose-400' },
+              ],
+              confirmLabel: 'Save anyway', cancelLabel: 'Revise',
+              onConfirm: () => { setConfirmState(prev => ({ ...prev, isOpen: false })); proceedSaveInvoice(); },
+            });
+            return;
           }
         }
-
-        if (finalInvoice.supplier) addSupplierHistory(finalInvoice.supplier.trim());
-        let newInvoices = [];
-        if (modalMode === 'add') {
-          if (invoices.some(i => String(i.invoice_no||'').toLowerCase() === String(invoiceForm.invoice_no||'').trim().toLowerCase())) {
-            return showNotification("Invoice No. already exists!", "error");
-          }
-          newInvoices = [finalInvoice, ...invoices];
-          setDraftInvoiceNos(prev => prev.includes(finalInvoice.invoice_no) ? prev : [...prev, finalInvoice.invoice_no]);
-          setGoodsForm(prev => ({ ...prev, invoice_no: finalInvoice.invoice_no, goods_no: '', goods_name_en: '', goods_name_local: '', hs_code: '', sale_amount: 0, qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: '' }));
-          setModalTab('goods');
-        } else {
-          newInvoices = invoices.map(i => String(i.invoice_no) === String(finalInvoice.invoice_no) ? finalInvoice : i);
-          showNotification(`✅ Invoice ${finalInvoice.invoice_no} updated`);
-          setRecentlyUpdatedInvoices(prev => new Set([...prev, finalInvoice.invoice_no]));
-          setTimeout(() => setRecentlyUpdatedInvoices(prev => { const n = new Set(prev); n.delete(finalInvoice.invoice_no); return n; }), 5000);
-          setShowAddModal(false);
-        }
-        saveInvoicesToStorage(newInvoices);
-        setSelectedLotNo(targetLotNo);
-        setSelectedInvoiceNo(finalInvoice.invoice_no);
-        showNotification(`✅ Invoice ${finalInvoice.invoice_no} saved`);
+        proceedSaveInvoice();
       };
 
       const handleSaveGoods = (e) => {
@@ -2422,9 +2432,24 @@
               <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 space-y-4 shadow-2xl">
                 <h3 className="text-sm font-bold text-white uppercase flex items-center gap-2">⚠️ {confirmState.title}</h3>
                 <p className="text-slate-300 text-xs leading-relaxed">{confirmState.message}</p>
+                {/* Optional: bảng số liệu chi tiết (vd: so sánh số tiền nhập vs số tiền tính toán) */}
+                {confirmState.details && confirmState.details.length > 0 && (
+                  <div className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 space-y-1 font-mono text-[11px]">
+                    {confirmState.details.map((row, i) => (
+                      row.divider ? (
+                        <div key={i} className="border-t border-slate-800 my-1"></div>
+                      ) : (
+                        <div key={i} className={`flex justify-between gap-3 ${row.bold ? 'font-bold' : ''} ${row.colorClass || 'text-slate-300'}`}>
+                          <span className="text-slate-500">{row.label}</span>
+                          <span>{row.value}</span>
+                        </div>
+                      )
+                    ))}
+                  </div>
+                )}
                 <div className="flex justify-end gap-3 pt-2">
-                  <button onClick={() => setConfirmState(prev => ({ ...prev, isOpen: false }))} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">Cancel</button>
-                  <button onClick={confirmState.onConfirm} className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold">Confirm</button>
+                  <button onClick={() => setConfirmState(prev => ({ ...prev, isOpen: false }))} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">{confirmState.cancelLabel || 'Cancel'}</button>
+                  <button onClick={confirmState.onConfirm} className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold">{confirmState.confirmLabel || 'Confirm'}</button>
                 </div>
               </div>
             </div>
