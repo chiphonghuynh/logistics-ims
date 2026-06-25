@@ -261,6 +261,18 @@
     const FACTORY_OPTIONS = ["18A", "B0SZ", "B0M1", "B0M2"];
 
     function App() {
+      // ── TODAY (LOCAL TIMEZONE) ──────────────────────────────────────
+      // Lấy ngày hôm nay theo giờ địa phương của trình duyệt (không qua UTC),
+      // tránh lệch 1 ngày vào buổi tối/đêm khi dùng new Date().toISOString() (luôn trả về UTC).
+      // Đặt ngay đầu component vì các useState bên dưới cần gọi hàm này lúc khởi tạo giá trị mặc định.
+      const getTodayLocal = () => {
+        const d = new Date();
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      };
+
       const [menuExpanded, setMenuExpanded] = useState(true);
       const [activeMenu, setActiveMenu] = useState('DASHBOARD');
       const [expandedMenus, setExpandedMenus] = useState({ A: false, B: true, E: true });
@@ -537,7 +549,7 @@
         // Style header row width
         ws['!cols'] = listHangHeaders.map(() => ({ wch: 20 }));
         XLSX.utils.book_append_sheet(wb, ws, 'Daily ATC Report');
-        XLSX.writeFile(wb, `Daily_ATC_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+        XLSX.writeFile(wb, `Daily_ATC_Report_${getTodayLocal()}.xlsx`);
         showNotification(`Exported ${listHangData.length} rows to Excel`);
       };
 
@@ -997,6 +1009,10 @@
       const [supplierHistory, setSupplierHistory] = useState(() => {
         try { return JSON.parse(localStorage.getItem('cy_supplier_history') || '["CHANG YANG MATERIAL CORP."]'); } catch { return ['CHANG YANG MATERIAL CORP.']; }
       });
+      // Theo dõi chế độ "đang nhập mới" (chọn "+ Add new..." trong dropdown POL/POD/Cargo Origin)
+      const [polAddingNew, setPolAddingNew] = useState(false);
+      const [podAddingNew, setPodAddingNew] = useState(false);
+      const [originAddingNew, setOriginAddingNew] = useState(false);
       const addCarrierHistory = (val) => {
         if (!val || carrierHistory.includes(val)) return;
         const next = [val, ...carrierHistory].slice(0, 30);
@@ -1012,7 +1028,7 @@
 
       // Các Form nhập liệu của nghiệp vụ chính
       const [lotForm, setLotForm] = useState({
-        lot_no: '', stt: 1, lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10),
+        lot_no: '', stt: 1, lot_date: getTodayLocal(), get_docs_date: getTodayLocal(),
         factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid',
         carrier: '', // Hãng tàu / FWD
         transport_type: 'SEA_CONT', // AIR | EXPRESS | SEA_CONT | SEA_CFS
@@ -1024,7 +1040,7 @@
       });
 
       const [invoiceForm, setInvoiceForm] = useState({
-        invoice_no: '', lot_no: '', bill_no: '', bill_stt: 0, invoice_date: new Date().toISOString().substring(0, 10),
+        invoice_no: '', lot_no: '', bill_no: '', bill_stt: 0, invoice_date: getTodayLocal(),
         inv_pkg_qty: 0, inv_gw: 0,
         incoterm: 'CIF', total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0,
         other_charges_note: '',
@@ -2084,7 +2100,7 @@
       // ============================================================
       const exportBangKeWord = (lotNo, printInvoices, totalVal, currency, supplierName) => {
         const printLot = lots.find(l => l.lot_no === lotNo) || {};
-        const latestDate = printInvoices.map(i => i.invoice_date||'').filter(Boolean).sort().reverse()[0] || new Date().toISOString().slice(0,10);
+        const latestDate = printInvoices.map(i => i.invoice_date||'').filter(Boolean).sort().reverse()[0] || getTodayLocal();
         const fmtDate = d => {
           if (!d) return '';
           const parts = d.split('-');
@@ -2256,7 +2272,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `BangKe_02_${lotNo}_${new Date().toISOString().slice(0,10)}.doc`;
+        a.download = `BangKe_02_${lotNo}_${getTodayLocal()}.doc`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 3000);
         showNotification('Form 02 invoice list downloaded successfully!');
@@ -2707,7 +2723,7 @@
                     <div className="flex gap-2 justify-center flex-wrap mt-2">
                       <span className="text-[10px] text-slate-500 self-center">Quick filter:</span>
                       {[
-                        { label: '📅 Today', fn: () => { const d = new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
+                        { label: '📅 Today', fn: () => { const d = getTodayLocal(); setFilterFromDate(d); setFilterToDate(d); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
                         { label: '📆 This month', fn: () => { const n = new Date(); const from = new Date(n.getFullYear(), n.getMonth(), 1).toISOString().slice(0,10); const to = new Date(n.getFullYear(), n.getMonth()+1, 0).toISOString().slice(0,10); setFilterFromDate(from); setFilterToDate(to); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
                         { label: '🗓 This year', fn: () => { const y = new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
                         { label: '🗓 Last year', fn: () => { const y = new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }},
@@ -3086,7 +3102,7 @@
                     <div className="flex flex-wrap gap-2 items-center">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">Quick filter:</span>
                       {[
-                        ['📅 Today', () => { const d=new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                        ['📅 Today', () => { const d=getTodayLocal(); setFilterFromDate(d); setFilterToDate(d); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
                         ['📆 This month', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
                         ['🗓 This year', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
                         ['🗓 Last year', () => { const y=new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
@@ -3133,6 +3149,40 @@
                     )}
                   </div>
 
+                  {/* CONTROL BAR — moved here, right after the search section */}
+                  <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center shadow-lg">
+                    <span className="text-xs text-slate-400">
+                      Selected Lot: <strong className="text-white font-mono">{selectedLotNo || 'None'}</strong>
+                    </span>
+                    <div className="flex gap-2">
+                      <button onClick={() => {
+                      setModalMode('add'); setModalTab('lot');
+                      const freshStt = getFirstVacantSeq();
+                      setLotForm({ lot_no: '', stt: freshStt, lot_date: getTodayLocal(), get_docs_date: getTodayLocal(), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', carrier: '', transport_type: 'SEA_CONT', is_cont: true, cont_no: '', seal_no: '', cont_type: '40FT', contList: [{cont_no:'',seal_no:'',cont_type:'40FT'}], pkg_qty: 0, gw: 0, cbm: 0, cbm_str: '', eta: '', atc_date: '', origin_country: 'TAIWAN', loai_hinh: 'NEUTRAL', loai_hinh_con: 'DEFAULT', sale_qty: 0, is_hang_chung_bill: false, contract_start: '', contract_end: '' });
+                      setInvoiceForm({ invoice_no: '', lot_no: '', bill_no: '', bill_stt: freshStt, invoice_date: getTodayLocal(), inv_pkg_qty: 0, inv_gw: 0, incoterm: 'CIF', total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '', is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', currency: 'USD', supplier: 'CHANG YANG MATERIAL CORP.', contract_start: '', contract_end: '', factory_no: '' });
+                      setGoodsForm({ invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '', goods_name_local: '', goods_unit_local: 'Pcs', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0, origin_country: 'TAIWAN', qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: '' });
+                      setSelectedFactories([]);
+                      setDraftInvoiceNos([]);
+                      setLotAssignForm({ loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [], stt: freshStt });
+                      setShowAddModal(true);
+                    }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">+ Declare New Lot</button>
+                      <button onClick={() => { if(!selectedLotNo) return; setShowMasterInvoiceModal(true); }} disabled={!selectedLotNo} className={`px-4 py-2 rounded-lg text-xs font-bold ${selectedLotNo ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>Bảng Kê Hóa Đơn (Mẫu 02)</button>
+                      {/* Sale Contract — only shown when A12 lot is selected */}
+                      {selectedLotNo && (() => {
+                        const selLot = lots.find(l => l.lot_no === selectedLotNo);
+                        const isA12  = (selLot?.loai_hinh || '').toUpperCase() === 'A12';
+                        return isA12 ? (
+                          <button
+                            onClick={handleCreateContract}
+                            title={`Create Sale Contract for lot ${selectedLotNo}`}
+                            className="px-4 py-2 rounded-lg text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white flex items-center gap-1.5 transition-all">
+                            📄 Create Sale Contract
+                          </button>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+
                   {/* MASTER LOT LIST TABLE */}
                   {!hasActiveFilter && (
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4">
@@ -3143,7 +3193,7 @@
                       </div>
                       <div className="flex gap-2 flex-wrap justify-center">
                         {[
-                          ['📅 Today', () => { const d=new Date().toISOString().slice(0,10); setFilterFromDate(d); setFilterToDate(d); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
+                          ['📅 Today', () => { const d=getTodayLocal(); setFilterFromDate(d); setFilterToDate(d); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
                           ['📆 This month', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
                           ['🗓 This year', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
                           ['📋 All lots', () => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo('__ALL__'); setSelectedLotNo(null); setSelectedInvoiceNo(null); }],
@@ -3232,7 +3282,7 @@
                                 </td>
                                 <td className="p-3">{lot.pol} ➔ {lot.pod}</td>
                                 <td className="p-3 text-center">
-                                  {lot.is_cont ? (
+                                  {lot.transport_type === 'SEA_CONT' ? (
                                     <span className={sharedContNos.has(lot.lot_no) ? 'bg-purple-900/40 text-purple-300 border border-purple-700 px-2 py-0.5 rounded font-mono font-bold text-[10px]' : ''} title={sharedContNos.has(lot.lot_no) ? 'Shared container with another lot' : ''}>
                                       {sharedContNos.has(lot.lot_no) ? '🔗 ' : ''}
                                       {(() => {
@@ -3241,7 +3291,12 @@
                                         return lot.cont_no || '—';
                                       })()} {lot.cont_type ? `(${lot.cont_type})` : ''}
                                     </span>
-                                  ) : 'LCL'}
+                                  ) : lot.transport_type === 'SEA_CFS' ? 'LCL'
+                                    : lot.transport_type === 'AIR' ? 'AIR'
+                                    : lot.transport_type === 'EXPRESS' ? 'EXPRESS'
+                                    : lot.transport_type === 'NGOAI_QUAN' ? 'NGOAI QUAN'
+                                    : lot.transport_type === 'BY_TRUCK' ? 'BY TRUCK'
+                                    : (lot.is_cont ? '—' : 'LCL')}
                                 </td>
                                 <td className="p-3 text-right font-mono">{Number(lot.pkg_qty).toLocaleString()}</td>
                                 <td className="p-3 text-right font-mono text-amber-300 font-bold">{'$'}{lotVal.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
@@ -3391,7 +3446,7 @@
                               ws['!cols'] = colWidths;
 
                               XLSX.utils.book_append_sheet(wb, ws, 'Danh Sach Hang Hoa');
-                              XLSX.writeFile(wb, `HangHoa_${selectedLotNo}_${isA12 ? 'A12' : 'E21'}_${new Date().toISOString().slice(0,10)}.xlsx`);
+                              XLSX.writeFile(wb, `HangHoa_${selectedLotNo}_${isA12 ? 'A12' : 'E21'}_${getTodayLocal()}.xlsx`);
                               showNotification(`Exported ${lotGoods.length} goods rows for lot ${selectedLotNo} (${isA12 ? 'A12 — HS Code + Tax Code' : 'E21'})`);
                             }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
                               📥 Export Excel
@@ -3449,39 +3504,6 @@
                     </div>
                   </div>
 
-                  {/* BOTTOM CONTROL BAR */}
-                  <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center shadow-lg">
-                    <span className="text-xs text-slate-400">
-                      Selected Lot: <strong className="text-white font-mono">{selectedLotNo || 'None'}</strong>
-                    </span>
-                    <div className="flex gap-2">
-                      <button onClick={() => {
-                      setModalMode('add'); setModalTab('lot');
-                      const freshStt = getFirstVacantSeq();
-                      setLotForm({ lot_no: '', stt: freshStt, lot_date: new Date().toISOString().substring(0, 10), get_docs_date: new Date().toISOString().substring(0, 10), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', carrier: '', transport_type: 'SEA_CONT', is_cont: true, cont_no: '', seal_no: '', cont_type: '40FT', contList: [{cont_no:'',seal_no:'',cont_type:'40FT'}], pkg_qty: 0, gw: 0, cbm: 0, cbm_str: '', eta: '', atc_date: '', origin_country: 'TAIWAN', loai_hinh: 'NEUTRAL', loai_hinh_con: 'DEFAULT', sale_qty: 0, is_hang_chung_bill: false, contract_start: '', contract_end: '' });
-                      setInvoiceForm({ invoice_no: '', lot_no: '', bill_no: '', bill_stt: freshStt, invoice_date: new Date().toISOString().substring(0, 10), inv_pkg_qty: 0, inv_gw: 0, incoterm: 'CIF', total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '', is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', currency: 'USD', supplier: 'CHANG YANG MATERIAL CORP.', contract_start: '', contract_end: '', factory_no: '' });
-                      setGoodsForm({ invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '', goods_name_local: '', goods_unit_local: 'Pcs', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0, origin_country: 'TAIWAN', qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: '' });
-                      setSelectedFactories([]);
-                      setDraftInvoiceNos([]);
-                      setLotAssignForm({ loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [], stt: freshStt });
-                      setShowAddModal(true);
-                    }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">+ Declare New Lot</button>
-                      <button onClick={() => { if(!selectedLotNo) return; setShowMasterInvoiceModal(true); }} disabled={!selectedLotNo} className={`px-4 py-2 rounded-lg text-xs font-bold ${selectedLotNo ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>Bảng Kê Hóa Đơn (Mẫu 02)</button>
-                      {/* Sale Contract — only shown when A12 lot is selected */}
-                      {selectedLotNo && (() => {
-                        const selLot = lots.find(l => l.lot_no === selectedLotNo);
-                        const isA12  = (selLot?.loai_hinh || '').toUpperCase() === 'A12';
-                        return isA12 ? (
-                          <button
-                            onClick={handleCreateContract}
-                            title={`Create Sale Contract for lot ${selectedLotNo}`}
-                            className="px-4 py-2 rounded-lg text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white flex items-center gap-1.5 transition-all">
-                            📄 Create Sale Contract
-                          </button>
-                        ) : null;
-                      })()}
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -3670,7 +3692,7 @@
                               const wb = XLSX.utils.book_new();
                               const ws = XLSX.utils.aoa_to_sheet(wsData);
                               XLSX.utils.book_append_sheet(wb, ws, 'Payment');
-                              XLSX.writeFile(wb, `Payment_${new Date().toISOString().slice(0,10)}.xlsx`);
+                              XLSX.writeFile(wb, `Payment_${getTodayLocal()}.xlsx`);
                               showNotification(`Exported ${rows.length} payment records to Excel!`);
                             }}
                               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white transition-all">
@@ -3684,7 +3706,7 @@
                           </button>
                         </>
                       )}
-                      <button onClick={() => { setPaymentForm({ 'NGÀY': new Date().toISOString().slice(0,10), 'SỐ PTT': '', 'SỐ TIỀN': '', 'NỘI DUNG': '', 'NGÀY ĐƯA KẾ TOÁN': '' }); setPaymentEditIdx(null); setShowPaymentModal(true); }}
+                      <button onClick={() => { setPaymentForm({ 'NGÀY': getTodayLocal(), 'SỐ PTT': '', 'SỐ TIỀN': '', 'NỘI DUNG': '', 'NGÀY ĐƯA KẾ TOÁN': '' }); setPaymentEditIdx(null); setShowPaymentModal(true); }}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all">
                         + Add Voucher
                       </button>
@@ -4060,7 +4082,7 @@
 
               {/* --- ETA MANAGEMENT VIEW --- */}
               {activeMenu === 'ETA_MGMT' && (() => {
-                const today = new Date().toISOString().slice(0,10);
+                const today = getTodayLocal();
                 const kw = etaSearch.trim().toLowerCase();
                 const allFiltered = lots.filter(l =>
                   !kw || l.lot_no?.toLowerCase().includes(kw) ||
@@ -4324,7 +4346,7 @@
                                       <button onClick={() => setInlineAtcLotNo(null)} className="bg-slate-800 px-2 py-1 rounded text-slate-300 text-[11px]">Cancel</button>
                                     </div>
                                   ) : (
-                                    <button onClick={() => { setInlineAtcLotNo(lot.lot_no); setInlineAtcDate(new Date().toISOString().substring(0, 10)); }}
+                                    <button onClick={() => { setInlineAtcLotNo(lot.lot_no); setInlineAtcDate(getTodayLocal()); }}
                                       className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-1.5 rounded text-xs shadow-sm">Confirm Receipt</button>
                                   )
                                 )}
@@ -4623,24 +4645,54 @@
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Port of Loading (POL)</label>
-                          <input type="text" value={lotForm.pol} onChange={(e) => setLotForm({...lotForm, pol: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                          {polAddingNew ? (
+                            <input type="text" autoFocus value={lotForm.pol} onChange={(e) => setLotForm({...lotForm, pol: e.target.value.toUpperCase()})}
+                              onBlur={() => { if (!lotForm.pol) setPolAddingNew(false); }}
+                              placeholder="Type new port name..."
+                              className="w-full bg-slate-950 border border-blue-700 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                          ) : (
+                            <select value={lotForm.pol || ''}
+                              onChange={(e) => { if (e.target.value === '__ADD_NEW__') { setPolAddingNew(true); setLotForm({...lotForm, pol: ''}); } else { setLotForm({...lotForm, pol: e.target.value}); } }}
+                              className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}}>
+                              <option value="">— Select POL —</option>
+                              {Array.from(new Set([...getUniquePols(), 'VN', 'TAICHUNG','KAOHSIUNG','SHEKOU','NINGBO','SHENZHEN','HONG KONG'])).map((p,i) => <option key={i} value={p}>{p}</option>)}
+                              <option value="__ADD_NEW__">+ Add new...</option>
+                            </select>
+                          )}
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Port of Discharge (POD)</label>
-                          <input type="text" value={lotForm.pod} onChange={(e) => setLotForm({...lotForm, pod: e.target.value.toUpperCase()})} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                          {podAddingNew ? (
+                            <input type="text" autoFocus value={lotForm.pod} onChange={(e) => setLotForm({...lotForm, pod: e.target.value.toUpperCase()})}
+                              onBlur={() => { if (!lotForm.pod) setPodAddingNew(false); }}
+                              placeholder="Type new port name..."
+                              className="w-full bg-slate-950 border border-blue-700 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                          ) : (
+                            <select value={lotForm.pod || ''}
+                              onChange={(e) => { if (e.target.value === '__ADD_NEW__') { setPodAddingNew(true); setLotForm({...lotForm, pod: ''}); } else { setLotForm({...lotForm, pod: e.target.value}); } }}
+                              className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}}>
+                              <option value="">— Select POD —</option>
+                              {Array.from(new Set([...getUniquePods(), 'VN', 'CAT LAI','TCS','VNSGN'])).map((p,i) => <option key={i} value={p}>{p}</option>)}
+                              <option value="__ADD_NEW__">+ Add new...</option>
+                            </select>
+                          )}
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Cargo Origin</label>
-                          <input type="text" list="origin-country-list" value={lotForm.origin_country}
-                            onChange={(e) => setLotForm({...lotForm, origin_country: e.target.value.toUpperCase()})}
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
-                          <datalist id="origin-country-list">
-                            {getUniqueOrigins().map((o, i) => <option key={i} value={o} />)}
-                            {/* Common defaults if history empty */}
-                            <option value="TAIWAN" /><option value="CHINA" /><option value="CN" />
-                            <option value="JAPAN" /><option value="KOREA" /><option value="VIETNAM" />
-                            <option value="GERMANY" /><option value="USA" /><option value="ITALY" />
-                          </datalist>
+                          {originAddingNew ? (
+                            <input type="text" autoFocus value={lotForm.origin_country} onChange={(e) => setLotForm({...lotForm, origin_country: e.target.value.toUpperCase()})}
+                              onBlur={() => { if (!lotForm.origin_country) setOriginAddingNew(false); }}
+                              placeholder="Type new country name..."
+                              className="w-full bg-slate-950 border border-blue-700 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                          ) : (
+                            <select value={lotForm.origin_country || ''}
+                              onChange={(e) => { if (e.target.value === '__ADD_NEW__') { setOriginAddingNew(true); setLotForm({...lotForm, origin_country: ''}); } else { setLotForm({...lotForm, origin_country: e.target.value}); } }}
+                              className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}}>
+                              <option value="">— Select Origin —</option>
+                              {Array.from(new Set([...getUniqueOrigins(), 'VN', 'TAIWAN','CHINA','JAPAN','KOREA','VIETNAM','GERMANY','USA','ITALY'])).map((o,i) => <option key={i} value={o}>{o}</option>)}
+                              <option value="__ADD_NEW__">+ Add new...</option>
+                            </select>
+                          )}
                         </div>
                       </div>
 
@@ -4693,6 +4745,24 @@
                                         } else if (isCurrentBillPlaceholder) {
                                           billNoPatch = { bill_no: '' };
                                         }
+                                        // POL/POD/Cargo Origin: Bonded Warehouse & By Truck đi nội địa VN -> tự điền "VN"
+                                        // (chỉ điền nếu đang trống hoặc đang là "VN" do tự điền trước đó; không đè giá trị thật đã gõ)
+                                        const isDomesticVN = g.group === 'NGOAI_QUAN' || g.group === 'BY_TRUCK';
+                                        const isCurrentPolVN = String(lotForm.pol||'').trim().toUpperCase() === 'VN';
+                                        const isCurrentPodVN = String(lotForm.pod||'').trim().toUpperCase() === 'VN';
+                                        const isCurrentOriginVN = String(lotForm.origin_country||'').trim().toUpperCase() === 'VN';
+                                        let portPatch = {};
+                                        if (isDomesticVN) {
+                                          if (!lotForm.pol || isCurrentPolVN) portPatch.pol = 'VN';
+                                          if (!lotForm.pod || isCurrentPodVN) portPatch.pod = 'VN';
+                                          // Cargo Origin = VN chỉ áp dụng riêng cho By Truck
+                                          if (g.group === 'BY_TRUCK' && (!lotForm.origin_country || isCurrentOriginVN)) portPatch.origin_country = 'VN';
+                                        } else {
+                                          // Chuyển sang hình thức khác (SEA/AIR/EXPRESS): tự xóa "VN" placeholder để gõ cảng thật
+                                          if (isCurrentPolVN) portPatch.pol = '';
+                                          if (isCurrentPodVN) portPatch.pod = '';
+                                          if (isCurrentOriginVN) portPatch.origin_country = '';
+                                        }
                                         if (isMultiSub) {
                                           // Nhóm có loại con (SEA/EXPRESS): chọn loại con đầu tiên làm mặc định nếu chưa chọn nhóm này
                                           if (isActive) return; // đã active rồi, để dòng phụ xử lý chọn loại con
@@ -4700,11 +4770,11 @@
                                           setLotForm(prev => ({
                                             ...prev, transport_type: first.val, is_cont: first.val === 'SEA_CONT',
                                             ...(first.carrier ? { carrier: first.carrier } : {}),
-                                            ...billNoPatch,
+                                            ...billNoPatch, ...portPatch,
                                           }));
                                         } else {
                                           const only = g.sub[0];
-                                          setLotForm(prev => ({...prev, transport_type: only.val, is_cont: only.val === 'SEA_CONT', ...billNoPatch}));
+                                          setLotForm(prev => ({...prev, transport_type: only.val, is_cont: only.val === 'SEA_CONT', ...billNoPatch, ...portPatch}));
                                         }
                                       }}
                                       className={`px-4 py-2 rounded-lg text-xs font-bold border transition-all
@@ -5931,7 +6001,7 @@
                               setDraftInvoiceNos([]);
                               setLotAssignForm({ loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [], stt: freshStt });
                               setLotForm(prev => ({ ...prev, bill_no: '', cont_no: '', seal_no: '', pkg_qty: 0, gw: 0, cbm: 0, cbm_str: '', is_hang_chung_bill: false }));
-                              setInvoiceForm({ invoice_no: '', lot_no: '', bill_no: '', bill_stt: freshStt, invoice_date: new Date().toISOString().substring(0, 10), inv_pkg_qty: 0, inv_gw: 0, incoterm: 'CIF', total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '', is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', currency: 'USD', supplier: 'CHANG YANG MATERIAL CORP.', contract_start: '', contract_end: '', factory_no: '' });
+                              setInvoiceForm({ invoice_no: '', lot_no: '', bill_no: '', bill_stt: freshStt, invoice_date: getTodayLocal(), inv_pkg_qty: 0, inv_gw: 0, incoterm: 'CIF', total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '', is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', currency: 'USD', supplier: 'CHANG YANG MATERIAL CORP.', contract_start: '', contract_end: '', factory_no: '' });
                               setSelectedFactories([]);
                             }}
                             className="bg-emerald-700 hover:bg-emerald-600 text-white font-black px-5 py-2.5 rounded-lg text-xs transition-all">
