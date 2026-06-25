@@ -886,6 +886,9 @@
         return isNaN(n) ? (v||'—') : n.toLocaleString('vi-VN') + ' đ';
       };
 
+      // Apps Script Web App riêng để tạo file Hợp đồng (Sale Contract) cho lô A12
+      const CONTRACT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwmYc0VK593yuF4ALnYQ-mPPmq7FfGDSslbM2tzg6WdDRWOeWZWFAUwo7fJH4byrPTo/exec';
+
       const handleCreateContract = () => {
         if (!selectedLotNo) return showNotification('Please select a lot first.', 'error');
         const selLot = lots.find(l => l.lot_no === selectedLotNo);
@@ -5020,8 +5023,8 @@
                             setInvoiceForm(prev => ({
                               ...prev,
                               invoice_date: d,
-                              contract_start: prev.contract_start || fmt(startD),
-                              contract_end: prev.contract_end || fmt(endD),
+                              contract_start: fmt(startD),
+                              contract_end: fmt(endD),
                             }));
                           }} className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                         </div>
