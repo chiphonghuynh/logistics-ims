@@ -304,7 +304,7 @@
         } catch(err) {
           console.error('Sync error:', err);
           setSyncStatus('error');
-          showNotification('⚠️ Failed to save to Google Sheets! Data saved offline.', 'error');
+          showNotification('Failed to save to Google Sheets! Data saved offline.', 'error');
         }
       };
 
@@ -488,10 +488,10 @@
           await window.cySheetSet('goods',    goods);
           setSyncStatus('ok');
           setTimeout(() => setSyncStatus('idle'), 2000);
-          showNotification('✅ All data synced with full schema!', 'success');
+          showNotification('All data synced with full schema!', 'success');
         } catch(err) {
           setSyncStatus('error');
-          showNotification('❌ Sync failed: ' + err.message, 'error');
+          showNotification('Sync failed: ' + err.message, 'error');
         }
       };
 
@@ -503,7 +503,7 @@
 
       const loadListHang = async () => {
         if (!window.CY_API_URL) {
-          showNotification('⚠️ Google Sheets not connected.', 'error');
+          showNotification('Google Sheets not connected.', 'error');
           return;
         }
         setListHangLoading(true);
@@ -514,14 +514,14 @@
             // rows là array of objects — lấy headers từ keys của row đầu
             setListHangHeaders(Object.keys(rows[0]));
             setListHangData(rows);
-            showNotification(`✅ Loaded ${rows.length} rows from sheet`);
+            showNotification(`Loaded ${rows.length} rows from sheet`);
           } else {
             setListHangData([]);
             setListHangHeaders([]);
-            showNotification('⚠️ Sheet has no data or has not been created.', 'error');
+            showNotification('Sheet has no data or has not been created.', 'error');
           }
         } catch(err) {
-          showNotification('❌ Error loading sheet: ' + err.message, 'error');
+          showNotification('Error loading sheet: ' + err.message, 'error');
         } finally {
           setListHangLoading(false);
         }
@@ -538,7 +538,7 @@
         ws['!cols'] = listHangHeaders.map(() => ({ wch: 20 }));
         XLSX.utils.book_append_sheet(wb, ws, 'Daily ATC Report');
         XLSX.writeFile(wb, `Daily_ATC_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
-        showNotification(`✅ Exported ${listHangData.length} rows to Excel`);
+        showNotification(`Exported ${listHangData.length} rows to Excel`);
       };
 
       // ── SUPPLIER DATA ────────────────────────────────────────
@@ -555,15 +555,15 @@
       ];
 
       const loadSuppliers = async () => {
-        if (!window.CY_API_URL) { showNotification('⚠️ Google Sheets not connected.', 'error'); return; }
+        if (!window.CY_API_URL) { showNotification('Google Sheets not connected.', 'error'); return; }
         setSupplierLoading(true);
         showNotification('Loading Supplier Data...');
         try {
           const rows = await window.cyApiCall('getSuppliers', {});
           setSupplierData(Array.isArray(rows) ? rows : []);
-          showNotification(`✅ Loaded ${Array.isArray(rows) ? rows.length : 0} suppliers`);
+          showNotification(`Loaded ${Array.isArray(rows) ? rows.length : 0} suppliers`);
         } catch(err) {
-          showNotification('❌ Error loading Supplier Data: ' + err.message, 'error');
+          showNotification('Error loading Supplier Data: ' + err.message, 'error');
           setSupplierData([]);
         } finally {
           setSupplierLoading(false);
@@ -575,9 +575,9 @@
         if (!window.CY_API_URL) return;
         try {
           await window.cyApiCall('setSuppliers', { data: newData });
-          showNotification('✅ Supplier Data saved to Google Sheets!');
+          showNotification('Supplier Data saved to Google Sheets!');
         } catch(err) {
-          showNotification('❌ Error saving Supplier: ' + err.message, 'error');
+          showNotification('Error saving Supplier: ' + err.message, 'error');
         }
       };
 
@@ -599,7 +599,7 @@
         e.target.value = ''; // cho phép chọn lại cùng 1 file lần sau
         if (!file) return;
         if (!file.type.startsWith('image/')) {
-          showNotification('⚠️ Please choose an image file (PNG/JPG)!', 'error');
+          showNotification('Please choose an image file (PNG/JPG)!', 'error');
           return;
         }
         const reader = new FileReader();
@@ -621,29 +621,29 @@
             ctx.drawImage(img, 0, 0, width, height);
             const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
             if (dataUrl.length > 45000) {
-              showNotification('⚠️ Image still too large after compression. Please choose a simpler/smaller image.', 'error');
+              showNotification('Image still too large after compression. Please choose a simpler/smaller image.', 'error');
               return;
             }
             setSupplierForm(p => ({ ...p, 'SIGNATURE IMAGE ID': dataUrl }));
-            showNotification('✅ Image selected — remember to click Save Supplier to keep it.');
+            showNotification('Image selected — remember to click Save Supplier to keep it.');
           };
-          img.onerror = () => showNotification('❌ Could not read this image file.', 'error');
+          img.onerror = () => showNotification('Could not read this image file.', 'error');
           img.src = ev.target.result;
         };
-        reader.onerror = () => showNotification('❌ Could not read this image file.', 'error');
+        reader.onerror = () => showNotification('Could not read this image file.', 'error');
         reader.readAsDataURL(file);
       };
 
       const handleSaveSupplierForm = () => {
         const name = (supplierForm['SUPPLIER NAME'] || '').trim();
-        if (!name) { showNotification('⚠️ Please enter Supplier name!', 'error'); return; }
+        if (!name) { showNotification('Please enter Supplier name!', 'error'); return; }
         const newData = [...(supplierData || [])];  // nếu chưa load → bắt đầu từ []
         if (supplierEditIdx !== null) {
           newData[supplierEditIdx] = { ...supplierForm, 'SUPPLIER NAME': name };
         } else {
           // Kiểm tra trùng tên
           if (newData.some(s => (s['SUPPLIER NAME']||'').trim().toLowerCase() === name.toLowerCase())) {
-            return showNotification(`⚠️ Supplier "${name}" already exists!`, 'error');
+            return showNotification(`Supplier "${name}" already exists!`, 'error');
           }
           newData.push({ ...supplierForm, 'SUPPLIER NAME': name });
         }
@@ -656,7 +656,7 @@
       const handleDeleteSupplier = (idx) => {
         setConfirmState({
           isOpen: true,
-          title: '⚠️ Delete Supplier',
+          title: 'Delete Supplier',
           message: `Are you sure you want to delete supplier "${(supplierData[idx] || {})['SUPPLIER NAME']}"? This action cannot be undone.`,
           onConfirm: () => {
             const newData = (supplierData || []).filter((_, i) => i !== idx);
@@ -758,15 +758,15 @@
       };
 
       const loadPayments = async () => {
-        if (!window.CY_API_URL) { showNotification('⚠️ Google Sheets not connected.', 'error'); return; }
+        if (!window.CY_API_URL) { showNotification('Google Sheets not connected.', 'error'); return; }
         setPaymentLoading(true);
         showNotification('Loading Payment Data...');
         try {
           const rows = await window.cyApiCall('getPayment', {});
           setPaymentData(Array.isArray(rows) ? rows : []);
-          showNotification(`✅ Loaded ${Array.isArray(rows) ? rows.length : 0} payment records`);
+          showNotification(`Loaded ${Array.isArray(rows) ? rows.length : 0} payment records`);
         } catch(err) {
-          showNotification('❌ Error loading Payment: ' + err.message, 'error');
+          showNotification('Error loading Payment: ' + err.message, 'error');
           setPaymentData([]);
         } finally {
           setPaymentLoading(false);
@@ -792,22 +792,22 @@
         if (!window.CY_API_URL) return;
         try {
           await window.cyApiCall('setPayment', { data: newData });
-          showNotification('✅ Payment saved to Google Sheets!');
+          showNotification('Payment saved to Google Sheets!');
         } catch(err) {
-          showNotification('❌ Error saving Payment: ' + err.message, 'error');
+          showNotification('Error saving Payment: ' + err.message, 'error');
         }
       };
 
       const handleSavePaymentForm = () => {
         if (!paymentForm['SỐ PTT'] || !paymentForm['SỐ TIỀN']) {
-          showNotification('⚠️ Please enter Pay. No. and Amount!', 'error'); return;
+          showNotification('Please enter Pay. No. and Amount!', 'error'); return;
         }
         const newData = [...(paymentData || [])];
         if (paymentEditIdx !== null) {
           newData[paymentEditIdx] = { ...paymentForm };
         } else {
           if (newData.some(p => (p['SỐ PTT']||'').trim() === (paymentForm['SỐ PTT']||'').trim())) {
-            return showNotification(`⚠️ Pay. No. "${paymentForm['SỐ PTT']}" already exists!`, 'error');
+            return showNotification(`Pay. No. "${paymentForm['SỐ PTT']}" already exists!`, 'error');
           }
           newData.push({ ...paymentForm });
         }
@@ -820,7 +820,7 @@
       const handleDeletePayment = (idx) => {
         setConfirmState({
           isOpen: true,
-          title: '⚠️ Delete Payment',
+          title: 'Delete Payment',
           message: `Delete voucher "${(paymentData[idx]||{})['SỐ PTT']}"? This action cannot be undone.`,
           onConfirm: () => {
             const newData = (paymentData || []).filter((_, i) => i !== idx);
@@ -909,9 +909,9 @@
             invoices: invoices,
             goods:    goods,
           });
-          showNotification(`✅ Updated "LIST HANG NHAP CHANGYANG" — ${data?.rows || 0} lots`);
+          showNotification(`Updated "LIST HANG NHAP CHANGYANG" — ${data?.rows || 0} lots`);
         } catch(err) {
-          showNotification('❌ Sync failed: ' + err.message, 'error');
+          showNotification('Sync failed: ' + err.message, 'error');
         } finally {
           setSyncingListHang(false);
         }
@@ -1141,7 +1141,7 @@
           return {
             matches: true, status: 'SAME_BILL_SAME_TYPE',
             proposedLotNo: sameTypeLot.lot_no, baseLot: sameTypeLot,
-            message: `✅ Same Bill & Same dec. type → Invoice will be merged into Lot [${sameTypeLot.lot_no}]`
+            message: `Same Bill & Same dec. type → Invoice will be merged into Lot [${sameTypeLot.lot_no}]`
           };
         }
 
@@ -1185,7 +1185,7 @@
           if (finalLot.carrier) addCarrierHistory(finalLot.carrier.trim());
           const newLots = lots.map(l => l.lot_no === finalLot.lot_no ? finalLot : l);
           saveLotsToStorage(newLots);
-          showNotification(`✅ Lot ${finalLot.lot_no} updated`);
+          showNotification(`Lot ${finalLot.lot_no} updated`);
           // Highlight row vừa cập nhật, tự clear sau 5 giây
           setRecentlyUpdatedLots(prev => new Set([...prev, finalLot.lot_no]));
           setTimeout(() => setRecentlyUpdatedLots(prev => { const n = new Set(prev); n.delete(finalLot.lot_no); return n; }), 5000);
@@ -1227,7 +1227,7 @@
           if (existingBill) {
             setConfirmState({
               isOpen: true,
-              title: '⚠️ Bill No. Already Exists',
+              title: 'Bill No. Already Exists',
               message: `Bill [${lotForm.bill_no}] đã tồn tại trong Lô [${existingBill.lot_no}]. Nếu đây là hàng chung Bill, hãy bật toggle "Hàng Chung Bill". Bạn có chắc muốn tiếp tục lưu?`,
               onConfirm: () => { setConfirmState(prev => ({ ...prev, isOpen: false })); proceedSaveLotDraft(); },
             });
@@ -1279,7 +1279,7 @@
         saveInvoicesToStorage(updatedInvoices);
         setSelectedLotNo(lot_no);
         setLotAssignForm({ loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [], stt: getFirstVacantSeq() });
-        showNotification(`✅ Created Lot [${lot_no}] with ${selectedInvoiceNos.length} invoices!`);
+        showNotification(`Created Lot [${lot_no}] with ${selectedInvoiceNos.length} invoices!`);
         // Stay on Tab 4 so user can create more lots (e.g. 2nd lot for hang chung bill diff type)
         // Close modal only if no more unassigned invoices
       };
@@ -1305,10 +1305,10 @@
         const billTerm = lotForInv?.bill_term || lotForm.bill_term || '';
         const incoterm = invoiceForm.incoterm || '';
         if (billTerm === 'Freight Prepaid' && collectTerms.includes(incoterm)) {
-          return showNotification(`⚠️ Invalid: Bill [Freight Prepaid] is incompatible with Incoterm [${incoterm}]. Suggested: CIF, C&F, CIP, CPT`, 'error');
+          return showNotification(`Invalid: Bill [Freight Prepaid] is incompatible with Incoterm [${incoterm}]. Suggested: CIF, C&F, CIP, CPT`, 'error');
         }
         if (billTerm === 'Freight Collect' && prepaidTerms.includes(incoterm)) {
-          return showNotification(`⚠️ Invalid: Bill [Freight Collect] is incompatible with Incoterm [${incoterm}]. Suggested: FOB, FCA, EXW, FAS`, 'error');
+          return showNotification(`Invalid: Bill [Freight Collect] is incompatible with Incoterm [${incoterm}]. Suggested: FOB, FCA, EXW, FAS`, 'error');
         }
         const finalInvoice = {
           ...invoiceForm, invoice_no: String(invoiceForm.invoice_no || '').trim(), lot_no: targetLotNo,
@@ -1337,7 +1337,7 @@
             setModalTab('goods');
           } else {
             newInvoices = invoices.map(i => String(i.invoice_no) === String(finalInvoice.invoice_no) ? finalInvoice : i);
-            showNotification(`✅ Invoice ${finalInvoice.invoice_no} updated`);
+            showNotification(`Invoice ${finalInvoice.invoice_no} updated`);
             setRecentlyUpdatedInvoices(prev => new Set([...prev, finalInvoice.invoice_no]));
             setTimeout(() => setRecentlyUpdatedInvoices(prev => { const n = new Set(prev); n.delete(finalInvoice.invoice_no); return n; }), 5000);
             setShowAddModal(false);
@@ -1345,7 +1345,7 @@
           saveInvoicesToStorage(newInvoices);
           setSelectedLotNo(targetLotNo);
           setSelectedInvoiceNo(finalInvoice.invoice_no);
-          showNotification(`✅ Invoice ${finalInvoice.invoice_no} saved`);
+          showNotification(`Invoice ${finalInvoice.invoice_no} saved`);
         };
 
         // ── Kiểm tra tiền hoá đơn khớp tổng hàng + phí ──────────────────────
@@ -1410,7 +1410,7 @@
         let newGoods = [];
         if (isEditing) {
           newGoods = goods.map(g => g.id === goodsId ? finalGoods : g);
-          showNotification(`✅ Updated item ${finalGoods.goods_no}`);
+          showNotification(`Updated item ${finalGoods.goods_no}`);
           setRecentlyUpdatedGoods(prev => new Set([...prev, goodsId]));
           setTimeout(() => setRecentlyUpdatedGoods(prev => { const n = new Set(prev); n.delete(goodsId); return n; }), 5000);
           setShowAddModal(false);
@@ -1824,7 +1824,7 @@
         const lotGoodsCount = goods.filter(g => invoices.filter(i => i.lot_no === lotNo).map(i => String(i.invoice_no)).includes(String(g.invoice_no))).length;
         setConfirmState({
           isOpen: true,
-          title: '⚠️ Delete Lot — This cannot be undone',
+          title: 'Delete Lot — This cannot be undone',
           message: 'Lot [' + lotNo + '] contains ' + lotInvCount + ' invoices and ' + lotGoodsCount + ' goods items will be permanently deleted via Cascading. Are you sure?',
           onConfirm: () => executeDeleteLot(lotNo)
         });
@@ -1909,7 +1909,7 @@
       // ── SYNC SUMMARY SHEET ─────────────────────────────────────────
       const handleSyncSummary = async () => {
         if (!window.CY_API_URL) {
-          showNotification('⚠️ Google Sheets not connected. Please set up API URL first.', 'error');
+          showNotification('Google Sheets not connected. Please set up API URL first.', 'error');
           return;
         }
         setSyncStatus('syncing');
@@ -1921,11 +1921,11 @@
             goods:    goods,
           });
           setSyncStatus('ok');
-          showNotification(`✅ Updated sheet "LIST HANG NHAP CHANGYANG" — ${data?.rows || 0} lots`);
+          showNotification(`Updated sheet "LIST HANG NHAP CHANGYANG" — ${data?.rows || 0} lots`);
           setTimeout(() => setSyncStatus('idle'), 3000);
         } catch (err) {
           setSyncStatus('error');
-          showNotification('❌ Sync error: ' + err.message, 'error');
+          showNotification('Sync error: ' + err.message, 'error');
           setTimeout(() => setSyncStatus('idle'), 3000);
         }
       };
@@ -2310,7 +2310,7 @@
                       disabled={!apiUrlInput.trim()}
                       className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-lg text-xs"
                     >
-                      ✅ Connect & Load Data
+                      Connect & Load Data
                     </button>
                     {isConnected && (
                       <button onClick={() => setShowApiSetup(false)} className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">
@@ -2430,7 +2430,7 @@
           {confirmState.isOpen && (
             <div className="fixed inset-0 z-[999] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-                <h3 className="text-sm font-bold text-white uppercase flex items-center gap-2">⚠️ {confirmState.title}</h3>
+                <h3 className="text-sm font-bold text-white uppercase flex items-center gap-2">{confirmState.title}</h3>
                 <p className="text-slate-300 text-xs leading-relaxed">{confirmState.message}</p>
                 {/* Optional: bảng số liệu chi tiết (vd: so sánh số tiền nhập vs số tiền tính toán) */}
                 {confirmState.details && confirmState.details.length > 0 && (
@@ -2661,15 +2661,15 @@
                       'bg-slate-950 border-slate-850 text-emerald-400'}`}
                     onClick={() => setShowApiSetup(true)} title="Click to change API config">
                     {syncStatus === 'syncing' ? <span className="animate-spin">⟳</span> :
-                     syncStatus === 'error'   ? '⚠' : '●'}
+                     syncStatus === 'error'   ? '■' : '●'}
                     {syncStatus === 'syncing' ? 'Syncing...' :
                      syncStatus === 'error'   ? 'Sync error' :
-                     syncStatus === 'ok'      ? 'Saved ✓' : 'GOOGLE SHEETS'}
+                     syncStatus === 'ok'      ? 'Saved' : 'GOOGLE SHEETS'}
                   </div>
                 ) : (
                   <div className="text-[11px] bg-amber-950 border border-amber-800 px-3 py-1.5 rounded-lg text-amber-400 font-mono font-bold flex items-center gap-2 cursor-pointer hover:opacity-80"
                     onClick={() => setShowApiSetup(true)}>
-                    ⚠ OFFLINE — Click to connect Sheets
+                    OFFLINE — Click to connect Sheets
                   </div>
                 )}
               </div>
@@ -2718,15 +2718,14 @@
                   {/* KPI CARDS ROW 1 — Shipment */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[
-                      { label: 'Total lots', value: lots.length + ' lots', sub: `${lots.filter(l=>l.loai_hinh==='A12').length} A12 · ${lots.filter(l=>l.loai_hinh==='E21').length} E21`, color: 'text-white', icon: '📦', accent: 'border-slate-700' },
-                      { label: 'Pending ATC', value: pendingAtcLots.length + ' lots', sub: 'No ATC date', color: 'text-rose-400', icon: '⏳', accent: 'border-rose-900/60' },
-                      { label: 'Missing ETA', value: lots.filter(l=>!l.eta||l.eta.trim()==='').length + ' lots', sub: 'No ETA date', color: 'text-amber-400', icon: '🛬', accent: 'border-amber-900/60' },
-                      { label: 'Delivered', value: lots.filter(l=>l.atc_date&&l.atc_date.trim()!=='').length + ' lots', sub: 'Has ATC date', color: 'text-emerald-400', icon: '✅', accent: 'border-emerald-900/60' },
+                      { label: 'Total lots', value: lots.length + ' lots', sub: `${lots.filter(l=>l.loai_hinh==='A12').length} A12 · ${lots.filter(l=>l.loai_hinh==='E21').length} E21`, color: 'text-white', accent: 'border-slate-700' },
+                      { label: 'Pending ATC', value: pendingAtcLots.length + ' lots', sub: 'No ATC date', color: 'text-rose-400', accent: 'border-rose-900/60' },
+                      { label: 'Missing ETA', value: lots.filter(l=>!l.eta||l.eta.trim()==='').length + ' lots', sub: 'No ETA date', color: 'text-amber-400', accent: 'border-amber-900/60' },
+                      { label: 'Delivered', value: lots.filter(l=>l.atc_date&&l.atc_date.trim()!=='').length + ' lots', sub: 'Has ATC date', color: 'text-emerald-400', accent: 'border-emerald-900/60' },
                     ].map((c,i) => (
                       <div key={i} className={`bg-slate-900 border ${c.accent} p-4 rounded-xl`}>
                         <div className="flex items-start justify-between">
                           <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold leading-tight">{c.label}</p>
-                          <span className="text-base opacity-60">{c.icon}</span>
                         </div>
                         <h3 className={`text-xl font-black font-mono mt-2 ${c.color}`}>{c.value}</h3>
                         <p className="text-[10px] text-slate-600 mt-0.5">{c.sub}</p>
@@ -2737,15 +2736,14 @@
                   {/* KPI CARDS ROW 2 — Finance & Master Data */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[
-                      { label: 'Total import value', value: '$' + totalImportValue.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}), sub: `From ${invoices.length} invoices`, color: 'text-amber-300', icon: '💰', accent: 'border-amber-900/40' },
-                      { label: 'HS Code dictionary', value: (dictA12.length + dictE21.length) + ' items', sub: `A12: ${dictA12.length} · E21: ${dictE21.length}`, color: 'text-emerald-300', icon: '🏷', accent: 'border-emerald-900/40' },
-                      { label: 'Suppliers', value: (supplierData ? supplierData.length : '—') + (supplierData ? ' supplier' : ''), sub: supplierData ? 'Loaded from Sheets' : 'Go to Master Data to load', color: 'text-violet-300', icon: '🏢', accent: 'border-violet-900/40' },
-                      { label: 'Payment vouchers', value: (paymentData ? paymentData.length : '—') + (paymentData ? ' vouchers' : ''), sub: paymentData ? ('Total: ' + fmtVND(paymentData.reduce((s,p)=>s+Number(String(p['SỐ TIỀN']||'').replace(/[^0-9.-]/g,'')||0),0))) : 'Go to Master Data to load', color: 'text-amber-300', icon: '💳', accent: 'border-amber-900/40' },
+                      { label: 'Total import value', value: '$' + totalImportValue.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}), sub: `From ${invoices.length} invoices`, color: 'text-amber-300', accent: 'border-amber-900/40' },
+                      { label: 'HS Code dictionary', value: (dictA12.length + dictE21.length) + ' items', sub: `A12: ${dictA12.length} · E21: ${dictE21.length}`, color: 'text-emerald-300', accent: 'border-emerald-900/40' },
+                      { label: 'Suppliers', value: (supplierData ? supplierData.length : '—') + (supplierData ? ' supplier' : ''), sub: supplierData ? 'Loaded from Sheets' : 'Go to Master Data to load', color: 'text-violet-300', accent: 'border-violet-900/40' },
+                      { label: 'Payment vouchers', value: (paymentData ? paymentData.length : '—') + (paymentData ? ' vouchers' : ''), sub: paymentData ? ('Total: ' + fmtVND(paymentData.reduce((s,p)=>s+Number(String(p['SỐ TIỀN']||'').replace(/[^0-9.-]/g,'')||0),0))) : 'Go to Master Data to load', color: 'text-amber-300', accent: 'border-amber-900/40' },
                     ].map((c,i) => (
                       <div key={i} className={`bg-slate-900 border ${c.accent} p-4 rounded-xl`}>
                         <div className="flex items-start justify-between">
                           <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold leading-tight">{c.label}</p>
-                          <span className="text-base opacity-60">{c.icon}</span>
                         </div>
                         <h3 className={`text-xl font-black font-mono mt-2 ${c.color} break-all`}>{c.value}</h3>
                         <p className="text-[10px] text-slate-600 mt-0.5">{c.sub}</p>
@@ -3224,7 +3222,7 @@
                                 <td className="p-3 font-bold text-slate-300">{lot.factory_no || '-'}</td>
                                 <td className="p-3 font-mono font-bold">
                                   {sharedBillNos.has(lot.lot_no) ? (
-                                    <span className="bg-orange-900/40 text-orange-300 border border-orange-700 px-2 py-0.5 rounded font-mono font-bold text-[10px]" title="⚠️ Shared Bill with another lot">
+                                    <span className="bg-orange-900/40 text-orange-300 border border-orange-700 px-2 py-0.5 rounded font-mono font-bold text-[10px]" title="Shared Bill with another lot">
                                       🔗 {lot.bill_no || '-'}
                                     </span>
                                   ) : (lot.bill_no || '-')}
@@ -3232,7 +3230,7 @@
                                 <td className="p-3">{lot.pol} ➔ {lot.pod}</td>
                                 <td className="p-3 text-center">
                                   {lot.is_cont ? (
-                                    <span className={sharedContNos.has(lot.lot_no) ? 'bg-purple-900/40 text-purple-300 border border-purple-700 px-2 py-0.5 rounded font-mono font-bold text-[10px]' : ''} title={sharedContNos.has(lot.lot_no) ? '⚠️ Shared container with another lot' : ''}>
+                                    <span className={sharedContNos.has(lot.lot_no) ? 'bg-purple-900/40 text-purple-300 border border-purple-700 px-2 py-0.5 rounded font-mono font-bold text-[10px]' : ''} title={sharedContNos.has(lot.lot_no) ? 'Shared container with another lot' : ''}>
                                       {sharedContNos.has(lot.lot_no) ? '🔗 ' : ''}
                                       {(() => {
                                         const conts = parseContainers(lot).filter(c=>c.cont_no);
@@ -3303,7 +3301,7 @@
                                     const gTotal = invGoods.reduce((s,g) => s+Number(g.sale_amount||0),0);
                                     const iTotal = Number(inv.total_amount)||0;
                                     const diff = Math.abs(gTotal - iTotal);
-                                    if (diff > 0.01) return <span className="ml-1 text-[9px] bg-rose-900 text-rose-300 px-1 rounded" title={`Inv: ${iTotal.toFixed(2)} ≠ Goods: ${gTotal.toFixed(2)}`}>⚠️ Mismatch</span>;
+                                    if (diff > 0.01) return <span className="ml-1 text-[9px] bg-rose-900 text-rose-300 px-1 rounded" title={`Inv: ${iTotal.toFixed(2)} ≠ Goods: ${gTotal.toFixed(2)}`}>Mismatch</span>;
                                     return null;
                                   })()}
                                 </td>
@@ -3670,7 +3668,7 @@
                               const ws = XLSX.utils.aoa_to_sheet(wsData);
                               XLSX.utils.book_append_sheet(wb, ws, 'Payment');
                               XLSX.writeFile(wb, `Payment_${new Date().toISOString().slice(0,10)}.xlsx`);
-                              showNotification(`✅ Exported ${rows.length} payment records to Excel!`);
+                              showNotification(`Exported ${rows.length} payment records to Excel!`);
                             }}
                               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white transition-all">
                               📥 Export Excel ({pymSelected.size})
@@ -3704,7 +3702,7 @@
                             const soTien = Number(String(item.phieu['SỐ TIỀN']||'').replace(/[^0-9.-]/g,''));
                             return (
                               <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border text-xs ${item.trietTieu ? 'bg-emerald-950/30 border-emerald-800/40' : 'bg-rose-950/30 border-rose-800/40'}`}>
-                                <span className="text-lg shrink-0">{item.trietTieu ? '✅' : '⚠️'}</span>
+                                <span className={`text-[9px] font-black shrink-0 px-1.5 py-0.5 rounded ${item.trietTieu ? 'bg-emerald-900/50 text-emerald-400' : 'bg-rose-900/50 text-rose-400'}`}>{item.trietTieu ? 'OK' : '!'}</span>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="font-mono font-bold text-amber-300">{item.phieu['SỐ PTT']}</span>
@@ -3736,7 +3734,7 @@
                           { key: 'month',     label: '🗓 This month' },
                           { key: 'year',      label: '📆 This year' },
                           { key: 'prev_year', label: '📆 Last year' },
-                          { key: 'no_kt',     label: '⚠️ No End Date' },
+                          { key: 'no_kt',     label: 'No End Date' },
                         ].map(f => (
                           <button key={f.key}
                             onClick={() => { setPymQuickFilter(f.key); setPymPage(1); if (f.key !== 'all') { setPymDateFrom(''); setPymDateTo(''); } }}
@@ -3790,7 +3788,7 @@
                             const soTien = Number(String(item.phieu['SỐ TIỀN']||'').replace(/[^0-9.-]/g,''));
                             return (
                               <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border text-xs ${item.trietTieu ? 'bg-emerald-950/30 border-emerald-800/40' : 'bg-rose-950/30 border-rose-800/40'}`}>
-                                <span className="text-lg shrink-0">{item.trietTieu ? '✅' : '⚠️'}</span>
+                                <span className={`text-[9px] font-black shrink-0 px-1.5 py-0.5 rounded ${item.trietTieu ? 'bg-emerald-900/50 text-emerald-400' : 'bg-rose-900/50 text-rose-400'}`}>{item.trietTieu ? 'OK' : '!'}</span>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="font-mono font-bold text-amber-300">{item.phieu['SỐ PTT']}</span>
@@ -4110,13 +4108,13 @@
                       <button onClick={() => setEtaMgmtTab('no_eta')}
                         className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2
                           ${etaMgmtTab === 'no_eta' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
-                        ❌ No ETA
+                        No ETA
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${etaMgmtTab === 'no_eta' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'}`}>{noEtaLots.length}</span>
                       </button>
                       <button onClick={() => setEtaMgmtTab('has_eta')}
                         className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2
                           ${etaMgmtTab === 'has_eta' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
-                        ✅ Has ETA
+                        Has ETA
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${etaMgmtTab === 'has_eta' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'}`}>{hasEtaLots.length}</span>
                       </button>
                     </div>
@@ -4125,7 +4123,7 @@
                     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                       <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
                         <h3 className="font-bold text-xs uppercase tracking-wide text-cyan-400">
-                          {etaMgmtTab === 'no_eta' ? '❌ Lots Without ETA' : '✅ Lots With ETA'}
+                          {etaMgmtTab === 'no_eta' ? 'Lots Without ETA' : 'Lots With ETA'}
                         </h3>
                         <span className="text-[10px] text-slate-500">{displayLots.length} lot(s)</span>
                       </div>
@@ -4155,7 +4153,7 @@
                                 <td className="p-3.5 text-center">
                                   {hasAtc ? (
                                     <div className="flex flex-col items-center gap-0.5">
-                                      <span className="bg-emerald-950 text-emerald-400 text-[10px] px-2.5 py-1 rounded-lg font-bold border border-emerald-700/50">✅ In warehouse</span>
+                                      <span className="bg-emerald-950 text-emerald-400 text-[10px] px-2.5 py-1 rounded-lg font-bold border border-emerald-700/50">In warehouse</span>
                                       <span className="text-emerald-600 text-[10px] font-mono">{fmtDisplayDate(lot.atc_date)}</span>
                                     </div>
                                   ) : lot.eta ? (
@@ -4254,7 +4252,7 @@
                         <button onClick={() => setAtcMgmtTab('done')}
                           className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2
                             ${atcMgmtTab === 'done' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
-                          ✅ Received
+                          Received
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${atcMgmtTab === 'done' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'}`}>{filteredDone.length}</span>
                         </button>
                       </div>
@@ -4275,7 +4273,7 @@
                     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                       <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
                         <h3 className="font-bold text-xs uppercase tracking-wide text-rose-400">
-                          {atcMgmtTab === 'pending' ? '⏳ Pending Lots' : '✅ Received Lots'}
+                          {atcMgmtTab === 'pending' ? '⏳ Pending Lots' : 'Received Lots'}
                         </h3>
                         <span className="text-[10px] text-slate-500">{displayLots.length} lot(s)</span>
                       </div>
@@ -4885,7 +4883,7 @@
 
                       <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
                         {modalMode === 'edit' && (
-                          <p className="text-[10px] text-amber-500 italic">⚠️ Edit mode — new data will overwrite existing data when you click Update</p>
+                          <p className="text-[10px] text-amber-500 italic">Edit mode — new data will overwrite existing data when you click Update</p>
                         )}
                         <button type="submit"
                           className={`ml-auto px-6 py-2.5 rounded-lg text-xs font-bold text-white ${modalMode === 'edit' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-700'}`}>
@@ -5303,7 +5301,7 @@
                       <div className="pt-4 border-t border-slate-800">
                         {modalMode === 'edit' && (
                           <div className="flex justify-between items-center bg-amber-950/20 border border-amber-800/40 rounded-xl px-4 py-2.5">
-                            <p className="text-[10px] text-amber-400 italic">⚠️ Edit mode — click Update to overwrite existing data</p>
+                            <p className="text-[10px] text-amber-400 italic">Edit mode — click Update to overwrite existing data</p>
                             <button type="submit" className="bg-amber-600 hover:bg-amber-500 text-white px-5 py-2 rounded-lg text-xs font-bold">✔ Update Invoice</button>
                           </div>
                         )}
@@ -5612,7 +5610,7 @@
 
                       <div className="pt-3 border-t border-slate-800 flex justify-end">
                         {modalMode === 'edit' && (
-                          <p className="text-[10px] text-amber-500 italic self-center">⚠️ Edit mode — new data will overwrite existing data</p>
+                          <p className="text-[10px] text-amber-500 italic self-center">Edit mode — new data will overwrite existing data</p>
                         )}
                         <button type="submit"
                           className={`px-5 py-2 rounded-lg text-xs font-bold text-white ${modalMode === 'edit' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-700'}`}>
@@ -5629,7 +5627,7 @@
                         <div className="mt-6 bg-slate-950/60 border border-emerald-900/30 rounded-xl overflow-hidden">
                           <div className="bg-emerald-950/40 px-4 py-2 border-b border-emerald-900/30 flex justify-between items-center">
                             <h4 className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
-                              ✅ Items in Invoice: {goodsForm.invoice_no}
+                              Items in Invoice: {goodsForm.invoice_no}
                             </h4>
                             <span className="text-[10px] text-emerald-600">{previewItems.length} item(s)</span>
                           </div>
@@ -5764,7 +5762,7 @@
                         {/* Invoices without a lot */}
                         {unassignedInvoices.length === 0 ? (
                           <div className="p-6 bg-slate-900 rounded-xl text-center space-y-2">
-                            <p className="text-emerald-400 font-bold text-sm">✅ All invoices have been assigned to lots!</p>
+                            <p className="text-emerald-400 font-bold text-sm">All invoices have been assigned to lots!</p>
                             <p className="text-slate-500 text-xs">Click Finish to view the lot list.</p>
                           </div>
                         ) : (
@@ -5854,7 +5852,7 @@
                                     <div className="text-right">
                                       <p className="text-[11px] text-slate-300">{grp.invs.length} invoice(s)</p>
                                       <p className="text-[10px] text-slate-500">{grp.invs.map(i=>i.invoice_no).join(', ')}</p>
-                                      {grp.exists && <p className="text-[10px] text-rose-400 font-bold">⚠️ Lot code already exists!</p>}
+                                      {grp.exists && <p className="text-[10px] text-rose-400 font-bold">Lot code already exists!</p>}
                                     </div>
                                   </div>
                                 ))}
@@ -5914,7 +5912,7 @@
                                 if (lotNames.length > 0) setSelectedLotNo(lotNames[lotNames.length - 1]);
                                 setLotAssignForm(prev => ({...prev, selectedInvoiceNos: []}));
                                 setDraftInvoiceNos([]);
-                                showNotification(`✅ Created ${lotNames.length} lots: ${lotNames.join(', ')}`);
+                                showNotification(`Created ${lotNames.length} lots: ${lotNames.join(', ')}`);
                               }
                             }}
                             disabled={lotAssignForm.selectedInvoiceNos.length === 0}
@@ -5934,7 +5932,7 @@
                               setSelectedFactories([]);
                             }}
                             className="bg-emerald-700 hover:bg-emerald-600 text-white font-black px-5 py-2.5 rounded-lg text-xs transition-all">
-                            ✅ Done — View Lot List
+                            Done — View Lot List
                           </button>
                         </div>
                       </div>
@@ -5955,7 +5953,7 @@
               return (
                 <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
                   <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 max-w-md text-center">
-                    <p className="text-amber-400 font-bold text-sm mb-2">⚠️ Invoice list only applies when lot has multiple invoices of the same customs type</p>
+                    <p className="text-amber-400 font-bold text-sm mb-2">Invoice list only applies when lot has multiple invoices of the same customs type</p>
                     <p className="text-slate-400 text-xs mb-4">Lot <strong>{selectedLotNo}</strong> currently has {printInvoices.length} invoices.</p>
                     <button onClick={() => setShowMasterInvoiceModal(false)} className="bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold">Close</button>
                   </div>
@@ -6140,7 +6138,7 @@
                         'bg-slate-800 border-slate-600 text-slate-400'
                       }`}>{lot.loai_hinh} / {lot.loai_hinh_con}</span>
                       {lot.atc_date
-                        ? <span className="text-[10px] px-2.5 py-1 rounded-lg bg-emerald-950 border border-emerald-700 text-emerald-400 font-bold">✅ RECEIVED {fmtDisplayDate(lot.atc_date)}</span>
+                        ? <span className="text-[10px] px-2.5 py-1 rounded-lg bg-emerald-950 border border-emerald-700 text-emerald-400 font-bold">RECEIVED {fmtDisplayDate(lot.atc_date)}</span>
                         : <span className="text-[10px] px-2.5 py-1 rounded-lg bg-rose-950 border border-rose-700 text-rose-400 font-bold">⏳ PENDING ATC</span>
                       }
                       <span className="text-[11px] text-slate-500">{displaySupplier}</span>
@@ -6301,7 +6299,7 @@
                                           <span className="font-mono font-bold text-emerald-400 whitespace-nowrap">{fmtVND(soTien)}</span>
                                         </div>
                                         {parsed.isPTU && ptuCheck && !ptuCheck.trietTieu && (
-                                          <p className="text-orange-400 text-[10px] mt-0.5 font-bold">⚠ No clearance record!</p>
+                                          <p className="text-orange-400 text-[10px] mt-0.5 font-bold">No clearance record!</p>
                                         )}
                                         {parsed.isPTU && ptuCheck && ptuCheck.trietTieu && (
                                           <p className="text-slate-500 text-[10px] mt-0.5">✓ Cleared by: {ptuCheck.trietTieu['SỐ PTT']}</p>
