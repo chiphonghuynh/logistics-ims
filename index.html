@@ -4838,7 +4838,7 @@
                                   contList: [...(prev.contList||[]), {cont_no:'', seal_no:'', cont_type:'40FT'}]
                                 }))}
                                 className="text-[10px] px-2.5 py-1 rounded bg-blue-900/50 hover:bg-blue-800/60 text-blue-400 font-bold border border-blue-800/50 transition-all">
-                                + Add Container
+                                ＋ Add Container
                               </button>
                             </div>
 
@@ -6479,57 +6479,30 @@
             </div>
           </div>
 
-          {/* === FLOATING TOOLBAR === */}
+          {/* FLOATING TOOLBAR - Step 1: UI shell only, no logic yet */}
           {(() => {
-            const TOOLBAR_TABS = ['E010', 'DATABASE_VIEW', 'SUPPLIER_VIEW', 'PAYMENT_VIEW'];
-            if (!TOOLBAR_TABS.includes(activeMenu)) return null;
-            const tabLabel = {
-              'E010':          'Shipment Profiles',
-              'DATABASE_VIEW': 'Dictionary',
-              'SUPPLIER_VIEW': 'Supplier',
-              'PAYMENT_VIEW':  'Payment',
-            }[activeMenu] || '';
-            const btnBase = {
-              display: 'flex', alignItems: 'center', gap: '5px',
-              padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold',
-              background: 'transparent', color: '#94a3b8',
-              border: '1px solid transparent',
-              cursor: 'not-allowed', opacity: 0.35,
-            };
+            const SHOW_ON = ['E010', 'DATABASE_VIEW', 'SUPPLIER_VIEW', 'PAYMENT_VIEW'];
+            if (!SHOW_ON.includes(activeMenu)) return null;
+            const tabLabel = {'E010': 'Shipment Profiles', 'DATABASE_VIEW': 'Dictionary', 'SUPPLIER_VIEW': 'Supplier', 'PAYMENT_VIEW': 'Payment'}[activeMenu] || '';
+            const dim = {display:'flex',alignItems:'center',gap:'5px',padding:'6px 12px',borderRadius:'8px',fontSize:'11px',fontWeight:'bold',background:'transparent',color:'#94a3b8',border:'1px solid transparent',cursor:'not-allowed',opacity:0.35};
             return (
-              <div style={{
-                position: 'fixed', bottom: '18px', left: '50%', transform: 'translateX(-50%)',
-                zIndex: 900, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
-                pointerEvents: 'none',
-              }}>
-                <div style={{
-                  fontSize: '10px', color: '#64748b', background: 'rgba(2,6,23,0.85)',
-                  padding: '2px 10px', borderRadius: '99px', letterSpacing: '0.05em',
-                }}>
-                  {tabLabel} - chon 1 dong de thao tac
+              <div style={{position:'fixed',bottom:'18px',left:'50%',transform:'translateX(-50%)',zIndex:900,display:'flex',flexDirection:'column',alignItems:'center',gap:'4px',pointerEvents:'none'}}>
+                <div style={{fontSize:'10px',color:'#64748b',background:'rgba(2,6,23,0.85)',padding:'2px 10px',borderRadius:'99px'}}>
+                  {tabLabel} - select a row to act on
                 </div>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  background: 'rgba(15,23,42,0.96)', border: '1px solid rgba(51,65,85,0.8)',
-                  borderRadius: '14px', padding: '7px 14px',
-                  boxShadow: '0 4px 24px rgba(0,0,0,0.5)', backdropFilter: 'blur(12px)',
-                  pointerEvents: 'all',
-                }}>
-                  <button disabled title="Them moi" style={{
-                    ...btnBase, background: 'rgba(37,99,235,0.15)', color: '#60a5fa',
-                    border: '1px solid rgba(59,130,246,0.3)', opacity: 0.5,
-                  }}>+ Them</button>
-                  <div style={{ width: '1px', height: '20px', background: 'rgba(51,65,85,0.6)' }} />
-                  <button disabled title="Chon 1 dong truoc" style={btnBase}>Sua</button>
-                  <button disabled title="Chon 1 dong truoc" style={btnBase}>Xoa</button>
-                  <div style={{ width: '1px', height: '20px', background: 'rgba(51,65,85,0.6)' }} />
-                  <button disabled title="Xuat Excel/CSV" style={btnBase}>Xuat</button>
-                  <button disabled title="Upload file" style={btnBase}>Upload</button>
+                <div style={{display:'flex',alignItems:'center',gap:'6px',background:'rgba(15,23,42,0.96)',border:'1px solid rgba(51,65,85,0.8)',borderRadius:'14px',padding:'7px 14px',boxShadow:'0 4px 24px rgba(0,0,0,0.5)',pointerEvents:'all'}}>
+                  <button disabled style={{...dim,background:'rgba(37,99,235,0.15)',color:'#60a5fa',border:'1px solid rgba(59,130,246,0.3)',opacity:0.5}}>+ Add</button>
+                  <div style={{width:'1px',height:'20px',background:'rgba(51,65,85,0.6)'}} />
+                  <button disabled style={dim}>Edit</button>
+                  <button disabled style={dim}>Delete</button>
+                  <div style={{width:'1px',height:'20px',background:'rgba(51,65,85,0.6)'}} />
+                  <button disabled style={dim}>Export</button>
+                  <button disabled style={dim}>Upload</button>
                 </div>
               </div>
             );
           })()}
-          {/* === /FLOATING TOOLBAR === */}
+          {/* /FLOATING TOOLBAR */}
 
         </div>
       );
