@@ -275,8 +275,11 @@
         handleOpenAddSupplier, setPaymentForm, setPaymentEditIdx, setShowPaymentModal,
         setModalMode, setModalTab, setLotForm, setInvoiceForm, setGoodsForm,
         setSelectedFactories, setDraftInvoiceNos, setLotAssignForm, setShowAddModal,
-        getTodayLocal, getFirstVacantSeq, handleExcelImport, handleExportCSV,
-        showNotification, setViewDetailLot
+        getTodayLocal, getFirstVacantSeq, handleExcelImport, handleExportSelectedLot,
+        showNotification, setViewDetailLot,
+        selectedSupplierIdx, supplierData, handleOpenEditSupplier, handleDeleteSupplier,
+        pymSelected, setPymSelected, paymentData, filteredPayments, handleDeletePayment,
+        handleExportSelectedPayments, handleBulkDeletePayments
       } = deps;
 
       React.useEffect(() => {
@@ -295,16 +298,26 @@
           else if (selectedDictItems.size > 1) { ctxType = 'dict_multi'; ctxLabel = selectedDictItems.size + ' items'; }
           else { ctxType = 'dict_none'; ctxLabel = 'Select an item'; }
         }
-        if (activeMenu === 'SUPPLIER_DATA') { ctxType = 'supplier'; ctxLabel = 'Supplier'; }
-        if (activeMenu === 'PAYMENT_DATA') { ctxType = 'payment'; ctxLabel = 'Payment'; }
+        if (activeMenu === 'SUPPLIER_DATA') {
+          if (selectedSupplierIdx !== null && supplierData && supplierData[selectedSupplierIdx]) {
+            ctxType = 'supplier'; ctxLabel = 'Supplier: ' + (supplierData[selectedSupplierIdx]['SUPPLIER NAME'] || '');
+          } else {
+            ctxType = 'supplier_none'; ctxLabel = 'Select a supplier';
+          }
+        }
+        if (activeMenu === 'PAYMENT_DATA') {
+          if (pymSelected.size === 1) { ctxType = 'payment'; ctxLabel = 'Payment: ' + [...pymSelected][0]; }
+          else if (pymSelected.size > 1) { ctxType = 'payment_multi'; ctxLabel = pymSelected.size + ' payments'; }
+          else { ctxType = 'payment_none'; ctxLabel = 'Select a payment'; }
+        }
 
         const noToolbarMenus = ['DASHBOARD', 'NO_ATC', 'ETA_MGMT', 'LIST_HANG'];
         const hidden = (noToolbarMenus.includes(activeMenu) && !viewDetailLot)
           || showAddModal || showDictModal || showSupplierModal || showPaymentModal;
 
-        const canEdit   = !!(ctxType && !['dict_none','dict_multi','supplier','payment'].includes(ctxType));
-        const canDelete = !!(ctxType && !['dict_none','supplier','payment'].includes(ctxType));
-        const canExport = activeMenu === 'E010' || activeMenu === 'DATABASE_VIEW';
+        const canEdit   = !!(ctxType && !['dict_none','dict_multi','supplier_none','payment_none','payment_multi'].includes(ctxType));
+        const canDelete = !!(ctxType && !['dict_none','supplier_none','payment_none'].includes(ctxType));
+        const canExport = (activeMenu === 'E010' && !!selectedLotNo) || activeMenu === 'DATABASE_VIEW' || (activeMenu === 'PAYMENT_DATA' && pymSelected.size > 0);
         const canUpload = activeMenu === 'DATABASE_VIEW';
 
         // --- GET/CREATE TOOLBAR DOM ---
@@ -370,7 +383,7 @@
           if (activeMenu === 'DATABASE_VIEW') { handleOpenAddDict(); }
           else if (activeMenu === 'SUPPLIER_DATA') { handleOpenAddSupplier(); }
           else if (activeMenu === 'PAYMENT_DATA') {
-            setPaymentForm({ 'NGAY': getTodayLocal(), 'SO PTT': '', 'SO TIEN': '', 'NOI DUNG': '', 'NGAY DUA KE TOAN': '' });
+            setPaymentForm({ 'NGÀY': getTodayLocal(), 'SỐ PTT': '', 'SỐ TIỀN': '', 'NỘI DUNG': '', 'NGÀY ĐƯA KẾ TOÁN': '' });
             setPaymentEditIdx(null); setShowPaymentModal(true);
           } else if (activeMenu === 'E010') {
             const freshStt = getFirstVacantSeq();
@@ -396,6 +409,16 @@
             const dict = dbSelectedTab === 'A12' ? dictA12 : dictE21;
             const item = dict.find(i => i.goods_no === [...selectedDictItems][0]);
             if (item) handleOpenEditDict(item);
+          } else if (ctxType === 'supplier') {
+            handleOpenEditSupplier(selectedSupplierIdx);
+          } else if (ctxType === 'payment') {
+            const ptt = [...pymSelected][0];
+            const realIdx = (paymentData || []).findIndex(p => p['SỐ PTT'] === ptt);
+            if (realIdx !== -1) {
+              setPaymentForm({ ...(paymentData[realIdx]) });
+              setPaymentEditIdx(realIdx);
+              setShowPaymentModal(true);
+            }
           }
         };
 
@@ -413,6 +436,14 @@
             if (item) handleDeleteDictConfirm(item);
           } else if (ctxType === 'dict_multi') {
             handleBulkDelete();
+          } else if (ctxType === 'supplier') {
+            handleDeleteSupplier(selectedSupplierIdx);
+          } else if (ctxType === 'payment') {
+            const ptt = [...pymSelected][0];
+            const realIdx = (paymentData || []).findIndex(p => p['SỐ PTT'] === ptt);
+            if (realIdx !== -1) handleDeletePayment(realIdx);
+          } else if (ctxType === 'payment_multi') {
+            handleBulkDeletePayments(new Set(pymSelected));
           }
         };
 
@@ -426,8 +457,12 @@
             XLSX.utils.book_append_sheet(wb, ws, 'Dict_' + dbSelectedTab);
             XLSX.writeFile(wb, 'Dictionary_' + dbSelectedTab + '_' + getTodayLocal() + '.xlsx');
             showNotification('Exported ' + dict.length + ' items from Dictionary ' + dbSelectedTab);
-          } else {
-            handleExportCSV();
+          } else if (activeMenu === 'E010') {
+            if (!selectedLotNo) return showNotification('Please select a lot to export first.', 'error');
+            handleExportSelectedLot(selectedLotNo);
+          } else if (activeMenu === 'PAYMENT_DATA') {
+            if (pymSelected.size === 0) return showNotification('Please select at least one payment to export.', 'error');
+            handleExportSelectedPayments(pymSelected);
           }
         };
 
@@ -460,24 +495,20 @@
         toolbar.appendChild(lbl);
 
         const COLORS = {
-          add:    { bg: 'rgba(37,99,235,0.2)',  bgHover: 'rgba(37,99,235,0.4)',  text: '#60a5fa' },
-          edit:   { bg: 'rgba(217,119,6,0.2)',  bgHover: 'rgba(217,119,6,0.4)',  text: '#fbbf24' },
-          del:    { bg: 'rgba(225,29,72,0.2)',   bgHover: 'rgba(225,29,72,0.4)',   text: '#fb7185' },
-          export: { bg: 'rgba(5,150,105,0.2)',  bgHover: 'rgba(5,150,105,0.4)',  text: '#34d399' },
-          upload: { bg: 'rgba(124,58,237,0.2)', bgHover: 'rgba(124,58,237,0.4)', text: '#a78bfa' },
+          action: { bg: 'rgba(37,99,235,0.2)', bgHover: 'rgba(37,99,235,0.4)', text: '#60a5fa' },
         };
 
-        toolbar.appendChild(mkBtn('+', 'Them', COLORS.add, true, onAdd));
-        toolbar.appendChild(mkBtn('&#9998;', 'Sua', COLORS.edit, canEdit, onEdit));
-        toolbar.appendChild(mkBtn('&#128465;', 'Xoa', COLORS.del, canDelete, onDelete));
+        toolbar.appendChild(mkBtn('+', 'Add', COLORS.action, true, onAdd));
+        toolbar.appendChild(mkBtn('&#9998;', 'Edit', COLORS.action, canEdit, onEdit));
+        toolbar.appendChild(mkBtn('&#128465;', 'Delete', COLORS.action, canDelete, onDelete));
 
         const sep = document.createElement('div');
         Object.assign(sep.style, { width: '1px', height: '32px', background: 'rgba(71,85,105,0.5)', margin: '0 4px' });
         toolbar.appendChild(sep);
 
-        toolbar.appendChild(mkBtn('&#128229;', 'Xuat', COLORS.export, canExport, onExport));
+        toolbar.appendChild(mkBtn('&#128229;', 'Export', COLORS.action, canExport, onExport));
         if (canUpload) {
-          toolbar.appendChild(mkBtn('&#128228;', 'Upload', COLORS.upload, true, onUpload));
+          toolbar.appendChild(mkBtn('&#128228;', 'Upload', COLORS.action, true, onUpload));
         }
 
         return () => {
@@ -787,6 +818,7 @@
       const [supplierSearch, setSupplierSearch]   = useState('');
       const [supplierForm, setSupplierForm]       = useState(null); // null=ẩn form, object=thêm/sửa
       const [supplierEditIdx, setSupplierEditIdx] = useState(null); // null=thêm mới, idx=sửa
+      const [selectedSupplierIdx, setSelectedSupplierIdx] = useState(null); // idx của supplier đang được chọn (cho floating toolbar)
 
       const SUPPLIER_FIELDS = [
         { key: 'SUPPLIER NAME', label: 'Supplier Name', required: true },
@@ -901,6 +933,8 @@
           onConfirm: () => {
             const newData = (supplierData || []).filter((_, i) => i !== idx);
             saveSuppliers(newData);
+            setSelectedSupplierIdx(null);
+            setConfirmState(prev => ({ ...prev, isOpen: false }));
           },
           confirmLabel: 'Delete',
           cancelLabel: 'Cancel',
@@ -1066,6 +1100,23 @@
             const newData = (paymentData || []).filter((_, i) => i !== idx);
             savePayments(newData);
             setConfirmState(prev => ({ ...prev, isOpen: false }));
+          },
+          confirmLabel: 'Delete', cancelLabel: 'Cancel',
+        });
+      };
+
+      const handleBulkDeletePayments = (pttSet) => {
+        if (!pttSet || pttSet.size === 0) return;
+        setConfirmState({
+          isOpen: true,
+          title: `Delete ${pttSet.size} payments`,
+          message: `Are you sure you want to delete ${pttSet.size} selected payment voucher(s)? This action cannot be undone.`,
+          onConfirm: () => {
+            const newData = (paymentData || []).filter(p => !pttSet.has(p['SỐ PTT']));
+            savePayments(newData);
+            setPymSelected(new Set());
+            setConfirmState(prev => ({ ...prev, isOpen: false }));
+            showNotification(`Deleted ${pttSet.size} payment voucher(s).`);
           },
           confirmLabel: 'Delete', cancelLabel: 'Cancel',
         });
@@ -2178,21 +2229,56 @@
         }
       };
 
-      const handleExportCSV = () => {
-        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-        csvContent += `STT,Lot No.,Open Date,Bill No.,POL,POD,Cont No.,Lot Value\r\n`;
-        filteredLots.forEach(lot => {
-          const lotVal = invoices.filter(i => i.lot_no === lot.lot_no).reduce((sum, inv) => sum + getInvoiceValueSum(inv), 0);
-          csvContent += `"${lot.stt}","${lot.lot_no}","${lot.lot_date}","${lot.bill_no || ''}","${lot.pol || ''}","${lot.pod || ''}","${lot.cont_no || ''}","${lotVal}"\r\n`;
-        });
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `BaoCao_Logistics_ChangYang_${new Date().toISOString().slice(0, 10)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        showNotification("CSV report exported successfully!");
+      // Xuất dữ liệu của 1 lô hàng đang được chọn (Lot info + Invoices + Goods) ra file Excel
+      const handleExportSelectedLot = (lotNo) => {
+        const lot = lots.find(l => l.lot_no === lotNo);
+        if (!lot) return showNotification('Lot not found!', 'error');
+        const lotInvoices = invoices.filter(i => i.lot_no === lotNo);
+        const lotInvNos = lotInvoices.map(i => String(i.invoice_no));
+        const lotGoods = goods.filter(g => lotInvNos.includes(String(g.invoice_no)));
+        const lotVal = lotInvoices.reduce((sum, inv) => sum + getInvoiceValueSum(inv), 0);
+
+        const wb = XLSX.utils.book_new();
+
+        // Sheet 1: Lot info
+        const lotSheetData = [
+          ['STT', 'Lot No.', 'Open Date', 'Bill No.', 'POL', 'POD', 'Cont No.', 'Lot Value (USD)'],
+          [lot.stt, lot.lot_no, lot.lot_date, lot.bill_no || '', lot.pol || '', lot.pod || '', lot.cont_no || '', lotVal],
+        ];
+        const wsLot = XLSX.utils.aoa_to_sheet(lotSheetData);
+        XLSX.utils.book_append_sheet(wb, wsLot, 'Lot Info');
+
+        // Sheet 2: Invoices
+        if (lotInvoices.length > 0) {
+          const wsInv = XLSX.utils.json_to_sheet(lotInvoices, {
+            header: ['invoice_no','invoice_date','incoterm','currency','total_amount','foc_amount','plus_sea_freight','handling_charges','other_charges','supplier']
+          });
+          XLSX.utils.book_append_sheet(wb, wsInv, 'Invoices');
+        }
+
+        // Sheet 3: Goods
+        if (lotGoods.length > 0) {
+          const wsGoods = XLSX.utils.json_to_sheet(lotGoods, {
+            header: ['invoice_no','goods_no','goods_name_en','goods_name_local','hs_code','qty1','unit1','sale_amount']
+          });
+          XLSX.utils.book_append_sheet(wb, wsGoods, 'Goods');
+        }
+
+        XLSX.writeFile(wb, `Lot_${lotNo}_${getTodayLocal()}.xlsx`);
+        showNotification(`Exported lot ${lotNo} (${lotInvoices.length} invoices, ${lotGoods.length} goods rows).`);
+      };
+
+      // Xuất danh sách phiếu thanh toán đang được chọn ra file Excel
+      const handleExportSelectedPayments = (pttSet) => {
+        const rows = (paymentData || []).filter(p => pttSet.has(p['SỐ PTT']));
+        if (rows.length === 0) return showNotification('No payment selected to export!', 'error');
+        const headers = ['NGÀY','SỐ PTT','SỐ TIỀN','NỘI DUNG','NGÀY ĐƯA KẾ TOÁN'];
+        const wsData = [headers, ...rows.map(r => headers.map(h => r[h]||''))];
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        XLSX.utils.book_append_sheet(wb, ws, 'Payment');
+        XLSX.writeFile(wb, `Payment_${getTodayLocal()}.xlsx`);
+        showNotification(`Exported ${rows.length} payment record(s) to Excel!`);
       };
 
       // Đối chiếu danh mục tự động
@@ -2518,8 +2604,11 @@
         handleOpenAddSupplier, setPaymentForm, setPaymentEditIdx, setShowPaymentModal,
         setModalMode, setModalTab, setLotForm, setInvoiceForm, setGoodsForm,
         setSelectedFactories, setDraftInvoiceNos, setLotAssignForm, setShowAddModal,
-        getTodayLocal, getFirstVacantSeq, handleExcelImport, handleExportCSV,
-        showNotification, setViewDetailLot
+        getTodayLocal, getFirstVacantSeq, handleExcelImport, handleExportSelectedLot,
+        showNotification, setViewDetailLot,
+        selectedSupplierIdx, supplierData, handleOpenEditSupplier, handleDeleteSupplier,
+        pymSelected, setPymSelected, paymentData, filteredPayments, handleDeletePayment,
+        handleExportSelectedPayments, handleBulkDeletePayments
       });
 
 
@@ -2783,14 +2872,14 @@
                         <span className={`flex items-center justify-center w-5 h-5 rounded text-[9px] font-black border ${activeMenu === 'DATABASE_VIEW' ? 'bg-blue-900/50 text-blue-300 border-blue-700' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>HS</span> HS Code Category
                       </button>
                       <button
-                        onClick={() => { setActiveMenu('SUPPLIER_DATA'); setSupplierSearch(''); setSuppPage(1); setSuppShowAll(false); }}
+                        onClick={() => { setActiveMenu('SUPPLIER_DATA'); setSupplierSearch(''); setSuppPage(1); setSuppShowAll(false); setSelectedSupplierIdx(null); }}
                         className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
                           ${activeMenu === 'SUPPLIER_DATA' ? 'bg-blue-600/20 text-blue-400 font-bold border border-blue-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                       >
                         <span className={`flex items-center justify-center w-5 h-5 rounded text-[9px] font-black border ${activeMenu === 'SUPPLIER_DATA' ? 'bg-blue-900/50 text-blue-300 border-blue-700' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>SU</span> Supplier Data
                       </button>
                       <button
-                        onClick={() => { setActiveMenu('PAYMENT_DATA'); setPaymentSearch(''); setPaymentCheckResult(null); setPymPage(1); setPymShowAll(false); }}
+                        onClick={() => { setActiveMenu('PAYMENT_DATA'); setPaymentSearch(''); setPaymentCheckResult(null); setPymPage(1); setPymShowAll(false); setPymSelected(new Set()); }}
                         className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
                           ${activeMenu === 'PAYMENT_DATA' ? 'bg-blue-600/20 text-blue-400 font-bold border border-blue-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                       >
@@ -3014,29 +3103,136 @@
                     ))}
                   </div>
 
-                  {/*BREAKDOWN TABLE Lots by loai_hinh this year*/}
+                  {/*CHARTS Lots by customs type (donut) + Lots per month (bar)*/}
                   {(() => {
                     const thisYear = new Date().getFullYear().toString();
+                    const yearLots = lots.filter(l => (l.lot_date||'').slice(0,4) === thisYear);
+                    if (!yearLots.length) return null;
+
+                    // --- Data: breakdown by customs type (loai_hinh) ---
                     const byType = {};
-                    lots.forEach(l => {
-                      const y = (l.lot_date||'').slice(0,4);
-                      if (y !== thisYear) return;
+                    yearLots.forEach(l => {
                       const k = l.loai_hinh || 'UNKNOWN';
                       byType[k] = (byType[k]||0) + 1;
                     });
-                    const entries = Object.entries(byType).sort((a,b)=>b[1]-a[1]);
-                    if (!entries.length) return null;
+                    const typeEntries = Object.entries(byType).sort((a,b)=>b[1]-a[1]);
+                    const typeTotal = typeEntries.reduce((s,[,v])=>s+v, 0);
+                    const DONUT_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#a78bfa', '#fb7185', '#22d3ee'];
+
+                    // --- Data: lots per month (current year) ---
+                    const byMonth = Array(12).fill(0);
+                    yearLots.forEach(l => {
+                      const m = parseInt((l.lot_date||'').slice(5,7), 10);
+                      if (m >= 1 && m <= 12) byMonth[m-1]++;
+                    });
+                    const maxMonth = Math.max(1, ...byMonth);
+                    const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+                    // --- Donut geometry ---
+                    const R = 52, CX = 60, CY = 60, STROKE = 22;
+                    const circumference = 2 * Math.PI * R;
+                    let cursor = 0;
+                    const donutSegments = typeEntries.map(([k, v], i) => {
+                      const frac = v / typeTotal;
+                      const dash = frac * circumference;
+                      const seg = { k, v, color: DONUT_COLORS[i % DONUT_COLORS.length], dash, offset: -cursor };
+                      cursor += dash;
+                      return seg;
+                    });
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/*DONUT — Lots by customs type*/}
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📊 Lots in {thisYear} by customs type</p>
+                          <div className="flex items-center gap-5">
+                            <svg viewBox="0 0 120 120" className="w-28 h-28 flex-shrink-0" style={{ transform: 'rotate(-90deg)' }}>
+                              <circle cx={CX} cy={CY} r={R} fill="none" stroke="#1e293b" strokeWidth={STROKE} />
+                              {donutSegments.map(seg => (
+                                <circle key={seg.k} cx={CX} cy={CY} r={R} fill="none"
+                                  stroke={seg.color} strokeWidth={STROKE}
+                                  strokeDasharray={`${seg.dash} ${circumference - seg.dash}`}
+                                  strokeDashoffset={seg.offset}
+                                  strokeLinecap="butt" />
+                              ))}
+                              <text x={CX} y={CY} textAnchor="middle" dominantBaseline="middle"
+                                transform={`rotate(90 ${CX} ${CY})`}
+                                className="font-mono font-black" fill="#f1f5f9" style={{ fontSize: '22px' }}>
+                                {typeTotal}
+                              </text>
+                            </svg>
+                            <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                              {donutSegments.map(seg => (
+                                <div key={seg.k} className="flex items-center justify-between gap-2 text-xs">
+                                  <span className="flex items-center gap-1.5 text-slate-300 font-bold truncate">
+                                    <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: seg.color }}></span>
+                                    {seg.k}
+                                  </span>
+                                  <span className="font-mono font-black text-slate-400 flex-shrink-0">{seg.v} <span className="text-slate-600">({Math.round(seg.v/typeTotal*100)}%)</span></span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/*BAR CHART — Lots per month*/}
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📈 Lots per month — {thisYear}</p>
+                          <svg viewBox="0 0 360 130" className="w-full h-32">
+                            {byMonth.map((v, i) => {
+                              const barW = 22, gap = 8;
+                              const x = i * (barW + gap) + 6;
+                              const h = v === 0 ? 0 : Math.max(3, (v / maxMonth) * 90);
+                              const y = 104 - h;
+                              return (
+                                <g key={i}>
+                                  <rect x={x} y={y} width={barW} height={h} rx="3" fill={v > 0 ? '#3b82f6' : '#1e293b'} />
+                                  {v > 0 && (
+                                    <text x={x + barW/2} y={y - 5} textAnchor="middle" fill="#93c5fd" style={{ fontSize: '10px', fontWeight: 700, fontFamily: 'monospace' }}>{v}</text>
+                                  )}
+                                  <text x={x + barW/2} y="118" textAnchor="middle" fill="#64748b" style={{ fontSize: '9px', fontWeight: 700 }}>{monthLabels[i]}</text>
+                                </g>
+                              );
+                            })}
+                          </svg>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/*BAR CHART — Import value per month (current year)*/}
+                  {(() => {
+                    const thisYear = new Date().getFullYear().toString();
+                    const yearInvoices = invoices.filter(i => (i.invoice_date||'').slice(0,4) === thisYear);
+                    if (!yearInvoices.length) return null;
+                    const byMonthVal = Array(12).fill(0);
+                    yearInvoices.forEach(inv => {
+                      const m = parseInt((inv.invoice_date||'').slice(5,7), 10);
+                      if (m >= 1 && m <= 12) byMonthVal[m-1] += getInvoiceValueSum(inv);
+                    });
+                    const maxVal = Math.max(1, ...byMonthVal);
+                    const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    const fmtK = (v) => v >= 1000 ? `${Math.round(v/1000)}k` : Math.round(v).toString();
                     return (
                       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📊 Lots in year {thisYear} by customs type</p>
-                        <div className="flex flex-wrap gap-2">
-                          {entries.map(([k,v])=>(
-                            <div key={k} className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg">
-                              <span className="text-xs font-bold text-slate-300">{k}</span>
-                              <span className="text-xs font-black text-blue-400 font-mono">{v}</span>
-                            </div>
-                          ))}
-                        </div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">💰 Import value per month — {thisYear} (USD)</p>
+                        <svg viewBox="0 0 760 140" className="w-full h-36">
+                          {byMonthVal.map((v, i) => {
+                            const barW = 46, gap = 16;
+                            const x = i * (barW + gap) + 8;
+                            const h = v <= 0 ? 0 : Math.max(3, (v / maxVal) * 95);
+                            const y = 114 - h;
+                            return (
+                              <g key={i}>
+                                <rect x={x} y={y} width={barW} height={h} rx="3" fill={v > 0 ? '#f59e0b' : '#1e293b'} />
+                                {v > 0 && (
+                                  <text x={x + barW/2} y={y - 5} textAnchor="middle" fill="#fcd34d" style={{ fontSize: '10px', fontWeight: 700, fontFamily: 'monospace' }}>${fmtK(v)}</text>
+                                )}
+                                <text x={x + barW/2} y="128" textAnchor="middle" fill="#64748b" style={{ fontSize: '10px', fontWeight: 700 }}>{monthLabels[i]}</text>
+                              </g>
+                            );
+                          })}
+                        </svg>
                       </div>
                     );
                   })()}
@@ -3373,7 +3569,6 @@
                         <input type="text" placeholder="Search by lot no., Bill no..." value={filterLotNo === '__ALL__' ? '' : filterLotNo} onChange={(e) => { setFilterLotNo(e.target.value); setSelectedLotNo(null); setSelectedInvoiceNo(null); }} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={handleExportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Export Excel CSV</button>
                       {window.CY_API_URL && (
                         <button onClick={handleSyncSummary}
                           disabled={syncStatus === 'syncing'}
@@ -3474,7 +3669,6 @@
                                 checked={filteredLots.length > 0 && filteredLots.every(l => selectedLotNos.has(l.lot_no))}
                                 onChange={e => { const next = new Set(selectedLotNos); if (e.target.checked) filteredLots.forEach(l => next.add(l.lot_no)); else filteredLots.forEach(l => next.delete(l.lot_no)); setSelectedLotNos(next); }} />
                             </th>
-                            <th className="p-3 w-12 text-center">Radio</th>
                             <th className="p-3">Lot No.</th>
                             <th className="p-3 text-center">STT</th>
                             <th className="p-3 text-rose-400">ATC Date</th>
@@ -3485,7 +3679,6 @@
                             <th className="p-3 text-center">Cont/Seal</th>
                             <th className="p-3 text-right">Pkg Qty</th>
                             <th className="p-3 text-right">Value (USD)</th>
-                            <th className="p-3 text-center w-28">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-855">
@@ -3499,7 +3692,6 @@
                                     checked={selectedLotNos.has(lot.lot_no)}
                                     onChange={e => { const next = new Set(selectedLotNos); if (e.target.checked) next.add(lot.lot_no); else next.delete(lot.lot_no); setSelectedLotNos(next); }} />
                                 </td>
-                                <td className="p-3 text-center"><input type="radio" checked={isSelected} readOnly className="accent-blue-500" /></td>
                                 <td className="p-3 font-mono font-bold text-amber-400">
                                   {lot.lot_no}
                                   {lotInvoiceCounts[lot.lot_no] > 1 && (
@@ -3851,15 +4043,18 @@
                               <tr><td colSpan="5" className="p-10 text-center text-slate-500 italic">No suppliers found matching "{supplierSearch}"</td></tr>
                             ) : pagedSuppliers.map((s, idx) => {
                               const realIdx = (supplierData || []).indexOf(s);
+                              const isSelected = selectedSupplierIdx === realIdx;
                               return (
-                                <tr key={idx} className="hover:bg-slate-800/40 text-slate-300 transition-colors">
+                                <tr key={idx}
+                                  onClick={() => setSelectedSupplierIdx(realIdx)}
+                                  className={`cursor-pointer transition-colors ${isSelected ? 'bg-blue-950/30 text-white border-l-2 border-blue-500' : 'hover:bg-slate-800/40 text-slate-300'}`}>
                                   <td className="px-4 py-3 text-center text-slate-600 font-mono text-[10px]">{(suppPage-1)*MD_PAGE_SIZE + idx + 1}</td>
                                   <td className="px-4 py-3 font-bold text-violet-300">{s['SUPPLIER NAME']}</td>
                                   <td className="px-4 py-3 text-slate-400 text-[11px] leading-relaxed max-w-xs">{s['ADDRESS'] || <span className="italic text-slate-600">—</span>}</td>
                                   <td className="px-4 py-3 text-center">
-                                    {s['SIGNATURE IMAGE ID'] ? (() => { const raw = s['SIGNATURE IMAGE ID'].trim(); const url = raw.startsWith('data:') ? raw : (raw.startsWith('http') ? raw : `https://drive.google.com/uc?export=view&id=${raw}`); return <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-violet-400 hover:text-violet-200 text-[11px]"><img src={url} alt="" className="h-7 w-auto max-w-[60px] object-contain bg-white rounded border border-slate-700 p-0.5" onError={e => { e.target.style.display = 'none'; }} />🖼 Xem ảnh</a>; })() : <span className="text-slate-600 italic text-[10px]">—</span>}
+                                    {s['SIGNATURE IMAGE ID'] ? (() => { const raw = s['SIGNATURE IMAGE ID'].trim(); const url = raw.startsWith('data:') ? raw : (raw.startsWith('http') ? raw : `https://drive.google.com/uc?export=view&id=${raw}`); return <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1.5 text-violet-400 hover:text-violet-200 text-[11px]"><img src={url} alt="" className="h-7 w-auto max-w-[60px] object-contain bg-white rounded border border-slate-700 p-0.5" onError={e => { e.target.style.display = 'none'; }} />🖼 Xem ảnh</a>; })() : <span className="text-slate-600 italic text-[10px]">—</span>}
                                   </td>
-                                  <td className="px-4 py-3 text-center space-x-3">
+                                  <td className="px-4 py-3 text-center space-x-3" onClick={e => e.stopPropagation()}>
                                     <button onClick={() => handleOpenEditSupplier(realIdx)} className="text-blue-400 hover:text-blue-200 text-[11px] font-bold hover:underline">Edit</button>
                                     <button onClick={() => handleDeleteSupplier(realIdx)} className="text-rose-500 hover:text-rose-300 text-[11px] font-bold hover:underline">🗑 Delete</button>
                                   </td>
@@ -3924,21 +4119,6 @@
                             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">
                             {pymShowAll ? '🔼 Collapse' : `📋 Show All`}
                           </button>
-                          {pymSelected.size > 0 && (
-                            <button onClick={() => {
-                              const rows = filteredPayments.filter(p => pymSelected.has(p['SỐ PTT']));
-                              const headers = ['NGÀY','SỐ PTT','SỐ TIỀN','NỘI DUNG','NGÀY ĐƯA KẾ TOÁN'];
-                              const wsData = [headers, ...rows.map(r => headers.map(h => r[h]||''))];
-                              const wb = XLSX.utils.book_new();
-                              const ws = XLSX.utils.aoa_to_sheet(wsData);
-                              XLSX.utils.book_append_sheet(wb, ws, 'Payment');
-                              XLSX.writeFile(wb, `Payment_${getTodayLocal()}.xlsx`);
-                              showNotification(`Exported ${rows.length} payment records to Excel!`);
-                            }}
-                              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white transition-all">
-                              📥 Export Excel ({pymSelected.size})
-                            </button>
-                          )}
                           <button onClick={() => { const ptuList = checkTrietTieu(filteredPayments); setPaymentCheckResult(ptuList); showNotification(`🔍 Found ${ptuList.length} PTU voucher(s).`); }}
                             disabled={!paymentData || paymentData.length === 0}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition-all disabled:opacity-40">
