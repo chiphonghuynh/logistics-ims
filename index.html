@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chang Yang Logistics IMS v2.9 [20260610_FILTER_FIX]</title>
+  <title>Chang Yang Logistics IMS v2.9 [20260626_FLOATING_TOOLBAR]</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -943,7 +943,9 @@
       const [selectedLotNo, setSelectedLotNo] = useState(null);
       const [viewDetailLot, setViewDetailLot] = useState(null); // lot object đang xem detail
       const [selectedInvoiceNo, setSelectedInvoiceNo] = useState(null);
-      const [selectedLotNos, setSelectedLotNos] = useState(new Set()); // for bulk delete
+      const [selectedLotNos, setSelectedLotNos] = useState(new Set()); // for bulk bulk delete
+      const [floatingToolbarRef] = useState(() => ({ current: null })); // ref placeholder
+      const hiddenUploadRef = React.useRef(null); // ref for hidden file input in floating toolbar
       // Track recently updated rows to highlight them
       const [recentlyUpdatedLots, setRecentlyUpdatedLots] = useState(new Set());
       const [recentlyUpdatedInvoices, setRecentlyUpdatedInvoices] = useState(new Set());
@@ -2694,7 +2696,7 @@
               </div>
             </header>
 
-            <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+            <div className="flex-1 p-6 space-y-6 overflow-y-auto pb-28">
               
               {/* --- DASHBOARD VIEW --- */}
               {activeMenu === 'DASHBOARD' && (
@@ -6479,30 +6481,254 @@
             </div>
           </div>
 
-          {/* FLOATING TOOLBAR - Step 1: UI shell only, no logic yet */}
+          {/* ═══════════════════════════════════════════════════════════════
+              FLOATING TOOLBAR — cố định ở giữa đáy màn hình
+              Context-aware: nhận biết dữ liệu nào đang được chọn
+              ═══════════════════════════════════════════════════════════════ */}
           {(() => {
-            const SHOW_ON = ['E010', 'DATABASE_VIEW', 'SUPPLIER_VIEW', 'PAYMENT_VIEW'];
-            if (!SHOW_ON.includes(activeMenu)) return null;
-            const tabLabel = {'E010': 'Shipment Profiles', 'DATABASE_VIEW': 'Dictionary', 'SUPPLIER_VIEW': 'Supplier', 'PAYMENT_VIEW': 'Payment'}[activeMenu] || '';
-            const dim = {display:'flex',alignItems:'center',gap:'5px',padding:'6px 12px',borderRadius:'8px',fontSize:'11px',fontWeight:'bold',background:'transparent',color:'#94a3b8',border:'1px solid transparent',cursor:'not-allowed',opacity:0.35};
+            // --- XÁC ĐỊNH CONTEXT HIỆN TẠI ---
+            // context = loại dữ liệu đang được chọn/xem
+            let ctx = null; // 'lot' | 'invoice' | 'goods' | 'dict' | 'supplier' | 'payment' | null
+
+            // Khi đang ở màn hình E010 (Shipment Profiles)
+            if (activeMenu === 'E010') {
+              if (selectedInvoiceNo) {
+                const invGoods = goods.filter(g => String(g.invoice_no) === String(selectedInvoiceNo));
+                ctx = { type: 'invoice', label: selectedInvoiceNo, sub: `Lot: ${selectedLotNo || '?'}` };
+              } else if (selectedLotNo) {
+                ctx = { type: 'lot', label: selectedLotNo };
+              }
+            }
+
+            // Khi đang xem detail panel của lô (viewDetailLot)
+            if (viewDetailLot && !showAddModal) {
+              ctx = { type: 'lot', label: viewDetailLot.lot_no, fromDetail: true };
+            }
+
+            // Khi đang ở màn hình Dictionary
+            if (activeMenu === 'DATABASE_VIEW') {
+              if (selectedDictItems.size === 1) {
+                const gNo = [...selectedDictItems][0];
+                ctx = { type: 'dict', label: gNo };
+              } else if (selectedDictItems.size > 1) {
+                ctx = { type: 'dict_multi', label: `${selectedDictItems.size} items`, count: selectedDictItems.size };
+              } else {
+                ctx = { type: 'dict_none' };
+              }
+            }
+
+            // Khi đang ở màn hình Supplier
+            if (activeMenu === 'SUPPLIER_DATA') {
+              ctx = { type: 'supplier' };
+            }
+
+            // Khi đang ở màn hình Payment
+            if (activeMenu === 'PAYMENT_DATA') {
+              ctx = { type: 'payment' };
+            }
+
+            // Không hiện toolbar ở Dashboard và một số màn hình không có CRUD
+            const noToolbarMenus = ['DASHBOARD', 'NO_ATC', 'ETA_MGMT', 'LIST_HANG'];
+            if (noToolbarMenus.includes(activeMenu) && !viewDetailLot) return null;
+            if (showAddModal || showDictModal || showSupplierModal || showPaymentModal) return null;
+
+            // --- TÍNH TOÁN TRẠNG THÁI CÁC NÚT ---
+            const canAdd    = true; // Luôn có thể thêm mới
+            const canEdit   = !!(ctx && !['dict_none','dict_multi','supplier','payment'].includes(ctx.type));
+            const canDelete = !!(ctx && !['dict_none','supplier','payment'].includes(ctx.type));
+            const canExport = activeMenu === 'E010' || activeMenu === 'DATABASE_VIEW';
+            const canUpload = activeMenu === 'DATABASE_VIEW'; // chỉ dict mới có upload Excel
+
+            // --- NHÃN CONTEXT ---
+            const ctxLabel = ctx
+              ? ctx.type === 'lot'        ? `Lot: ${ctx.label}`
+              : ctx.type === 'invoice'    ? `Invoice: ${ctx.label}`
+              : ctx.type === 'dict'       ? `Item: ${ctx.label}`
+              : ctx.type === 'dict_multi' ? `${ctx.label} selected`
+              : ctx.type === 'dict_none'  ? 'Select an item to edit/delete'
+              : ctx.type === 'supplier'   ? 'Supplier'
+              : ctx.type === 'payment'    ? 'Payment'
+              : ''
+              : (activeMenu === 'E010' ? 'Select a row to act on' : '');
+
+            // --- HANDLERS ---
+            const handleFabAdd = () => {
+              if (activeMenu === 'DATABASE_VIEW') {
+                handleOpenAddDict();
+              } else if (activeMenu === 'SUPPLIER_DATA') {
+                handleOpenAddSupplier();
+              } else if (activeMenu === 'PAYMENT_DATA') {
+                setPaymentForm({ 'NGÀY': getTodayLocal(), 'SỐ PTT': '', 'SỐ TIỀN': '', 'NỘI DUNG': '', 'NGÀY ĐƯA KẾ TOÁN': '' });
+                setPaymentEditIdx(null);
+                setShowPaymentModal(true);
+              } else if (activeMenu === 'E010') {
+                // Thêm Lot mới
+                setModalMode('add'); setModalTab('lot');
+                const freshStt = getFirstVacantSeq();
+                setLotForm({ lot_no: '', stt: freshStt, lot_date: getTodayLocal(), get_docs_date: getTodayLocal(), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', carrier: '', transport_type: 'SEA_CONT', is_cont: true, cont_no: '', seal_no: '', cont_type: '40FT', contList: [{cont_no:'',seal_no:'',cont_type:'40FT'}], pkg_qty: 0, gw: 0, cbm: 0, cbm_str: '', eta: '', atc_date: '', origin_country: 'TAIWAN', loai_hinh: 'NEUTRAL', loai_hinh_con: 'DEFAULT', sale_qty: 0, is_hang_chung_bill: false, contract_start: '', contract_end: '' });
+                setInvoiceForm({ invoice_no: '', lot_no: '', bill_no: '', bill_stt: freshStt, invoice_date: getTodayLocal(), inv_pkg_qty: 0, inv_gw: 0, incoterm: 'CIF', total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '', is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', currency: 'USD', supplier: 'CHANG YANG MATERIAL CORP.', contract_start: '', contract_end: '', factory_no: '' });
+                setGoodsForm({ invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '', goods_name_local: '', goods_unit_local: 'Pcs', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0, origin_country: 'TAIWAN', qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: '' });
+                setSelectedFactories([]);
+                setDraftInvoiceNos([]);
+                setLotAssignForm({ loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [], stt: freshStt });
+                setShowAddModal(true);
+              }
+            };
+
+            const handleFabEdit = () => {
+              if (!canEdit || !ctx) return;
+              if (ctx.type === 'lot') {
+                const lot = lots.find(l => l.lot_no === ctx.label);
+                if (lot) {
+                  if (viewDetailLot) setViewDetailLot(null);
+                  startEditLot(lot);
+                }
+              } else if (ctx.type === 'invoice') {
+                const inv = invoices.find(i => i.invoice_no === selectedInvoiceNo);
+                if (inv) startEditInvoice(inv);
+              } else if (ctx.type === 'dict') {
+                const dictTarget = dbSelectedTab === 'A12' ? dictA12 : dictE21;
+                const item = dictTarget.find(i => i.goods_no === ctx.label);
+                if (item) handleOpenEditDict(item);
+              }
+            };
+
+            const handleFabDelete = () => {
+              if (!canDelete || !ctx) return;
+              if (ctx.type === 'lot') {
+                if (viewDetailLot) setViewDetailLot(null);
+                triggerDeleteLotConfirm(ctx.label);
+              } else if (ctx.type === 'invoice') {
+                triggerDeleteInvoiceConfirm(selectedInvoiceNo);
+              } else if (ctx.type === 'dict') {
+                const dictTarget = dbSelectedTab === 'A12' ? dictA12 : dictE21;
+                const item = dictTarget.find(i => i.goods_no === ctx.label);
+                if (item) handleDeleteDictConfirm(item);
+              } else if (ctx.type === 'dict_multi') {
+                handleBulkDelete();
+              }
+            };
+
+            const handleFabExport = () => {
+              if (activeMenu === 'DATABASE_VIEW') {
+                // Export dict hiện tại sang Excel
+                const dict = dbSelectedTab === 'A12' ? dictA12 : dictE21;
+                if (!dict.length) return showNotification('No data to export!', 'error');
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.json_to_sheet(dict, { header: ['goods_no','hs_code','goods_name_en','goods_name_local','goods_unit_en','goods_unit_local','goods_unit_en2','goods_unit_local2'] });
+                ws['!cols'] = [20,15,40,60,10,10,10,10].map(w => ({ wch: w }));
+                XLSX.utils.book_append_sheet(wb, ws, `Dict_${dbSelectedTab}`);
+                XLSX.writeFile(wb, `Dictionary_${dbSelectedTab}_${getTodayLocal()}.xlsx`);
+                showNotification(`Exported ${dict.length} items from Dictionary ${dbSelectedTab}`);
+              } else if (activeMenu === 'E010') {
+                handleExportCSV();
+              }
+            };
+
+            const handleFabUpload = () => {
+              if (!canUpload) return;
+              if (hiddenUploadRef.current) hiddenUploadRef.current.click();
+            };
+
+            // --- BUTTON STYLE HELPERS ---
+            const btnBase = 'flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-[10px] font-bold transition-all duration-200 select-none';
+            const btnActive = 'text-white hover:scale-105 active:scale-95 cursor-pointer';
+            const btnDisabled = 'text-slate-600 cursor-not-allowed opacity-40';
+
             return (
-              <div style={{position:'fixed',bottom:'18px',left:'50%',transform:'translateX(-50%)',zIndex:900,display:'flex',flexDirection:'column',alignItems:'center',gap:'4px',pointerEvents:'none'}}>
-                <div style={{fontSize:'10px',color:'#64748b',background:'rgba(2,6,23,0.85)',padding:'2px 10px',borderRadius:'99px'}}>
-                  {tabLabel} - select a row to act on
-                </div>
-                <div style={{display:'flex',alignItems:'center',gap:'6px',background:'rgba(15,23,42,0.96)',border:'1px solid rgba(51,65,85,0.8)',borderRadius:'14px',padding:'7px 14px',boxShadow:'0 4px 24px rgba(0,0,0,0.5)',pointerEvents:'all'}}>
-                  <button disabled style={{...dim,background:'rgba(37,99,235,0.15)',color:'#60a5fa',border:'1px solid rgba(59,130,246,0.3)',opacity:0.5}}>+ Add</button>
-                  <div style={{width:'1px',height:'20px',background:'rgba(51,65,85,0.6)'}} />
-                  <button disabled style={dim}>Edit</button>
-                  <button disabled style={dim}>Delete</button>
-                  <div style={{width:'1px',height:'20px',background:'rgba(51,65,85,0.6)'}} />
-                  <button disabled style={dim}>Export</button>
-                  <button disabled style={dim}>Upload</button>
+              <div
+                style={{
+                  position: 'fixed',
+                  bottom: '20px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 200,
+                  pointerEvents: 'none',
+                }}
+              >
+                <div
+                  style={{ pointerEvents: 'auto' }}
+                  className="flex items-center gap-1 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl px-3 py-2 shadow-2xl shadow-black/60"
+                >
+                  {/* Context label */}
+                  <div className="flex items-center gap-1.5 pr-3 border-r border-slate-700 mr-1 max-w-[180px]">
+                    <span className="text-[9px] text-slate-500 font-mono leading-tight truncate" title={ctxLabel}>
+                      {ctxLabel || '—'}
+                    </span>
+                  </div>
+
+                  {/* Nút THÊM */}
+                  <button
+                    onClick={handleFabAdd}
+                    className={`${btnBase} ${btnActive} bg-blue-600/20 hover:bg-blue-600/40 border border-blue-700/60`}
+                    title="Thêm mới"
+                  >
+                    <span className="text-base leading-none">＋</span>
+                    <span className="text-blue-400">Thêm</span>
+                  </button>
+
+                  {/* Nút SỬA */}
+                  <button
+                    onClick={handleFabEdit}
+                    disabled={!canEdit}
+                    className={`${btnBase} ${canEdit ? `${btnActive} bg-amber-600/20 hover:bg-amber-600/40 border border-amber-700/60` : btnDisabled}`}
+                    title={canEdit ? `Sửa ${ctxLabel}` : 'Chọn 1 dòng để sửa'}
+                  >
+                    <span className="text-base leading-none">✏️</span>
+                    <span className={canEdit ? 'text-amber-400' : ''}>Sửa</span>
+                  </button>
+
+                  {/* Nút XÓA */}
+                  <button
+                    onClick={handleFabDelete}
+                    disabled={!canDelete}
+                    className={`${btnBase} ${canDelete ? `${btnActive} bg-rose-600/20 hover:bg-rose-600/40 border border-rose-700/60` : btnDisabled}`}
+                    title={canDelete ? `Xóa ${ctxLabel}` : 'Chọn 1 dòng để xóa'}
+                  >
+                    <span className="text-base leading-none">🗑</span>
+                    <span className={canDelete ? 'text-rose-400' : ''}>Xóa</span>
+                  </button>
+
+                  {/* Divider */}
+                  <div className="w-px h-8 bg-slate-700 mx-1" />
+
+                  {/* Nút XUẤT FILE */}
+                  <button
+                    onClick={handleFabExport}
+                    disabled={!canExport}
+                    className={`${btnBase} ${canExport ? `${btnActive} bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-700/60` : btnDisabled}`}
+                    title={canExport ? 'Xuất file Excel/CSV' : 'Không có chức năng xuất ở màn hình này'}
+                  >
+                    <span className="text-base leading-none">📥</span>
+                    <span className={canExport ? 'text-emerald-400' : ''}>Xuất</span>
+                  </button>
+
+                  {/* Nút UPLOAD FILE — chỉ hiện ở màn hình Dictionary */}
+                  {canUpload && (
+                    <>
+                      <button
+                        onClick={handleFabUpload}
+                        className={`${btnBase} ${btnActive} bg-violet-600/20 hover:bg-violet-600/40 border border-violet-700/60`}
+                        title="Upload file Excel vào Dictionary"
+                      >
+                        <span className="text-base leading-none">📤</span>
+                        <span className="text-violet-400">Upload</span>
+                      </button>
+                      {/* Hidden file input */}
+                      <input
+                        ref={hiddenUploadRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        style={{ display: 'none' }}
+                        onChange={(e) => { handleExcelImport(e); e.target.value = ''; }}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
             );
           })()}
-          {/* /FLOATING TOOLBAR */}
+          {/* END FLOATING TOOLBAR */}
 
         </div>
       );
