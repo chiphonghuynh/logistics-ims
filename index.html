@@ -3509,9 +3509,7 @@
                 </div>
               )}
 
-              {/* ════════════════════════════════════════════
-                  MASTER DATA — SUPPLIER DATA (UNIFIED LAYOUT)
-                  ════════════════════════════════════════════ */}
+              {/* SECTION */}
               {activeMenu === 'SUPPLIER_DATA' && (() => {
                 const MD_PAGE_SIZE = 30;
                 const showSuppTable = suppShowAll || supplierSearch.trim() !== '';
@@ -3652,9 +3650,7 @@
                 );
               })()}
 
-              {/* ════════════════════════════════════════════
-                  MASTER DATA — PAYMENT DATA (UNIFIED LAYOUT)
-                  ════════════════════════════════════════════ */}
+              {/* SECTION */}
               {activeMenu === 'PAYMENT_DATA' && (() => {
                 const MD_PAGE_SIZE = 30;
                 const showPymTable = pymShowAll || paymentSearch.trim() !== '';
@@ -5759,9 +5755,7 @@
                     </div>
                   )}
 
-                  {/* ════════════════════════════════════════════
-                      TAB 4: CREATE LOT CODE — Fully auto from invoice data
-                      ════════════════════════════════════════════ */}
+                  {/* SECTION */}
                   {modalTab === 'assign' && modalMode !== 'edit' && (() => {
                     // Chỉ hiện invoice CHƯA được gán vào mã lô hợp lệ nào
                     const unassignedInvoices = [...invoices]
@@ -6165,9 +6159,7 @@
           })()}
 
 
-          {/* ═══════════════════════════════════════════════════════
-              LOT DETAIL PANEL — Slide-in from right, read-only
-          ═══════════════════════════════════════════════════════ */}
+          {/* SECTION */}
           {viewDetailLot && (() => {
             const lot = viewDetailLot;
             const lotInvoices = invoices.filter(i => i.lot_no === lot.lot_no);
@@ -6481,10 +6473,7 @@
             </div>
           </div>
 
-          {/* ═══════════════════════════════════════════════════════════════
-              FLOATING TOOLBAR — cố định ở giữa đáy màn hình
-              Context-aware: nhận biết dữ liệu nào đang được chọn
-              ═══════════════════════════════════════════════════════════════ */}
+          {/* FLOATING TOOLBAR - co dinh o giua day man hinh - context-aware */}
           {(() => {
             // --- XÁC ĐỊNH CONTEXT HIỆN TẠI ---
             // context = loại dữ liệu đang được chọn/xem
