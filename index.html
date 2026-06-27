@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chang Yang Logistics IMS v2.9 [20260626_FLOATING_TOOLBAR]</title>
+  <title>Chang Yang Logistics IMS v2.9 [20260627_IP_PAGES]</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -271,7 +271,7 @@
     // =====================================================================
     function useFloatingToolbar(deps) {
       const {
-        activeMenu, selectedLotNo, selectedInvoiceNo, viewDetailLot,
+        activeMenu, setActiveMenu, selectedLotNo, selectedInvoiceNo, viewDetailLot,
         selectedDictItems, showAddModal, showDictModal, showSupplierModal, showPaymentModal,
         lots, invoices, goods, dictA12, dictE21, dbSelectedTab,
         startEditLot, startEditInvoice, triggerDeleteLotConfirm, triggerDeleteInvoiceConfirm,
@@ -390,14 +390,14 @@
             setPaymentForm({ 'NGÀY': getTodayLocal(), 'SỐ PTT': '', 'SỐ TIỀN': '', 'NỘI DUNG': '', 'NGÀY ĐƯA KẾ TOÁN': '' });
             setPaymentEditIdx(null); setShowPaymentModal(true);
           } else if (activeMenu === 'E010') {
-            const freshStt = getFirstVacantSeq();
-            setModalMode('add'); setModalTab('lot');
-            setLotForm({ lot_no: '', stt: freshStt, lot_date: getTodayLocal(), get_docs_date: getTodayLocal(), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: '', carrier: '', transport_type: '', is_cont: true, cont_no: '', seal_no: '', cont_type: '40FT', contList: [{cont_no:'',seal_no:'',cont_type:'40FT'}], pkg_qty: 0, gw: 0, cbm: 0, cbm_str: '', eta: '', atc_date: '', origin_country: '', loai_hinh: 'NEUTRAL', loai_hinh_con: 'DEFAULT', sale_qty: 0, is_hang_chung_bill: false, contract_start: '', contract_end: '' });
-            setInvoiceForm({ invoice_no: '', lot_no: '', bill_no: '', bill_stt: freshStt, invoice_date: '', inv_pkg_qty: 0, inv_gw: 0, incoterm: '', total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '', is_hang_chung_bill: false, loai_hinh: '', loai_hinh_con: '', currency: '', supplier: '', contract_start: '', contract_end: '', factory_no: '' });
-            setGoodsForm({ invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '', goods_name_local: '', goods_unit_local: 'Pcs', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0, origin_country: '', qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: '' });
-            setSelectedFactories([]); setDraftInvoiceNos([]);
-            setLotAssignForm({ loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [], stt: freshStt });
+            // Mở trực tiếp modal thêm lô mới (Add trong Shipment Profiles)
             setShowAddModal(true);
+            setModalMode('add');
+            setModalTab('lot');
+          } else if (activeMenu === 'IMPORT_DECLARATION') {
+            setShowAddModal(true);
+            setModalMode('add');
+            setModalTab('lot');
           }
         };
 
@@ -550,6 +550,7 @@
       const [lots, setLots] = useState([]);
       const [invoices, setInvoices] = useState([]);
       const [goods, setGoods] = useState([]);
+      const [draftLots, setDraftLots] = useState([]); // STT/Bill info đang chờ (trang Lot No Inf), chưa có lot_no thật
 
       // State lưu trữ bộ từ điển sản phẩm gốc
       const [dictA12, setDictA12] = useState([]);
@@ -635,6 +636,38 @@
         contract_end:       normalizeDate(lot.contract_end),
       });
 
+      // Sanitize cho draft_lots (STT/Bill info đang chờ — chưa có lot_no thật).
+      // Không áp fallback ép buộc (Freight Prepaid/TAIWAN...) như sanitizeLot, vì draft mới luôn nên để trống đúng UX đã chốt trước đó.
+      const sanitizeDraftLot = (d) => ({
+        stt:                Number(d.stt)         || 0,
+        lot_date:           normalizeDate(d.lot_date),
+        get_docs_date:      normalizeDate(d.get_docs_date),
+        bill_no:            toStr(d.bill_no),
+        bill_date:          normalizeDate(d.bill_date),
+        bill_term:          toStr(d.bill_term),
+        carrier:            toStr(d.carrier),
+        pol:                toStr(d.pol),
+        pod:                toStr(d.pod),
+        transport_type:     toStr(d.transport_type),
+        is_cont:            toBool(d.is_cont),
+        cont_no:            toStr(d.cont_no),
+        seal_no:            toStr(d.seal_no),
+        cont_type:          toStr(d.cont_type)    || '40FT',
+        containers:         toStr(d.containers),
+        pkg_qty:            Number(d.pkg_qty)     || 0,
+        gw:                 Number(d.gw)          || 0,
+        cbm:                Number(d.cbm)         || 0,
+        eta:                normalizeDate(d.eta),
+        atc_date:           normalizeDate(d.atc_date),
+        origin_country:     toStr(d.origin_country),
+        factory_no:         toStr(d.factory_no),
+        supplier:           toStr(d.supplier),
+        is_hang_chung_bill: toBool(d.is_hang_chung_bill),
+        sale_qty:           Number(d.sale_qty)    || 0,
+        contract_start:     normalizeDate(d.contract_start),
+        contract_end:       normalizeDate(d.contract_end),
+      });
+
       const sanitizeInvoice = (inv) => ({
         invoice_no:         toStr(inv.invoice_no),
         lot_no:             toStr(inv.lot_no),
@@ -671,6 +704,11 @@
         return rawInvoices.map(i => sanitizeInvoice(i));
       };
 
+      const migrateDraftLots = (rawDraftLots) => {
+        if (!rawDraftLots || !Array.isArray(rawDraftLots)) return rawDraftLots;
+        return rawDraftLots.map(d => sanitizeDraftLot(d));
+      };
+
       const migrateGoods = (rawGoods) => {
         if (!rawGoods || !Array.isArray(rawGoods)) return rawGoods;
         return rawGoods.map(g => ({
@@ -694,15 +732,17 @@
         async function initData() {
           if (!window.CY_API_URL) {
             // Chưa có API URL → đọc từ cache offline
-            const [l, i, g, a12, e21] = await Promise.all([
+            const [l, i, g, a12, e21, dl] = await Promise.all([
               window.cyLocalGet('cy_lots'), window.cyLocalGet('cy_invoices'),
-              window.cyLocalGet('cy_goods'), window.cyLocalGet('cy_dict_a12'), window.cyLocalGet('cy_dict_e21')
+              window.cyLocalGet('cy_goods'), window.cyLocalGet('cy_dict_a12'), window.cyLocalGet('cy_dict_e21'),
+              window.cyLocalGet('cy_draft_lots')
             ]);
             setLots(migrateLots(l) || SAMPLE_LOTS);
             setInvoices(migrateInvoices(i) || SAMPLE_INVOICES);
             setGoods(migrateGoods(g) || SAMPLE_GOODS);
             setDictA12(a12 || INITIAL_DICTIONARY_A12);
             setDictE21(e21 || INITIAL_DICTIONARY_E21);
+            setDraftLots(migrateDraftLots(dl) || []);
             setDbReady(true);
             return;
           }
@@ -715,21 +755,24 @@
             setGoods(all.goods?.length ? migrateGoods(all.goods) : SAMPLE_GOODS);
             setDictA12(all.dict_a12?.length ? all.dict_a12 : INITIAL_DICTIONARY_A12);
             setDictE21(all.dict_e21?.length ? all.dict_e21 : INITIAL_DICTIONARY_E21);
+            setDraftLots(all.draft_lots?.length ? migrateDraftLots(all.draft_lots) : []);
             setSyncStatus('ok');
             setTimeout(() => setSyncStatus('idle'), 2000);
           } catch(err) {
             console.error('Init load error:', err);
             setSyncStatus('error');
             // Fallback: đọc từ cache offline
-            const [l, i, g, a12, e21] = await Promise.all([
+            const [l, i, g, a12, e21, dl] = await Promise.all([
               window.cyLocalGet('cy_lots'), window.cyLocalGet('cy_invoices'),
-              window.cyLocalGet('cy_goods'), window.cyLocalGet('cy_dict_a12'), window.cyLocalGet('cy_dict_e21')
+              window.cyLocalGet('cy_goods'), window.cyLocalGet('cy_dict_a12'), window.cyLocalGet('cy_dict_e21'),
+              window.cyLocalGet('cy_draft_lots')
             ]);
             setLots(migrateLots(l) || SAMPLE_LOTS);
             setInvoices(migrateInvoices(i) || SAMPLE_INVOICES);
             setGoods(migrateGoods(g) || SAMPLE_GOODS);
             setDictA12(a12 || INITIAL_DICTIONARY_A12);
             setDictE21(e21 || INITIAL_DICTIONARY_E21);
+            setDraftLots(migrateDraftLots(dl) || []);
             showNotification('Cannot connect to Google Sheets. Using offline data.', 'error');
           }
           setDbReady(true);
@@ -1223,6 +1266,7 @@
       const saveLotsToStorage     = (d) => persist('lots',    d.map(sanitizeLot), setLots);
       const saveInvoicesToStorage  = (d) => persist('invoices', d.map(sanitizeInvoice), setInvoices);
       const saveGoodsToStorage     = (d) => persist('goods',   d, setGoods);
+      const saveDraftLotsToStorage = (d) => persist('draft_lots', d.map(sanitizeDraftLot), setDraftLots);
       const saveDictA12ToStorage   = (d) => persist('dict_a12', d, setDictA12);
       const saveDictE21ToStorage   = (d) => persist('dict_e21', d, setDictE21);
 
@@ -1247,6 +1291,30 @@
       // Advanced Filters
       const [filterFromDate, setFilterFromDate] = useState('');
       const [filterToDate, setFilterToDate] = useState('');
+
+      // ══ INVOICE DATA page filters ══
+      const [ivSearch, setIvSearch] = useState('');
+      const [ivFilterLoaiHinh, setIvFilterLoaiHinh] = useState('ALL');
+      const [ivFilterSupplier, setIvFilterSupplier] = useState('ALL');
+      const [ivFilterFactory, setIvFilterFactory] = useState('ALL');
+      const [ivFilterYear, setIvFilterYear] = useState('ALL');
+      const [ivPage, setIvPage] = useState(1);
+      const IV_PAGE_SIZE = 30;
+
+      // ══ LOT NO INFO page filters ══
+      const [lnSearch, setLnSearch] = useState('');
+      const [lnFilterLoaiHinh, setLnFilterLoaiHinh] = useState('ALL');
+      const [lnFilterYear, setLnFilterYear] = useState('ALL');
+      const [lnTab, setLnTab] = useState('draft'); // 'draft' | 'all'
+      const [lnPage, setLnPage] = useState(1);
+      const LN_PAGE_SIZE = 30;
+
+      // ══ IMPORT DECLARATION page filters ══
+      const [idSearch, setIdSearch] = useState('');
+      const [idFilterLoaiHinh, setIdFilterLoaiHinh] = useState('ALL');
+      const [idFilterFactory, setIdFilterFactory] = useState('ALL');
+      const [idPage, setIdPage] = useState(1);
+      const ID_PAGE_SIZE = 30;
       const [filterLotNo, setFilterLotNo] = useState('');
 
       // Từ khóa tìm kiếm trong danh mục gốc
@@ -2620,7 +2688,7 @@
       // Màn hình chờ khởi tạo
       // --- FLOATING TOOLBAR (vanilla DOM hook) ---
       useFloatingToolbar({
-        activeMenu, selectedLotNo, selectedInvoiceNo, viewDetailLot,
+        activeMenu, setActiveMenu, selectedLotNo, selectedInvoiceNo, viewDetailLot,
         selectedDictItems, showAddModal, showDictModal, showSupplierModal, showPaymentModal,
         lots, invoices, goods, dictA12, dictE21, dbSelectedTab,
         startEditLot, startEditInvoice, triggerDeleteLotConfirm, triggerDeleteInvoiceConfirm,
@@ -2960,7 +3028,7 @@
                           <div className="ml-3 mt-0.5 border-l-2 border-slate-800/70 pl-3 space-y-0.5">
                             {/*Invoice Data*/}
                             <button
-                              onClick={() => setActiveMenu('INVOICE_DATA')}
+                              onClick={() => { setActiveMenu('INVOICE_DATA'); setIvPage(1); setIvSearch(''); setIvFilterLoaiHinh('ALL'); setIvFilterSupplier('ALL'); setIvFilterFactory('ALL'); setIvFilterYear('ALL'); }}
                               className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
                                 ${activeMenu === 'INVOICE_DATA' ? 'bg-indigo-600/20 text-indigo-400 font-bold border border-indigo-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                             >
@@ -2969,7 +3037,7 @@
 
                             {/*Lot No Inf*/}
                             <button
-                              onClick={() => setActiveMenu('LOT_NO_INFO')}
+                              onClick={() => { setActiveMenu('LOT_NO_INFO'); setLnPage(1); setLnSearch(''); setLnFilterLoaiHinh('ALL'); setLnFilterYear('ALL'); setLnTab('draft'); }}
                               className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
                                 ${activeMenu === 'LOT_NO_INFO' ? 'bg-blue-600/20 text-blue-400 font-bold border border-blue-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                             >
@@ -2978,7 +3046,7 @@
 
                             {/*Import Declaration*/}
                             <button
-                              onClick={() => setActiveMenu('IMPORT_DECLARATION')}
+                              onClick={() => { setActiveMenu('IMPORT_DECLARATION'); setIdPage(1); setIdSearch(''); setIdFilterLoaiHinh('ALL'); setIdFilterFactory('ALL'); }}
                               className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
                                 ${activeMenu === 'IMPORT_DECLARATION' ? 'bg-amber-600/20 text-amber-400 font-bold border border-amber-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                             >
@@ -3028,7 +3096,7 @@
               </div>
             </div>
             <div className="p-3 text-center border-t border-slate-800 bg-slate-950/60 text-[10px] text-slate-500">
-              {menuExpanded ? <span>Version: <strong className="text-blue-500">v2.1.0-pro [20260617_UNIFIED_MD]</strong></span> : <span>v2.1</span>}
+              {menuExpanded ? <span>Version: <strong className="text-blue-500">v2.1.0-pro [20260627_IP_PAGES]</strong></span> : <span>v2.1</span>}
             </div>
           </div>
 
@@ -4486,6 +4554,566 @@
                   )}
                 </div>
               </div>
+                );
+              })()}
+
+              {/*--- INVOICE DATA VIEW ---*/}
+              {activeMenu === 'INVOICE_DATA' && (() => {
+                // Derive filter options
+                const ivYears = ['ALL', ...Array.from(new Set(invoices.map(i => (i.invoice_date||'').slice(0,4)).filter(Boolean))).sort((a,b)=>b-a)];
+                const ivLoaiHinhs = ['ALL', ...Array.from(new Set(invoices.map(i => i.loai_hinh).filter(Boolean))).sort()];
+                const ivSuppliers = ['ALL', ...Array.from(new Set(invoices.map(i => i.supplier).filter(Boolean))).sort()];
+                const ivFactories = ['ALL', ...Array.from(new Set(invoices.map(i => i.factory_no).filter(Boolean))).sort()];
+
+                const filtered = invoices.filter(inv => {
+                  if (ivFilterLoaiHinh !== 'ALL' && inv.loai_hinh !== ivFilterLoaiHinh) return false;
+                  if (ivFilterSupplier !== 'ALL' && inv.supplier !== ivFilterSupplier) return false;
+                  if (ivFilterFactory !== 'ALL' && inv.factory_no !== ivFilterFactory) return false;
+                  if (ivFilterYear !== 'ALL' && (inv.invoice_date||'').slice(0,4) !== ivFilterYear) return false;
+                  if (ivSearch.trim()) {
+                    const q = ivSearch.toLowerCase();
+                    if (!(
+                      (inv.invoice_no||'').toLowerCase().includes(q) ||
+                      (inv.lot_no||'').toLowerCase().includes(q) ||
+                      (inv.bill_no||'').toLowerCase().includes(q) ||
+                      (inv.supplier||'').toLowerCase().includes(q) ||
+                      (inv.factory_no||'').toLowerCase().includes(q)
+                    )) return false;
+                  }
+                  return true;
+                }).sort((a,b) => (b.invoice_date||'').localeCompare(a.invoice_date||''));
+
+                const totalPages = Math.max(1, Math.ceil(filtered.length / IV_PAGE_SIZE));
+                const safePage = Math.min(ivPage, totalPages);
+                const paged = filtered.slice((safePage-1)*IV_PAGE_SIZE, safePage*IV_PAGE_SIZE);
+                const totalVal = filtered.reduce((s,i) => s + getInvoiceValueSum(i), 0);
+                const hasFilter = ivFilterLoaiHinh !== 'ALL' || ivFilterSupplier !== 'ALL' || ivFilterFactory !== 'ALL' || ivFilterYear !== 'ALL' || ivSearch.trim();
+
+                return (
+                  <div className="space-y-4">
+                    {/*Header*/}
+                    <div className="bg-slate-900 border border-indigo-800/40 rounded-xl px-5 py-4 flex flex-wrap gap-4 items-start justify-between">
+                      <div>
+                        <h3 className="text-sm font-black text-indigo-300 uppercase tracking-wide">📄 Invoice Data</h3>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {filtered.length} invoice(s) · Total value: <span className="text-emerald-400 font-mono font-bold">${totalVal.toLocaleString(undefined,{minimumFractionDigits:2})}</span>
+                          {hasFilter && <span className="ml-2 text-amber-400 font-bold">· Filtered</span>}
+                        </p>
+                      </div>
+                      <input
+                        value={ivSearch}
+                        onChange={e => { setIvSearch(e.target.value); setIvPage(1); }}
+                        placeholder="Search invoice no., lot no., bill no., supplier..."
+                        className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white w-72"
+                        style={{colorScheme:'dark'}}
+                      />
+                    </div>
+
+                    {/*Filter bar*/}
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase">Filter:</span>
+                      <select value={ivFilterYear} onChange={e => { setIvFilterYear(e.target.value); setIvPage(1); }}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                        {ivYears.map(y => <option key={y} value={y}>{y === 'ALL' ? 'All Years' : y}</option>)}
+                      </select>
+                      <select value={ivFilterLoaiHinh} onChange={e => { setIvFilterLoaiHinh(e.target.value); setIvPage(1); }}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                        {ivLoaiHinhs.map(l => <option key={l} value={l}>{l === 'ALL' ? 'All Dec. Types' : l}</option>)}
+                      </select>
+                      <select value={ivFilterSupplier} onChange={e => { setIvFilterSupplier(e.target.value); setIvPage(1); }}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white max-w-[180px] truncate">
+                        {ivSuppliers.map(s => <option key={s} value={s}>{s === 'ALL' ? 'All Suppliers' : s}</option>)}
+                      </select>
+                      <select value={ivFilterFactory} onChange={e => { setIvFilterFactory(e.target.value); setIvPage(1); }}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                        {ivFactories.map(f => <option key={f} value={f}>{f === 'ALL' ? 'All Factories' : f}</option>)}
+                      </select>
+                      {hasFilter && (
+                        <button onClick={() => { setIvSearch(''); setIvFilterLoaiHinh('ALL'); setIvFilterSupplier('ALL'); setIvFilterFactory('ALL'); setIvFilterYear('ALL'); setIvPage(1); }}
+                          className="text-[10px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 rounded border border-rose-900/50 hover:border-rose-700">
+                          ✕ Clear
+                        </button>
+                      )}
+                    </div>
+
+                    {/*Table*/}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse min-w-[900px]">
+                          <thead>
+                            <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                              <th className="px-3 py-3">Invoice No.</th>
+                              <th className="px-3 py-3">Lot No.</th>
+                              <th className="px-3 py-3 text-center">Date</th>
+                              <th className="px-3 py-3 text-center">Dec. Type</th>
+                              <th className="px-3 py-3">Supplier</th>
+                              <th className="px-3 py-3 text-center">Factory</th>
+                              <th className="px-3 py-3 text-center">Incoterm</th>
+                              <th className="px-3 py-3 text-center">Currency</th>
+                              <th className="px-3 py-3 text-right">Invoice Value</th>
+                              <th className="px-3 py-3 text-center">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60">
+                            {paged.map(inv => {
+                              const lot = lots.find(l => l.lot_no === inv.lot_no);
+                              const val = getInvoiceValueSum(inv);
+                              const isDraft = !inv.lot_no;
+                              return (
+                                <tr key={inv.invoice_no} className={`transition-colors ${isDraft ? 'bg-amber-950/10 hover:bg-amber-950/20' : 'hover:bg-slate-800/40'}`}>
+                                  <td className="px-3 py-2.5 font-mono font-bold text-indigo-300">{inv.invoice_no}</td>
+                                  <td className="px-3 py-2.5">
+                                    {inv.lot_no
+                                      ? <span className="font-mono font-bold text-amber-400">{inv.lot_no}</span>
+                                      : <span className="text-amber-600 italic text-[10px] font-bold">⏳ Unassigned</span>}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(inv.invoice_date)}</td>
+                                  <td className="px-3 py-2.5 text-center">
+                                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${inv.loai_hinh === 'A12' ? 'bg-blue-900/50 text-blue-300' : inv.loai_hinh === 'E21' ? 'bg-emerald-900/50 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
+                                      {inv.loai_hinh||'—'}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-slate-300 text-[11px] max-w-[160px] truncate" title={inv.supplier}>{inv.supplier||'—'}</td>
+                                  <td className="px-3 py-2.5 text-center text-sky-400 font-mono text-[11px]">{inv.factory_no||'—'}</td>
+                                  <td className="px-3 py-2.5 text-center text-slate-400">{inv.incoterm||'—'}</td>
+                                  <td className="px-3 py-2.5 text-center font-mono text-slate-300">{inv.currency||'USD'}</td>
+                                  <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-400">${val.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                                  <td className="px-3 py-2.5 text-center">
+                                    <button
+                                      onClick={() => { setActiveMenu('E010'); if (inv.lot_no) setSelectedLotNo(inv.lot_no); setSelectedInvoiceNo(inv.invoice_no); }}
+                                      className="text-[10px] px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">
+                                      View
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {paged.length === 0 && (
+                              <tr><td colSpan="10" className="p-10 text-center text-slate-500 italic">No invoices found.</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/*Pagination*/}
+                    {totalPages > 1 && (
+                      <div className="flex justify-center items-center gap-2 pt-1">
+                        <button onClick={() => setIvPage(1)} disabled={safePage===1} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">«</button>
+                        <button onClick={() => setIvPage(p=>Math.max(1,p-1))} disabled={safePage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">‹ Prev</button>
+                        {Array.from({length:totalPages},(_,i)=>i+1)
+                          .filter(p=>p===1||p===totalPages||Math.abs(p-safePage)<=2)
+                          .reduce((acc,p,idx,arr)=>{if(idx>0&&p-arr[idx-1]>1)acc.push('...');acc.push(p);return acc;},[])
+                          .map((p,i)=>p==='...'
+                            ?<span key={`e${i}`} className="text-slate-500 text-xs px-1">…</span>
+                            :<button key={p} onClick={()=>setIvPage(p)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${p===safePage?'bg-indigo-600 text-white':'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{p}</button>
+                          )
+                        }
+                        <button onClick={() => setIvPage(p=>Math.min(totalPages,p+1))} disabled={safePage===totalPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">Next ›</button>
+                        <button onClick={() => setIvPage(totalPages)} disabled={safePage===totalPages} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">»</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/*--- LOT NO INFO VIEW ---*/}
+              {activeMenu === 'LOT_NO_INFO' && (() => {
+                // Draft lots = invoices that have no lot_no yet (grouped by bill)
+                const unassignedInvs = invoices.filter(inv => !inv.lot_no || !lots.some(l=>l.lot_no===inv.lot_no));
+                // All lots with basic info
+                const lnYears = ['ALL', ...Array.from(new Set(lots.map(l=>(l.lot_date||'').slice(0,4)).filter(Boolean))).sort((a,b)=>b-a)];
+                const lnLoaiHinhs = ['ALL', ...Array.from(new Set(lots.map(l=>l.loai_hinh).filter(Boolean))).sort()];
+
+                const allLotsFiltered = lots.filter(lot => {
+                  if (lnFilterLoaiHinh !== 'ALL' && lot.loai_hinh !== lnFilterLoaiHinh) return false;
+                  if (lnFilterYear !== 'ALL' && (lot.lot_date||'').slice(0,4) !== lnFilterYear) return false;
+                  if (lnSearch.trim()) {
+                    const q = lnSearch.toLowerCase();
+                    if (!(
+                      (lot.lot_no||'').toLowerCase().includes(q) ||
+                      (lot.bill_no||'').toLowerCase().includes(q) ||
+                      (lot.supplier||'').toLowerCase().includes(q) ||
+                      (lot.factory_no||'').toLowerCase().includes(q)
+                    )) return false;
+                  }
+                  return true;
+                }).sort((a,b) => (b.lot_date||'').localeCompare(a.lot_date||''));
+
+                const displayList = lnTab === 'draft' ? unassignedInvs : allLotsFiltered;
+                const totalPages = Math.max(1, Math.ceil(displayList.length / LN_PAGE_SIZE));
+                const safePage = Math.min(lnPage, totalPages);
+                const paged = displayList.slice((safePage-1)*LN_PAGE_SIZE, safePage*LN_PAGE_SIZE);
+
+                return (
+                  <div className="space-y-4">
+                    {/*Header*/}
+                    <div className="bg-slate-900 border border-blue-800/40 rounded-xl px-5 py-4 flex flex-wrap gap-4 items-start justify-between">
+                      <div>
+                        <h3 className="text-sm font-black text-blue-300 uppercase tracking-wide">🔢 Lot No. Information</h3>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {lnTab === 'draft'
+                            ? <>{unassignedInvs.length} invoices pending lot assignment</>
+                            : <>{allLotsFiltered.length} lots · <span className="text-blue-400 font-mono font-bold">{lots.length} total</span></>
+                          }
+                        </p>
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <input
+                          value={lnSearch}
+                          onChange={e => { setLnSearch(e.target.value); setLnPage(1); }}
+                          placeholder="Search lot, bill, supplier..."
+                          className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white w-60"
+                          style={{colorScheme:'dark'}}
+                        />
+                        <button
+                          onClick={() => { setActiveMenu('IMPORT_DECLARATION'); }}
+                          className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5">
+                          ✦ Create Lot
+                        </button>
+                      </div>
+                    </div>
+
+                    {/*Tab bar + filters*/}
+                    <div className="flex flex-wrap gap-3 items-center justify-between">
+                      <div className="flex gap-1 bg-slate-950 border border-slate-800 rounded-xl p-1">
+                        <button onClick={() => { setLnTab('draft'); setLnPage(1); }}
+                          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${lnTab==='draft'?'bg-amber-600 text-white shadow':'text-slate-400 hover:text-white'}`}>
+                          ⏳ Pending Assignment
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${lnTab==='draft'?'bg-white/20 text-white':'bg-slate-800 text-slate-400'}`}>{unassignedInvs.length}</span>
+                        </button>
+                        <button onClick={() => { setLnTab('all'); setLnPage(1); }}
+                          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${lnTab==='all'?'bg-blue-600 text-white shadow':'text-slate-400 hover:text-white'}`}>
+                          📋 All Lots
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${lnTab==='all'?'bg-white/20 text-white':'bg-slate-800 text-slate-400'}`}>{lots.length}</span>
+                        </button>
+                      </div>
+                      {lnTab === 'all' && (
+                        <div className="flex gap-2 flex-wrap items-center">
+                          <select value={lnFilterYear} onChange={e=>{setLnFilterYear(e.target.value);setLnPage(1);}}
+                            className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                            {lnYears.map(y=><option key={y} value={y}>{y==='ALL'?'All Years':y}</option>)}
+                          </select>
+                          <select value={lnFilterLoaiHinh} onChange={e=>{setLnFilterLoaiHinh(e.target.value);setLnPage(1);}}
+                            className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                            {lnLoaiHinhs.map(l=><option key={l} value={l}>{l==='ALL'?'All Types':l}</option>)}
+                          </select>
+                          {(lnFilterLoaiHinh!=='ALL'||lnFilterYear!=='ALL'||lnSearch.trim()) && (
+                            <button onClick={()=>{setLnSearch('');setLnFilterLoaiHinh('ALL');setLnFilterYear('ALL');setLnPage(1);}}
+                              className="text-[10px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 rounded border border-rose-900/50">✕ Clear</button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/*Table: Pending Assignment (draft invoices)*/}
+                    {lnTab === 'draft' && (
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                        {unassignedInvs.length === 0 ? (
+                          <div className="p-12 text-center">
+                            <div className="text-4xl mb-3 opacity-20">🎉</div>
+                            <p className="text-emerald-400 font-bold text-sm">All invoices have been assigned to lots!</p>
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse min-w-[700px]">
+                              <thead>
+                                <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                                  <th className="px-3 py-3">Invoice No.</th>
+                                  <th className="px-3 py-3 text-center">STT</th>
+                                  <th className="px-3 py-3 text-center">Date</th>
+                                  <th className="px-3 py-3 text-center">Dec. Type</th>
+                                  <th className="px-3 py-3">Bill No.</th>
+                                  <th className="px-3 py-3 text-center">Factory</th>
+                                  <th className="px-3 py-3 text-right">Value</th>
+                                  <th className="px-3 py-3 text-center">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-800/60">
+                                {paged.map(inv => (
+                                  <tr key={inv.invoice_no} className="bg-amber-950/10 hover:bg-amber-950/20 transition-colors">
+                                    <td className="px-3 py-2.5 font-mono font-bold text-amber-300">{inv.invoice_no}</td>
+                                    <td className="px-3 py-2.5 text-center font-mono text-slate-400">{inv.bill_stt||'—'}</td>
+                                    <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(inv.invoice_date)}</td>
+                                    <td className="px-3 py-2.5 text-center">
+                                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${inv.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':inv.loai_hinh==='E21'?'bg-emerald-900/50 text-emerald-300':'bg-slate-800 text-slate-400'}`}>
+                                        {inv.loai_hinh||'—'}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2.5 font-mono text-slate-300">{inv.bill_no||'—'}</td>
+                                    <td className="px-3 py-2.5 text-center text-sky-400 font-mono">{inv.factory_no||'—'}</td>
+                                    <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-400">${getInvoiceValueSum(inv).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                                    <td className="px-3 py-2.5 text-center">
+                                      <button onClick={() => setActiveMenu('IMPORT_DECLARATION')}
+                                        className="text-[10px] px-2.5 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white font-bold">
+                                        Assign →
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/*Table: All Lots*/}
+                    {lnTab === 'all' && (
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse min-w-[800px]">
+                            <thead>
+                              <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                                <th className="px-3 py-3">Lot No.</th>
+                                <th className="px-3 py-3 text-center">STT</th>
+                                <th className="px-3 py-3 text-center">Lot Date</th>
+                                <th className="px-3 py-3 text-center">Dec. Type</th>
+                                <th className="px-3 py-3">Bill No.</th>
+                                <th className="px-3 py-3">Supplier</th>
+                                <th className="px-3 py-3 text-center">Factory</th>
+                                <th className="px-3 py-3 text-center">Status</th>
+                                <th className="px-3 py-3 text-right">Inv. Count</th>
+                                <th className="px-3 py-3 text-center">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800/60">
+                              {paged.map(lot => {
+                                const lotInvCount = invoices.filter(i=>i.lot_no===lot.lot_no).length;
+                                return (
+                                  <tr key={lot.lot_no} className="hover:bg-slate-800/40 transition-colors">
+                                    <td className="px-3 py-2.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
+                                    <td className="px-3 py-2.5 text-center font-mono text-slate-400">{lot.stt||'—'}</td>
+                                    <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(lot.lot_date)}</td>
+                                    <td className="px-3 py-2.5 text-center">
+                                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${lot.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':lot.loai_hinh==='E21'?'bg-emerald-900/50 text-emerald-300':'bg-slate-800 text-slate-400'}`}>
+                                        {lot.loai_hinh||'—'}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2.5 font-mono text-slate-300 text-[11px]">{lot.bill_no||'—'}</td>
+                                    <td className="px-3 py-2.5 text-slate-300 text-[11px] max-w-[140px] truncate" title={lot.supplier}>{lot.supplier||'—'}</td>
+                                    <td className="px-3 py-2.5 text-center text-sky-400 font-mono text-[11px]">{lot.factory_no||'—'}</td>
+                                    <td className="px-3 py-2.5 text-center">
+                                      {lot.atc_date
+                                        ? <span className="text-[10px] bg-emerald-900/50 text-emerald-400 px-2 py-0.5 rounded font-bold">✓ Received</span>
+                                        : <span className="text-[10px] bg-rose-900/50 text-rose-400 px-2 py-0.5 rounded font-bold">⏳ Pending</span>}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right font-mono text-slate-300">{lotInvCount}</td>
+                                    <td className="px-3 py-2.5 text-center">
+                                      <button onClick={() => { setActiveMenu('E010'); setSelectedLotNo(lot.lot_no); setSelectedInvoiceNo(null); }}
+                                        className="text-[10px] px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">
+                                        View
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              {paged.length === 0 && (
+                                <tr><td colSpan="10" className="p-10 text-center text-slate-500 italic">No lots found.</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/*Pagination*/}
+                    {totalPages > 1 && (
+                      <div className="flex justify-center items-center gap-2 pt-1">
+                        <button onClick={() => setLnPage(1)} disabled={safePage===1} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">«</button>
+                        <button onClick={() => setLnPage(p=>Math.max(1,p-1))} disabled={safePage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">‹ Prev</button>
+                        {Array.from({length:totalPages},(_,i)=>i+1)
+                          .filter(p=>p===1||p===totalPages||Math.abs(p-safePage)<=2)
+                          .reduce((acc,p,idx,arr)=>{if(idx>0&&p-arr[idx-1]>1)acc.push('...');acc.push(p);return acc;},[])
+                          .map((p,i)=>p==='...'
+                            ?<span key={`e${i}`} className="text-slate-500 text-xs px-1">…</span>
+                            :<button key={p} onClick={()=>setLnPage(p)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${p===safePage?'bg-blue-600 text-white':'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{p}</button>
+                          )
+                        }
+                        <button onClick={() => setLnPage(p=>Math.min(totalPages,p+1))} disabled={safePage===totalPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">Next ›</button>
+                        <button onClick={() => setLnPage(totalPages)} disabled={safePage===totalPages} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">»</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/*--- IMPORT DECLARATION VIEW ---*/}
+              {activeMenu === 'IMPORT_DECLARATION' && (() => {
+                const unassigned = invoices.filter(inv => !inv.lot_no || !lots.some(l=>l.lot_no===inv.lot_no));
+                const idLoaiHinhs = ['ALL', ...Array.from(new Set(unassigned.map(i=>i.loai_hinh).filter(Boolean))).sort()];
+                const idFactories = ['ALL', ...Array.from(new Set(unassigned.map(i=>i.factory_no).filter(Boolean))).sort()];
+
+                const filtered = unassigned.filter(inv => {
+                  if (idFilterLoaiHinh !== 'ALL' && inv.loai_hinh !== idFilterLoaiHinh) return false;
+                  if (idFilterFactory !== 'ALL' && inv.factory_no !== idFilterFactory) return false;
+                  if (idSearch.trim()) {
+                    const q = idSearch.toLowerCase();
+                    if (!(
+                      (inv.invoice_no||'').toLowerCase().includes(q) ||
+                      (inv.bill_no||'').toLowerCase().includes(q) ||
+                      (inv.supplier||'').toLowerCase().includes(q)
+                    )) return false;
+                  }
+                  return true;
+                });
+
+                const totalPages = Math.max(1, Math.ceil(filtered.length / ID_PAGE_SIZE));
+                const safePage = Math.min(idPage, totalPages);
+                const paged = filtered.slice((safePage-1)*ID_PAGE_SIZE, safePage*ID_PAGE_SIZE);
+                const hasFilter = idFilterLoaiHinh !== 'ALL' || idFilterFactory !== 'ALL' || idSearch.trim();
+                const totalUnassignedVal = filtered.reduce((s,i)=>s+getInvoiceValueSum(i),0);
+
+                return (
+                  <div className="space-y-4">
+                    {/*Header*/}
+                    <div className="bg-slate-900 border border-amber-800/40 rounded-xl px-5 py-4 flex flex-wrap gap-4 items-start justify-between">
+                      <div>
+                        <h3 className="text-sm font-black text-amber-300 uppercase tracking-wide">✦ Import Declaration — Create Lots</h3>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {filtered.length} invoices pending assignment · Value: <span className="text-emerald-400 font-mono font-bold">${totalUnassignedVal.toLocaleString(undefined,{minimumFractionDigits:2})}</span>
+                        </p>
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <input
+                          value={idSearch}
+                          onChange={e => { setIdSearch(e.target.value); setIdPage(1); }}
+                          placeholder="Search invoice, bill no., supplier..."
+                          className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white w-64"
+                          style={{colorScheme:'dark'}}
+                        />
+                        <button
+                          onClick={() => {
+                            // Open add modal in new-lot mode (same flow as Add button in E010)
+                            setShowAddModal(true);
+                            setModalMode('add');
+                            setModalTab('lot');
+                          }}
+                          className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5">
+                          + New Entry
+                        </button>
+                      </div>
+                    </div>
+
+                    {/*Filter bar*/}
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase">Filter:</span>
+                      <select value={idFilterLoaiHinh} onChange={e=>{setIdFilterLoaiHinh(e.target.value);setIdPage(1);}}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                        {idLoaiHinhs.map(l=><option key={l} value={l}>{l==='ALL'?'All Dec. Types':l}</option>)}
+                      </select>
+                      <select value={idFilterFactory} onChange={e=>{setIdFilterFactory(e.target.value);setIdPage(1);}}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                        {idFactories.map(f=><option key={f} value={f}>{f==='ALL'?'All Factories':f}</option>)}
+                      </select>
+                      {hasFilter && (
+                        <button onClick={()=>{setIdSearch('');setIdFilterLoaiHinh('ALL');setIdFilterFactory('ALL');setIdPage(1);}}
+                          className="text-[10px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 rounded border border-rose-900/50">✕ Clear</button>
+                      )}
+                    </div>
+
+                    {/*No pending*/}
+                    {unassigned.length === 0 && (
+                      <div className="bg-emerald-950/30 border border-emerald-800/40 rounded-xl p-12 text-center">
+                        <div className="text-4xl mb-3">🎉</div>
+                        <p className="text-emerald-400 font-bold text-sm">All invoices have been assigned to lots!</p>
+                        <p className="text-slate-500 text-xs mt-1">Add a new invoice via the <strong>+ New Entry</strong> button to start a new declaration.</p>
+                      </div>
+                    )}
+
+                    {/*Table of unassigned invoices*/}
+                    {unassigned.length > 0 && (
+                      <div className="bg-slate-900 border border-amber-800/30 rounded-xl overflow-hidden">
+                        <div className="bg-amber-950/20 px-4 py-2.5 border-b border-amber-800/30 flex justify-between items-center">
+                          <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">⏳ Invoices Pending Lot Assignment</p>
+                          <span className="text-[10px] text-slate-500">{filtered.length} invoice(s)</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse min-w-[800px]">
+                            <thead>
+                              <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                                <th className="px-3 py-3">Invoice No.</th>
+                                <th className="px-3 py-3 text-center">STT</th>
+                                <th className="px-3 py-3 text-center">Date</th>
+                                <th className="px-3 py-3 text-center">Dec. Type</th>
+                                <th className="px-3 py-3">Bill No.</th>
+                                <th className="px-3 py-3 text-center">Factory</th>
+                                <th className="px-3 py-3 text-right">Value</th>
+                                <th className="px-3 py-3 text-center">Goods</th>
+                                <th className="px-3 py-3 text-center">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800/60">
+                              {paged.map(inv => {
+                                const invGoods = goods.filter(g=>String(g.invoice_no)===String(inv.invoice_no));
+                                return (
+                                  <tr key={inv.invoice_no} className="bg-amber-950/5 hover:bg-amber-950/15 transition-colors">
+                                    <td className="px-3 py-2.5 font-mono font-bold text-amber-300">{inv.invoice_no}</td>
+                                    <td className="px-3 py-2.5 text-center font-mono text-slate-400">{inv.bill_stt||'—'}</td>
+                                    <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(inv.invoice_date)}</td>
+                                    <td className="px-3 py-2.5 text-center">
+                                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${inv.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':inv.loai_hinh==='E21'?'bg-emerald-900/50 text-emerald-300':'bg-slate-800 text-slate-400'}`}>
+                                        {inv.loai_hinh||'—'}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2.5 font-mono text-slate-300">{inv.bill_no||'—'}</td>
+                                    <td className="px-3 py-2.5 text-center text-sky-400 font-mono">{inv.factory_no||'—'}</td>
+                                    <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-400">${getInvoiceValueSum(inv).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                                    <td className="px-3 py-2.5 text-center text-slate-400">{invGoods.length} item{invGoods.length!==1?'s':''}</td>
+                                    <td className="px-3 py-2.5 text-center">
+                                      <div className="flex gap-1 justify-center">
+                                        <button onClick={()=>startEditInvoice(inv)}
+                                          className="text-[10px] px-2.5 py-1 rounded bg-blue-800 hover:bg-blue-700 text-blue-200 font-bold">
+                                          Edit
+                                        </button>
+                                        <button onClick={(e)=>triggerDeleteInvoiceConfirm(inv.invoice_no,e)}
+                                          className="text-[10px] px-2 py-1 rounded bg-rose-900/60 hover:bg-rose-800 text-rose-300 font-bold">
+                                          🗑
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              {paged.length === 0 && (
+                                <tr><td colSpan="9" className="p-10 text-center text-slate-500 italic">No invoices match the filter.</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/*Quick create lot from unassigned (same as E010 flow)*/}
+                    {unassigned.length > 0 && (
+                      <div className="bg-slate-900 border border-slate-700 rounded-xl px-5 py-4">
+                        <p className="text-[11px] font-bold text-slate-300 mb-2">Quick action: go to Shipment Profiles to assign invoices and create lots</p>
+                        <button
+                          onClick={() => { setActiveMenu('E010'); }}
+                          className="text-xs px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold">
+                          → Open Shipment Profiles
+                        </button>
+                      </div>
+                    )}
+
+                    {/*Pagination*/}
+                    {totalPages > 1 && (
+                      <div className="flex justify-center items-center gap-2 pt-1">
+                        <button onClick={() => setIdPage(1)} disabled={safePage===1} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">«</button>
+                        <button onClick={() => setIdPage(p=>Math.max(1,p-1))} disabled={safePage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">‹ Prev</button>
+                        {Array.from({length:totalPages},(_,i)=>i+1)
+                          .filter(p=>p===1||p===totalPages||Math.abs(p-safePage)<=2)
+                          .reduce((acc,p,idx,arr)=>{if(idx>0&&p-arr[idx-1]>1)acc.push('...');acc.push(p);return acc;},[])
+                          .map((p,i)=>p==='...'
+                            ?<span key={`e${i}`} className="text-slate-500 text-xs px-1">…</span>
+                            :<button key={p} onClick={()=>setIdPage(p)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${p===safePage?'bg-amber-600 text-white':'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{p}</button>
+                          )
+                        }
+                        <button onClick={() => setIdPage(p=>Math.min(totalPages,p+1))} disabled={safePage===totalPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">Next ›</button>
+                        <button onClick={() => setIdPage(totalPages)} disabled={safePage===totalPages} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">»</button>
+                      </div>
+                    )}
+                  </div>
                 );
               })()}
 
