@@ -3824,12 +3824,6 @@
                                               📄 Sale Contract
                                             </button>
                                           )}
-                                          <button onClick={() => { setSelectedLotNo(lot.lot_no); handleExportSelectedLot(lot.lot_no); }}
-                                            className="text-[11px] px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold transition-all">📥 Export</button>
-                                          <button onClick={() => startEditLot(lot)}
-                                            className="text-[11px] px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-bold transition-all">✏ Edit</button>
-                                          <button onClick={(e) => triggerDeleteLotConfirm(lot.lot_no, e)}
-                                            className="text-[11px] px-3 py-1.5 rounded-lg bg-rose-900 hover:bg-rose-800 text-rose-300 font-bold transition-all">🗑</button>
                                           <button onClick={() => setExpandedLotNo(null)}
                                             className="text-[11px] px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 font-bold transition-all">✕</button>
                                         </div>
