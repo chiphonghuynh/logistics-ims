@@ -86,6 +86,10 @@
     @media (hover: none) and (pointer: coarse) {
       button, [role="button"] { min-height: 36px; }
     }
+    @keyframes accordionOpen {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
     @media print {
       body * {
         visibility: hidden;
@@ -1261,6 +1265,7 @@
 
       // Accordion: mở chi tiết lô ngay trong bảng thay vì popup
       const [expandedLotNo, setExpandedLotNo] = useState(null);
+      const [accordionTab, setAccordionTab] = useState('detail'); // 'detail' | 'invoices'
 
       const [homeSearchQuery, setHomeSearchQuery] = useState('');
 
@@ -3615,13 +3620,13 @@
                     )}
                   </div>
 
-                  {/*CONTROL BAR moved here, right after the search section*/}
+                  {/*CONTROL BAR*/}
                   <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center shadow-lg">
                     <span className="text-xs text-slate-400">
                       Selected Lot: <strong className="text-white font-mono">{selectedLotNo || 'None'}</strong>
+                      {selectedLotNo && <span className="ml-2 text-[10px] text-slate-500">— click ▶ to view details, invoices & actions</span>}
                     </span>
-                    <div className="flex gap-2">
-                      <button onClick={() => {
+                    <button onClick={() => {
                       setModalMode('add'); setModalTab('lot');
                       const freshStt = getFirstVacantSeq();
                       setLotForm({ lot_no: '', stt: freshStt, lot_date: getTodayLocal(), get_docs_date: getTodayLocal(), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: 'Freight Prepaid', carrier: '', transport_type: 'SEA_CONT', is_cont: true, cont_no: '', seal_no: '', cont_type: '40FT', contList: [{cont_no:'',seal_no:'',cont_type:'40FT'}], pkg_qty: 0, gw: 0, cbm: 0, cbm_str: '', eta: '', atc_date: '', origin_country: 'TAIWAN', loai_hinh: 'NEUTRAL', loai_hinh_con: 'DEFAULT', sale_qty: 0, is_hang_chung_bill: false, contract_start: '', contract_end: '' });
@@ -3632,21 +3637,6 @@
                       setLotAssignForm({ loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [], stt: freshStt });
                       setShowAddModal(true);
                     }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">+ Declare New Lot</button>
-                      <button onClick={() => { if(!selectedLotNo) return; setShowMasterInvoiceModal(true); }} disabled={!selectedLotNo} className={`px-4 py-2 rounded-lg text-xs font-bold ${selectedLotNo ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>Bảng Kê Hóa Đơn (Mẫu 02)</button>
-                      {/*Sale Contract only shown when A12 lot is selected*/}
-                      {selectedLotNo && (() => {
-                        const selLot = lots.find(l => l.lot_no === selectedLotNo);
-                        const isA12  = (selLot?.loai_hinh || '').toUpperCase() === 'A12';
-                        return isA12 ? (
-                          <button
-                            onClick={handleCreateContract}
-                            title={`Create Sale Contract for lot ${selectedLotNo}`}
-                            className="px-4 py-2 rounded-lg text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white flex items-center gap-1.5 transition-all">
-                            📄 Create Sale Contract
-                          </button>
-                        ) : null;
-                      })()}
-                    </div>
                   </div>
 
                   {/*MASTER LOT LIST TABLE*/}
@@ -3800,78 +3790,219 @@
                                 <td className="p-3 text-right font-mono text-amber-300 font-bold">{'$'}{lotVal.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                               </tr>
 
-                              {/* ── ACCORDION DETAIL ROW ── */}
+                              {/* ── ACCORDION DETAIL ROW — 2 TABS ── */}
                               {isExpanded && (
                                 <tr key={lot.lot_no + '_detail'}>
-                                  <td colSpan={colSpanCount} className="p-0 bg-slate-950/80 border-b border-slate-800">
-                                    <div className="px-6 py-4 space-y-4">
-                                      {/* Header */}
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">🚢 Lot Detail — {lot.lot_no}</span>
-                                          <span className="bg-slate-800 text-slate-400 text-[9px] px-2 py-0.5 rounded font-mono">{lot.loai_hinh} / {lot.loai_hinh_con}</span>
-                                          {lot.origin_country && <span className="text-[9px] text-slate-500">Origin: {lot.origin_country}</span>}
+                                  <td colSpan={colSpanCount} className="p-0 bg-slate-950 border-b-2 border-blue-800/40">
+                                    <div>
+
+                                      {/* TAB BAR + ACTION BUTTONS */}
+                                      <div className="flex items-center justify-between px-5 pt-3 pb-0 gap-3 flex-wrap">
+                                        <div className="flex gap-0.5 bg-slate-900 border border-slate-800 rounded-xl p-1">
+                                          <button onClick={() => setAccordionTab('detail')}
+                                            className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all ${accordionTab === 'detail' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
+                                            📋 Details
+                                          </button>
+                                          <button onClick={() => { setAccordionTab('invoices'); setSelectedLotNo(lot.lot_no); }}
+                                            className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 ${accordionTab === 'invoices' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>
+                                            📄 Invoices & Goods
+                                            {invoices.filter(i => i.lot_no === lot.lot_no).length > 0 && (
+                                              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${accordionTab === 'invoices' ? 'bg-white/20' : 'bg-slate-700 text-slate-400'}`}>
+                                                {invoices.filter(i => i.lot_no === lot.lot_no).length}
+                                              </span>
+                                            )}
+                                          </button>
                                         </div>
-                                        <div className="flex gap-2">
-                                          <button onClick={() => startEditLot(lot)} className="text-[11px] px-3 py-1 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-bold transition-all">✏ Edit</button>
-                                          <button onClick={(e) => triggerDeleteLotConfirm(lot.lot_no, e)} className="text-[11px] px-3 py-1 rounded-lg bg-rose-900 hover:bg-rose-800 text-rose-300 font-bold transition-all">🗑</button>
-                                          <button onClick={() => setExpandedLotNo(null)} className="text-[11px] px-3 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold transition-all">✕</button>
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <button onClick={() => { setSelectedLotNo(lot.lot_no); setShowMasterInvoiceModal(true); }}
+                                            className="text-[11px] px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-bold transition-all">
+                                            📑 Bảng Kê (02)
+                                          </button>
+                                          {(lot.loai_hinh || '').toUpperCase() === 'A12' && (
+                                            <button onClick={() => { setSelectedLotNo(lot.lot_no); handleCreateContract(); }}
+                                              className="text-[11px] px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold transition-all">
+                                              📄 Sale Contract
+                                            </button>
+                                          )}
+                                          <button onClick={() => { setSelectedLotNo(lot.lot_no); handleExportSelectedLot(lot.lot_no); }}
+                                            className="text-[11px] px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold transition-all">📥 Export</button>
+                                          <button onClick={() => startEditLot(lot)}
+                                            className="text-[11px] px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-bold transition-all">✏ Edit</button>
+                                          <button onClick={(e) => triggerDeleteLotConfirm(lot.lot_no, e)}
+                                            className="text-[11px] px-3 py-1.5 rounded-lg bg-rose-900 hover:bg-rose-800 text-rose-300 font-bold transition-all">🗑</button>
+                                          <button onClick={() => setExpandedLotNo(null)}
+                                            className="text-[11px] px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 font-bold transition-all">✕</button>
                                         </div>
                                       </div>
 
-                                      {/* Shipment info */}
-                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
-                                        {[
-                                          ['Bill No.', lot.bill_no || '—'],
-                                          ['Bill Date', fmtDisplayDate(lot.bill_date)],
-                                          ['ETA', fmtDisplayDate(lot.eta) || '—'],
-                                          ['ATC', lot.atc_date ? fmtDisplayDate(lot.atc_date) : 'Pending'],
-                                          ['GW', lot.gw ? `${Number(lot.gw).toLocaleString()} kg` : '—'],
-                                          ['CBM', lot.cbm ? `${lot.cbm} m³` : '—'],
-                                          ['Packages', lot.pkg_qty ? Number(lot.pkg_qty).toLocaleString() : '—'],
-                                          ['Supplier', lot.supplier || '—'],
-                                        ].map(([lbl, val]) => (
-                                          <div key={lbl} className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-800">
-                                            <div className="text-[9px] text-slate-500 uppercase font-bold mb-0.5">{lbl}</div>
-                                            <div className="text-slate-200 font-mono font-bold truncate" title={val}>{val}</div>
+                                      {/* ── TAB: DETAILS ── */}
+                                      {accordionTab === 'detail' && (
+                                        <div className="px-5 py-4 space-y-3">
+                                          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 text-[11px]">
+                                            {[
+                                              ['Lot No.', lot.lot_no, 'text-amber-400 font-mono font-black'],
+                                              ['Type', `${lot.loai_hinh} / ${lot.loai_hinh_con}`, 'text-slate-300'],
+                                              ['Bill No.', lot.bill_no || '—', 'text-slate-300 font-mono'],
+                                              ['Bill Date', fmtDisplayDate(lot.bill_date), 'text-slate-300 font-mono'],
+                                              ['ETA', fmtDisplayDate(lot.eta) || '—', lot.eta ? 'text-amber-300 font-mono font-bold' : 'text-slate-500'],
+                                              ['ATC', lot.atc_date ? fmtDisplayDate(lot.atc_date) : 'Pending', lot.atc_date ? 'text-emerald-400 font-mono font-bold' : 'text-rose-400 font-bold'],
+                                              ['POL → POD', `${lot.pol || '—'} → ${lot.pod || '—'}`, 'text-slate-300'],
+                                              ['GW', lot.gw ? `${Number(lot.gw).toLocaleString()} kg` : '—', 'text-slate-300 font-mono'],
+                                              ['CBM', lot.cbm ? `${lot.cbm} m³` : '—', 'text-slate-300 font-mono'],
+                                              ['Packages', lot.pkg_qty ? Number(lot.pkg_qty).toLocaleString() : '—', 'text-slate-300 font-mono'],
+                                              ['Factory', lot.factory_no || '—', 'text-slate-300'],
+                                              ['Supplier', lot.supplier || '—', 'text-slate-300 truncate'],
+                                            ].map(([lbl, val, cls]) => (
+                                              <div key={lbl} className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-800/60 min-w-0">
+                                                <div className="text-[9px] text-slate-500 uppercase font-bold mb-0.5 tracking-wide">{lbl}</div>
+                                                <div className={`truncate ${cls}`} title={String(val)}>{val}</div>
+                                              </div>
+                                            ))}
                                           </div>
-                                        ))}
-                                      </div>
-
-                                      {/* Invoices */}
-                                      {lotInvoices.length > 0 && (
-                                        <div>
-                                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">📄 Invoices ({lotInvoices.length})</p>
-                                          <div className="space-y-1">
-                                            {lotInvoices.map(inv => {
-                                              const invGoods = lotGoods.filter(g => String(g.invoice_no) === String(inv.invoice_no));
-                                              return (
-                                                <div key={inv.invoice_no} className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
-                                                  <div className="flex items-center justify-between text-[11px]">
-                                                    <div className="flex items-center gap-2">
-                                                      <span className="font-mono font-bold text-indigo-300">{inv.invoice_no}</span>
-                                                      <span className="text-slate-500">{fmtDisplayDate(inv.invoice_date)}</span>
-                                                      <span className="bg-slate-800 text-slate-400 text-[9px] px-1.5 py-0.5 rounded">{inv.incoterm}</span>
-                                                    </div>
-                                                    <span className="font-mono font-bold text-emerald-400">${getInvoiceValueSum(inv).toLocaleString(undefined,{minimumFractionDigits:2})}</span>
-                                                  </div>
-                                                  {invGoods.length > 0 && (
-                                                    <div className="mt-1.5 space-y-0.5">
-                                                      {invGoods.map(g => (
-                                                        <div key={g.id||g.goods_no} className="flex items-center justify-between text-[10px] text-slate-400 pl-2 border-l border-slate-700">
-                                                          <span className="font-mono text-emerald-600 mr-2">{(g.goods_no||'').split('*')[0].trim()}</span>
-                                                          <span className="truncate flex-1">{g.goods_name_en}</span>
-                                                          {g.sale_amount && <span className="font-mono text-amber-400 ml-2">${Number(g.sale_amount).toLocaleString(undefined,{minimumFractionDigits:2})}</span>}
-                                                        </div>
-                                                      ))}
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
+                                          {lot.loai_hinh === 'A12' && (lot.contract_start || lot.contract_end) && (
+                                            <div className="flex items-center gap-3 text-[11px] bg-blue-950/20 border border-blue-800/30 rounded-lg px-4 py-2">
+                                              <span className="text-blue-400 font-bold text-[10px] uppercase tracking-wide">📋 Contract:</span>
+                                              <span className="font-mono text-blue-300">{fmtDisplayDate(lot.contract_start)}</span>
+                                              <span className="text-slate-600">→</span>
+                                              <span className="font-mono text-blue-300">{fmtDisplayDate(lot.contract_end)}</span>
+                                            </div>
+                                          )}
                                         </div>
                                       )}
+
+                                      {/* ── TAB: INVOICES & GOODS ── */}
+                                      {accordionTab === 'invoices' && (() => {
+                                        const accInvoices = invoices.filter(i => String(i.lot_no) === String(lot.lot_no));
+                                        const accGoods    = goods.filter(g => accInvoices.some(i => String(i.invoice_no) === String(g.invoice_no)));
+                                        const accSelInv   = selectedInvoiceNo && accInvoices.find(i => i.invoice_no === selectedInvoiceNo)
+                                                              ? selectedInvoiceNo
+                                                              : (accInvoices[0]?.invoice_no || null);
+                                        const accCurGoods = goods.filter(g => String(g.invoice_no) === String(accSelInv));
+                                        const totalVal    = accInvoices.reduce((s, i) => s + getInvoiceValueSum(i), 0);
+                                        return (
+                                          <div className="px-5 py-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                            {/* INVOICE TABLE */}
+                                            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+                                              <div className="bg-slate-950/80 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
+                                                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wide">
+                                                  📄 Invoices <span className="text-slate-500 font-normal ml-1">({accInvoices.length} · ${totalVal.toLocaleString(undefined,{minimumFractionDigits:2})})</span>
+                                                </span>
+                                                <button onClick={() => {
+                                                  setLotForm(prev => ({...prev, ...lot, cbm_str: lot.cbm ? String(lot.cbm) : ''}));
+                                                  setSelectedFactories(lot.factory_no ? lot.factory_no.split(',').map(s=>s.trim()).filter(Boolean) : []);
+                                                  setModalMode('add'); setModalTab('invoice');
+                                                  setInvoiceForm(prev => ({...prev, lot_no: lot.lot_no, bill_no: lot.bill_no || '', bill_stt: lot.stt || 0, invoice_no: '', total_amount: 0, invoice_date: getTodayLocal()}));
+                                                  setShowAddModal(true);
+                                                }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-[10px]">+ Add</button>
+                                              </div>
+                                              <div className="overflow-y-auto" style={{maxHeight:'260px'}}>
+                                                <table className="w-full text-left text-xs border-collapse">
+                                                  <thead className="sticky top-0 z-10">
+                                                    <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 text-[10px]">
+                                                      <th className="px-3 py-2 w-6"></th>
+                                                      <th className="px-3 py-2">Invoice No.</th>
+                                                      <th className="px-3 py-2 text-center">Date</th>
+                                                      <th className="px-3 py-2 text-center">Term</th>
+                                                      <th className="px-3 py-2 text-right">Amount</th>
+                                                    </tr>
+                                                  </thead>
+                                                  <tbody className="divide-y divide-slate-900">
+                                                    {accInvoices.length === 0 ? (
+                                                      <tr><td colSpan="5" className="px-4 py-6 text-center text-slate-600 italic text-[11px]">No invoices — click + Add</td></tr>
+                                                    ) : accInvoices.map(inv => {
+                                                      const invGoods2 = accGoods.filter(g => String(g.invoice_no) === String(inv.invoice_no));
+                                                      const gTotal2   = invGoods2.reduce((s,g) => s+Number(g.sale_amount||0),0);
+                                                      const iTotal2   = Number(inv.total_amount)||0;
+                                                      const mismatch  = invGoods2.length > 0 && Math.abs(gTotal2 - iTotal2) > 0.01;
+                                                      const isSel     = accSelInv === inv.invoice_no;
+                                                      return (
+                                                        <tr key={inv.invoice_no}
+                                                          onClick={() => setSelectedInvoiceNo(inv.invoice_no)}
+                                                          className={`cursor-pointer transition-colors ${isSel ? 'bg-indigo-950/40 border-l-2 border-indigo-500 text-white' : 'hover:bg-slate-800/50 text-slate-300'}`}>
+                                                          <td className="px-3 py-2.5 text-center">
+                                                            <span className={`inline-block w-2 h-2 rounded-full ${isSel ? 'bg-indigo-400' : 'bg-slate-700'}`}></span>
+                                                          </td>
+                                                          <td className="px-3 py-2.5 font-mono font-bold text-indigo-300 text-[11px]">
+                                                            {inv.invoice_no}
+                                                            {mismatch && <span className="ml-1 text-[9px] bg-rose-900 text-rose-300 px-1 rounded" title="Amount mismatch">!</span>}
+                                                            {showAddModal && modalMode === 'edit' && modalTab === 'invoice' && invoiceForm.invoice_no === inv.invoice_no && (
+                                                              <span className="ml-1 text-[9px] bg-amber-600/30 border border-amber-700 text-amber-400 px-1 rounded">editing</span>
+                                                            )}
+                                                          </td>
+                                                          <td className="px-3 py-2.5 text-center text-slate-400 text-[10px]">{fmtDisplayDate(inv.invoice_date)}</td>
+                                                          <td className="px-3 py-2.5 text-center font-bold text-pink-400 text-[10px]">{inv.incoterm}</td>
+                                                          <td className="px-3 py-2.5 text-right font-mono font-bold text-amber-400 text-[10px]">${getInvoiceValueSum(inv).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                                                        </tr>
+                                                      );
+                                                    })}
+                                                  </tbody>
+                                                </table>
+                                              </div>
+                                            </div>
+
+                                            {/* GOODS TABLE */}
+                                            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+                                              <div className="bg-slate-950/80 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
+                                                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wide">
+                                                  📦 Goods <span className="text-slate-500 font-normal ml-1">(Inv: {accSelInv || 'N/A'})</span>
+                                                </span>
+                                                <div className="flex gap-1.5">
+                                                  {accSelInv && (
+                                                    <button onClick={() => {
+                                                      setModalMode('add');
+                                                      setGoodsForm(prev => ({...prev, invoice_no: accSelInv}));
+                                                      setModalTab('goods');
+                                                      setShowAddModal(true);
+                                                    }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-[10px]">+ Add Item</button>
+                                                  )}
+                                                  <button onClick={() => {
+                                                    const lotInvNos2 = accInvoices.map(i => String(i.invoice_no));
+                                                    const lotGoodsAll2 = goods.filter(g => lotInvNos2.includes(String(g.invoice_no)));
+                                                    if (!lotGoodsAll2.length) return showNotification('No goods to export!', 'error');
+                                                    const firstInv2 = accInvoices[0];
+                                                    const isA12_2 = (firstInv2?.loai_hinh || 'A12') === 'A12';
+                                                    const hdr2 = ['Item Code','Goods Name',...(isA12_2?['HS Code']:[]),'Origin','Qty 1','Unit 1','Qty 2','Unit 2','Unit Price','Amount',...(isA12_2?['Import Tax Code','VAT Tax Code']:[])];
+                                                    const rows2 = lotGoodsAll2.map(g => [(g.goods_no||'').split('*')[0].trim(),[g.goods_name_local,g.goods_name_en].filter(Boolean).join(' / '),...(isA12_2?[g.hs_code||'']:[]),g.origin_country||'',g.qty1||0,g.unit1||g.goods_unit_en||'',g.qty2||0,g.unit2||g.goods_unit_en2||'',g.unit_price||0,g.sale_amount||0,...(isA12_2?['B01','VB901']:[])]);
+                                                    const wb2 = XLSX.utils.book_new();
+                                                    const ws2 = XLSX.utils.aoa_to_sheet([hdr2,...rows2]);
+                                                    ws2['!cols'] = hdr2.map((h,ci) => ({ wch: Math.min(Math.max(h.length,...rows2.map(r=>String(r[ci]||'').length))+2,50) }));
+                                                    XLSX.utils.book_append_sheet(wb2,ws2,'Goods');
+                                                    XLSX.writeFile(wb2,`HangHoa_${lot.lot_no}_${getTodayLocal()}.xlsx`);
+                                                    showNotification(`Exported ${lotGoodsAll2.length} goods rows`);
+                                                  }} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-2.5 py-1 rounded-lg text-[10px]">📥 Excel</button>
+                                                </div>
+                                              </div>
+                                              <div className="overflow-y-auto" style={{maxHeight:'260px'}}>
+                                                <table className="w-full text-left text-xs border-collapse">
+                                                  <thead className="sticky top-0 z-10">
+                                                    <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 text-[10px]">
+                                                      <th className="px-3 py-2 text-center">#</th>
+                                                      <th className="px-3 py-2">Item Code</th>
+                                                      <th className="px-3 py-2">HS Code</th>
+                                                      <th className="px-3 py-2">English Name</th>
+                                                      <th className="px-3 py-2 text-right">Amount</th>
+                                                    </tr>
+                                                  </thead>
+                                                  <tbody className="divide-y divide-slate-900">
+                                                    {accCurGoods.length === 0 ? (
+                                                      <tr><td colSpan="5" className="px-4 py-6 text-center text-slate-600 italic text-[11px]">{accSelInv ? 'No goods for this invoice.' : 'Select an invoice to view goods.'}</td></tr>
+                                                    ) : accCurGoods.map((g) => (
+                                                      <tr key={g.id||g.goods_no} className={`transition-colors ${recentlyUpdatedGoods.has(g.id) ? 'bg-emerald-900/20 border-l-2 border-emerald-500' : 'hover:bg-slate-800/40 text-slate-300'}`}>
+                                                        <td className="px-3 py-2 text-center text-slate-500 font-mono text-[10px]">{g.goods_item}</td>
+                                                        <td className="px-3 py-2 font-mono text-emerald-400 font-bold text-[10px]">{(g.goods_no||'').split('*')[0].trim()}</td>
+                                                        <td className="px-3 py-2 font-mono text-slate-400 text-[10px]">{g.hs_code}</td>
+                                                        <td className="px-3 py-2 text-slate-200 text-[11px]">{g.goods_name_en}</td>
+                                                        <td className="px-3 py-2 text-right font-mono font-bold text-amber-400 text-[10px]">${Number(g.sale_amount||0).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                                                      </tr>
+                                                    ))}
+                                                  </tbody>
+                                                </table>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+
                                     </div>
                                   </td>
                                 </tr>
@@ -3885,195 +4016,11 @@
                   </div>
                   )}
 
-                  {/*SPLIT-SCREEN DETAIL PANEL (INVOICES & GOODS)*/}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/*Invoice Table*/}
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col">
-                      <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
-                        <h3 className="font-bold text-xs tracking-wide uppercase">📄 Commercial Invoices (Lot: {selectedLotNo || 'N/A'})</h3>
-                        {selectedLotNo && (
-                          <button onClick={() => {
-                            const selLot = lots.find(l => l.lot_no === selectedLotNo);
-                            if (selLot) {
-                              setLotForm(prev => ({...prev, ...selLot, cbm_str: selLot.cbm ? String(selLot.cbm) : ''}));
-                              setSelectedFactories(selLot.factory_no ? selLot.factory_no.split(',').map(s=>s.trim()).filter(Boolean) : []);
-                            }
-                            setModalMode('add');
-                            setModalTab('invoice');
-                            setInvoiceForm(prev => ({...prev, lot_no: selectedLotNo, bill_no: selLot?.bill_no || '', bill_stt: selLot?.stt || 0, invoice_no: '', total_amount: 0, invoice_date: new Date().toISOString().substring(0,10)}));
-                            setShowAddModal(true);
-                          }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
-                            + Add Invoice
-                          </button>
-                        )}
-                      </div>
-                      <div className="overflow-x-auto flex-1">
-                        <table className="w-full text-left text-xs border-collapse">
-                          <thead>
-                            <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
-                              <th className="p-3 w-12 text-center">Select</th>
-                              <th className="p-3">Invoice No.</th>
-                              <th className="p-3">Inv. Date</th>
-                              <th className="p-3">Incoterm</th>
-                              <th className="p-3 text-right">Actual Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-855">
-                            {currentInvoices.map((inv) => (
-                              <tr key={inv.invoice_no} onClick={() => setSelectedInvoiceNo(inv.invoice_no)} className={`cursor-pointer transition-all duration-300 ${recentlyUpdatedInvoices.has(inv.invoice_no) ? 'bg-emerald-900/30 border-l-4 border-emerald-500 text-white' : selectedInvoiceNo === inv.invoice_no ? 'bg-indigo-950/20 text-white border-l-2 border-indigo-500' : 'hover:bg-slate-850/30'}`}>
-                                <td className="p-3 text-center"><input type="radio" checked={selectedInvoiceNo === inv.invoice_no} readOnly className="accent-indigo-500" /></td>
-                                <td className="p-3 font-bold font-mono text-indigo-400">
-                                  {inv.invoice_no}
-                                  {showAddModal && modalMode === 'edit' && modalTab === 'invoice' && invoiceForm.invoice_no === inv.invoice_no && (
-                                    <span className="ml-1.5 text-[9px] bg-amber-600/30 border border-amber-700 text-amber-400 px-1.5 py-0.5 rounded font-sans">editing</span>
-                                  )}
-                                  {(() => {
-                                    const invGoods = goods.filter(g => String(g.invoice_no) === String(inv.invoice_no));
-                                    if (invGoods.length === 0) return null;
-                                    const gTotal = invGoods.reduce((s,g) => s+Number(g.sale_amount||0),0);
-                                    const iTotal = Number(inv.total_amount)||0;
-                                    const diff = Math.abs(gTotal - iTotal);
-                                    if (diff > 0.01) return <span className="ml-1 text-[9px] bg-rose-900 text-rose-300 px-1 rounded" title={`Inv: ${iTotal.toFixed(2)} ≠ Goods: ${gTotal.toFixed(2)}`}>Mismatch</span>;
-                                    return null;
-                                  })()}
-                                </td>
-                                <td className="p-3">{fmtDisplayDate(inv.invoice_date)}</td>
-                                <td className="p-3 font-bold text-pink-500">{inv.incoterm}</td>
-                                <td className="p-3 text-right text-amber-400 font-bold font-mono">{'$'}{getInvoiceValueSum(inv).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                              </tr>
-                            ))}
-                            {selectedLotNo && currentInvoices.length === 0 && (
-                              <tr><td colSpan="6" className="p-6 text-center text-slate-500 italic">No invoices declared for this lot.</td></tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {/*Goods Detail Table*/}
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col">
-                      <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
-                        <h3 className="font-bold text-xs tracking-wide uppercase">📦 Goods List (Invoice: {selectedInvoiceNo || 'N/A'})</h3>
-                        <div className="flex gap-2">
-                          {selectedLotNo && (
-                            <button onClick={() => {
-                              // Export goods of selected lot — columns depend on loai_hinh
-                              const lotInvNos = invoices.filter(i => i.lot_no === selectedLotNo).map(i => String(i.invoice_no));
-                              const lotGoods = goods.filter(g => lotInvNos.includes(String(g.invoice_no)));
-                              if (lotGoods.length === 0) return showNotification("No goods to export!", "error");
-
-                              // Detect loai_hinh from first invoice of this lot
-                              const firstInv = invoices.find(i => i.lot_no === selectedLotNo);
-                              const isA12 = (firstInv?.loai_hinh || 'A12') === 'A12';
-
-                              // Build header row: Item Code | Tên Hàng | HS Code (A12 only) | ...rest
-                              const header = [
-                                'Item Code',
-                                'Goods Name',
-                                ...(isA12 ? ['HS Code'] : []),
-                                'Origin',
-                                'Qty 1', 'Unit 1',
-                                'Qty 2', 'Unit 2',
-                                'Unit Price', 'Amount',
-                                ...(isA12 ? ['Import Tax Code', 'VAT Tax Code'] : []),
-                              ];
-
-                              // Build data rows
-                              const dataRows = lotGoods.map(g => {
-                                const maHang    = (g.goods_no || '').split('*')[0].trim();
-                                const tenHang   = [g.goods_name_local, g.goods_name_en].filter(Boolean).join(' / ');
-                                const xuatXu    = g.origin_country || '';
-                                const qty1      = g.qty1 || 0;
-                                const dvt1      = g.unit1 || g.goods_unit_en || '';
-                                const qty2      = g.qty2 || 0;
-                                const dvt2      = g.unit2 || g.goods_unit_en2 || '';
-                                const donGia    = g.unit_price || 0;
-                                const thanhTien = g.sale_amount || 0;
-
-                                return [
-                                  maHang,
-                                  tenHang,
-                                  ...(isA12 ? [g.hs_code || ''] : []),
-                                  xuatXu,
-                                  qty1, dvt1,
-                                  qty2, dvt2,
-                                  donGia, thanhTien,
-                                  ...(isA12 ? ['B01', 'VB901'] : []),
-                                ];
-                              });
-
-                              const wsData = [header, ...dataRows];
-
-                              // Apply column styles (number format for qty/price/total)
-                              const wb = XLSX.utils.book_new();
-                              const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-                              // Auto column widths
-                              const colWidths = header.map((h, ci) => {
-                                const maxLen = Math.max(h.length, ...dataRows.map(r => String(r[ci] || '').length));
-                                return { wch: Math.min(Math.max(maxLen + 2, 10), 50) };
-                              });
-                              ws['!cols'] = colWidths;
-
-                              XLSX.utils.book_append_sheet(wb, ws, 'Danh Sach Hang Hoa');
-                              XLSX.writeFile(wb, `HangHoa_${selectedLotNo}_${isA12 ? 'A12' : 'E21'}_${getTodayLocal()}.xlsx`);
-                              showNotification(`Exported ${lotGoods.length} goods rows for lot ${selectedLotNo} (${isA12 ? 'A12 — HS Code + Tax Code' : 'E21'})`);
-                            }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
-                              📥 Export Excel
-                            </button>
-                          )}
-                          {selectedInvoiceNo && (
-                            <button onClick={() => {
-                              setModalMode('add');
-                              setGoodsForm(prev => ({...prev, invoice_no: selectedInvoiceNo}));
-                              setModalTab('goods');
-                              setShowAddModal(true);
-                            }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
-                              + Add Item
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto flex-1">
-                        <table className="w-full text-left text-xs border-collapse">
-                          <thead>
-                            <tr className="bg-slate-950 text-slate-400 border-b border-slate-850">
-                              <th className="p-3 text-center">STT</th>
-                              <th className="p-3">Item Code</th>
-                              <th className="p-3">HS Code</th>
-                              <th className="p-3">English Name</th>
-                              <th className="p-3 text-right">Value</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-855">
-                            {currentGoods.map((g) => (
-                              <tr key={g.id} className={`transition-all duration-300 ${recentlyUpdatedGoods.has(g.id) ? 'bg-emerald-900/30 border-l-4 border-emerald-500' : 'hover:bg-slate-850/30'}`}>
-                                <td className="p-3 text-center font-mono text-slate-500">{g.goods_item}</td>
-                                <td className="p-3 font-mono text-emerald-400 font-bold text-[10px]">
-                                  {(g.goods_no || '').split('*')[0].trim()}
-                                  {showAddModal && modalMode === 'edit' && modalTab === 'goods' && goodsForm.id === g.id && (
-                                    <span className="ml-1 text-[9px] bg-amber-600/30 border border-amber-700 text-amber-400 px-1 py-0.5 rounded font-sans">editing</span>
-                                  )}
-                                </td>
-                                <td className="p-3 font-mono text-slate-400">{g.hs_code}</td>
-                                <td className="p-3 font-medium text-slate-200">{g.goods_name_en}</td>
-                                <td className="p-3 text-right text-amber-400 font-bold">{'$'}{Number(g.sale_amount||0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                              </tr>
-                            ))}
-                            {selectedInvoiceNo && currentGoods.length === 0 && (
-                              <tr><td colSpan="6" className="p-6 text-center text-slate-500 italic">Invoice has no goods. Please type the English name of the goods item using the "Edit" or "Declare Lot" button to auto-sync.</td></tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-
                 </div>
               )}
 
               {/*SECTION*/}
-              {activeMenu === 'SUPPLIER_DATA' && (() => {
+              {activeMenu === 'SUPPLIER_DATA' && (() => { && (() => {
                 const MD_PAGE_SIZE = 30;
                 const showSuppTable = suppShowAll || supplierSearch.trim() !== '';
                 const totalSuppPages = Math.ceil(filteredSuppliers.length / MD_PAGE_SIZE);
