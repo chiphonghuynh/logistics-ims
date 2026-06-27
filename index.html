@@ -1310,6 +1310,9 @@
       const [polAddingNew, setPolAddingNew] = useState(false);
       const [podAddingNew, setPodAddingNew] = useState(false);
       const [originAddingNew, setOriginAddingNew] = useState(false);
+      const [carrierAddingNew, setCarrierAddingNew] = useState(false);
+      const [billNoAddingNew, setBillNoAddingNew] = useState(false);
+      const [goodsOriginAddingNew, setGoodsOriginAddingNew] = useState(false);
       const addCarrierHistory = (val) => {
         if (!val || carrierHistory.includes(val)) return;
         const next = [val, ...carrierHistory].slice(0, 30);
@@ -1364,7 +1367,7 @@
 
       const showNotification = (message, type = 'success') => {
         setNotification({ message, type });
-        setTimeout(() => setNotification(null), 4500);
+        setTimeout(() => setNotification(null), type === 'error' ? 8000 : 4500);
       };
 
       // Sinh Số Thứ Tự (STT) trống nhỏ nhất tự động
@@ -2337,10 +2340,9 @@
             ...prev, goods_name_en: engName, goods_no: matched.goods_no, goods_name_local: matched.goods_name_local,
             hs_code: matched.hs_code,
             goods_unit_en: matched.goods_unit_en || 'PCS', goods_unit_local: matched.goods_unit_local || 'Cái',
-            goods_unit_en2: matched.goods_unit_en2 || '', goods_unit_local2: matched.goods_unit_local2 || '',
-            // Tự động điền ĐƠN VỊ TÍNH 1 / ĐƠN VỊ TÍNH 2 từ HS Code dictionary: Unit(1) -> unit1, Unit(2) -> unit2
+            // Tự động điền ĐƠN VỊ TÍNH 1 / ĐƠN VỊ TÍNH 2 từ HS Code dictionary: ĐVT1 (goods_unit_en) -> unit1, ĐVT2 (goods_unit_local) -> unit2
             unit1: matched.goods_unit_en || 'PCS',
-            unit2: matched.goods_unit_en2 || ''
+            unit2: matched.goods_unit_local || ''
           }));
           const pct = Math.round(score * 100);
           showNotification(pct === 100 ? `Exact match: ${matched.goods_no}` : `Best match (${pct}%): ${matched.goods_no}`);
@@ -2791,7 +2793,7 @@
             <div className={`fixed top-4 right-4 z-[9999] px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all duration-300 transform translate-y-0 ${
               notification.type === 'error' ? 'bg-rose-600 border border-rose-500' : 'bg-emerald-600 border border-emerald-500'
             }`}>
-              <span className="text-sm font-bold">{notification.message}</span>
+              <span className="text-sm font-bold" style={{whiteSpace: 'pre-line'}}>{notification.message}</span>
             </div>
           )}
 
@@ -5124,10 +5126,21 @@
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Carrier / Forwarder</label>
-                          <input type="text" list="carrier-history-list" value={lotForm.carrier}
-                            onChange={(e) => setLotForm({...lotForm, carrier: e.target.value})}
-                            placeholder="VD: EVERGREEN, DHL, GEODIS..."
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                          {carrierAddingNew ? (
+                            <input type="text" autoFocus list="carrier-history-list" value={lotForm.carrier}
+                              onChange={(e) => setLotForm({...lotForm, carrier: e.target.value})}
+                              onBlur={() => { if (!lotForm.carrier) setCarrierAddingNew(false); }}
+                              placeholder="VD: EVERGREEN, DHL, GEODIS..."
+                              className="w-full bg-slate-950 border border-blue-700 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                          ) : (
+                            <select value={lotForm.carrier || ''}
+                              onChange={(e) => { if (e.target.value === '__ADD_NEW__') { setCarrierAddingNew(true); setLotForm({...lotForm, carrier: ''}); } else { setLotForm({...lotForm, carrier: e.target.value}); } }}
+                              className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}}>
+                              <option value="">— Select —</option>
+                              {carrierHistory.map((c, i) => <option key={i} value={c}>{c}</option>)}
+                              <option value="__ADD_NEW__">+ Add new...</option>
+                            </select>
+                          )}
                           <datalist id="carrier-history-list">
                             {carrierHistory.map((c, i) => <option key={i} value={c} />)}
                           </datalist>
@@ -5463,6 +5476,29 @@
                   {modalTab === 'invoice' && (
                     <form onSubmit={handleSaveInvoice} className="space-y-5">
 
+                      {/*RECEIVING FACTORY (Invoice level) — moved to top*/}
+                      <div className="bg-slate-950/40 p-4 border border-slate-800 rounded-xl space-y-3">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">🏭 Receiving Factory (this Invoice)</label>
+                        <div className="flex gap-2 flex-wrap">
+                          {FACTORY_OPTIONS.map((fac) => {
+                            const invFactories = (invoiceForm.factory_no || '').split(',').map(s=>s.trim()).filter(Boolean);
+                            const isChecked = invFactories.includes(fac);
+                            return (
+                              <label key={fac} className={`flex items-center gap-2 cursor-pointer border px-3 py-1.5 rounded-lg transition-all text-xs font-bold ${isChecked ? 'bg-blue-900/30 border-blue-600 text-white' : 'bg-slate-900 border-slate-800 text-slate-400'}`}>
+                                <input type="checkbox" checked={isChecked}
+                                  onChange={(e) => {
+                                    const cur = (invoiceForm.factory_no||'').split(',').map(s=>s.trim()).filter(Boolean);
+                                    const next = e.target.checked ? [...cur, fac] : cur.filter(f=>f!==fac);
+                                    setInvoiceForm(prev => ({...prev, factory_no: next.join(', ')}));
+                                  }}
+                                  className="accent-blue-500" />
+                                {fac}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
                       {/*--- SELECT INVOICE TO EDIT (edit mode, none selected yet) ---*/}
                       {modalMode === 'edit' && !invoiceForm.invoice_no && selectedLotNo && (() => {
                         const lotInvoices = invoices.filter(i => i.lot_no === selectedLotNo);
@@ -5540,13 +5576,17 @@
                         </div>
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Supplier</label>
-                          <input type="text" list="supplier-history-list" value={invoiceForm.supplier || ''}
+                          <select value={invoiceForm.supplier || ''}
                             onChange={(e) => setInvoiceForm({...invoiceForm, supplier: e.target.value})}
-                            placeholder="Type or select supplier..."
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
-                          <datalist id="supplier-history-list">
-                            {supplierHistory.map((s, i) => <option key={i} value={s} />)}
-                          </datalist>
+                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}}>
+                            <option value="">— Select —</option>
+                            {(supplierData || []).map((s, i) => (
+                              <option key={i} value={s['SUPPLIER NAME']}>{s['SUPPLIER NAME']}</option>
+                            ))}
+                          </select>
+                          {(!supplierData || supplierData.length === 0) && (
+                            <p className="text-[10px] text-amber-600 mt-1">No suppliers yet — add one in Master Data → Supplier Data.</p>
+                          )}
                         </div>
                       </div>
 
@@ -5645,10 +5685,23 @@
                           <label className="block text-[11px] text-slate-400 mb-1">Related Bill No.
                             <span className="ml-1 text-slate-600 normal-case font-normal">— auto-matched from existing lots</span>
                           </label>
-                          <input type="text" list="bill-no-suggestions" value={invoiceForm.bill_no}
-                            onChange={(e) => setInvoiceForm({...invoiceForm, bill_no: e.target.value.toUpperCase()})}
-                            placeholder="Type a few characters to search bill..."
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono" />
+                          {billNoAddingNew ? (
+                            <input type="text" autoFocus list="bill-no-suggestions" value={invoiceForm.bill_no}
+                              onChange={(e) => setInvoiceForm({...invoiceForm, bill_no: e.target.value.toUpperCase()})}
+                              onBlur={() => { if (!invoiceForm.bill_no) setBillNoAddingNew(false); }}
+                              placeholder="Type new bill no..."
+                              className="w-full bg-slate-950 border border-blue-700 rounded px-3 py-2 text-xs text-white font-mono" />
+                          ) : (
+                            <select value={invoiceForm.bill_no || ''}
+                              onChange={(e) => { if (e.target.value === '__ADD_NEW__') { setBillNoAddingNew(true); setInvoiceForm({...invoiceForm, bill_no: ''}); } else { setInvoiceForm({...invoiceForm, bill_no: e.target.value}); } }}
+                              className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono">
+                              <option value="">— Select —</option>
+                              {[...new Set(lots.filter(l => l.bill_no).map(l => l.bill_no))].map((b, i) => (
+                                <option key={i} value={b}>{b} — {lots.filter(l => l.bill_no === b).map(l => l.lot_no).join(', ')}</option>
+                              ))}
+                              <option value="__ADD_NEW__">+ Add new...</option>
+                            </select>
+                          )}
                           <datalist id="bill-no-suggestions">
                             {[...new Set(lots.filter(l => l.bill_no).map(l => l.bill_no))].map((b, i) => (
                               <option key={i} value={b}>{b} — {lots.filter(l => l.bill_no === b).map(l => l.lot_no).join(', ')}</option>
@@ -5740,29 +5793,6 @@
                               {'$'}{((invoiceForm.total_amount||0) - (invoiceForm.foc_amount||0) + (invoiceForm.plus_sea_freight||0) + (invoiceForm.handling_charges||0) + (invoiceForm.other_charges||0)).toFixed(2)}
                             </p>
                           </div>
-                        </div>
-                      </div>
-
-                      {/*RECEIVING FACTORY (Invoice level)*/}
-                      <div className="bg-slate-950/40 p-4 border border-slate-800 rounded-xl space-y-3">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">🏭 Receiving Factory (this Invoice)</label>
-                        <div className="flex gap-2 flex-wrap">
-                          {FACTORY_OPTIONS.map((fac) => {
-                            const invFactories = (invoiceForm.factory_no || '').split(',').map(s=>s.trim()).filter(Boolean);
-                            const isChecked = invFactories.includes(fac);
-                            return (
-                              <label key={fac} className={`flex items-center gap-2 cursor-pointer border px-3 py-1.5 rounded-lg transition-all text-xs font-bold ${isChecked ? 'bg-blue-900/30 border-blue-600 text-white' : 'bg-slate-900 border-slate-800 text-slate-400'}`}>
-                                <input type="checkbox" checked={isChecked}
-                                  onChange={(e) => {
-                                    const cur = (invoiceForm.factory_no||'').split(',').map(s=>s.trim()).filter(Boolean);
-                                    const next = e.target.checked ? [...cur, fac] : cur.filter(f=>f!==fac);
-                                    setInvoiceForm(prev => ({...prev, factory_no: next.join(', ')}));
-                                  }}
-                                  className="accent-blue-500" />
-                                {fac}
-                              </label>
-                            );
-                          })}
                         </div>
                       </div>
 
@@ -6044,6 +6074,7 @@
                                   let batch = [...goods];
                                   let count = 0, skipped = 0;
                                   let itemNo = goods.filter(g => String(g.invoice_no) === String(goodsForm.invoice_no)).length + 1;
+                                  const mismatches = []; // Theo dõi các dòng có Unit1/Unit2 khác với HS Code dictionary
                                   for (let ri = 1; ri < rows.length; ri++) {
                                     const row = rows[ri];
                                     if (idxInv !== -1) {
@@ -6056,6 +6087,22 @@
                                     const dm = fuzzyRes ? fuzzyRes.item : null;
                                     const qty1v = idxQty1 !== -1 ? Number(row[idxQty1])||0 : 0;
                                     const pv = idxPrice !== -1 ? Number(row[idxPrice])||0 : 0;
+                                    // Unit1/Unit2: dữ liệu Excel luôn được lấy làm chuẩn nếu có cột; chỉ dùng HS Code dictionary làm fallback khi Excel không có cột đó
+                                    const excelUnit1 = idxUnit1 !== -1 ? String(row[idxUnit1]||'').trim() : '';
+                                    const excelUnit2 = idxUnit2 !== -1 ? String(row[idxUnit2]||'').trim() : '';
+                                    const finalUnit1 = excelUnit1 || dm?.goods_unit_en || 'PCS';
+                                    const finalUnit2 = excelUnit2 || dm?.goods_unit_local || '';
+                                    // So sánh với HS Code dictionary (ĐVT1=goods_unit_en, ĐVT2=goods_unit_local) để báo lại nếu lệch
+                                    if (dm) {
+                                      const dictUnit1 = (dm.goods_unit_en || '').trim();
+                                      const dictUnit2 = (dm.goods_unit_local || '').trim();
+                                      if (excelUnit1 && dictUnit1 && excelUnit1.toLowerCase() !== dictUnit1.toLowerCase()) {
+                                        mismatches.push(`${dm.goods_no || nameVal}: Unit1 Excel "${excelUnit1}" ≠ Dictionary "${dictUnit1}"`);
+                                      }
+                                      if (excelUnit2 && dictUnit2 && excelUnit2.toLowerCase() !== dictUnit2.toLowerCase()) {
+                                        mismatches.push(`${dm.goods_no || nameVal}: Unit2 Excel "${excelUnit2}" ≠ Dictionary "${dictUnit2}"`);
+                                      }
+                                    }
                                     batch.push({
                                       id: "goods_" + Date.now() + "_" + ri,
                                       invoice_no: goodsForm.invoice_no, goods_item: itemNo++,
@@ -6064,19 +6111,22 @@
                                       goods_name_local: dm?.goods_name_local || '',
                                       hs_code: dm?.hs_code || '', goods_unit_en: dm?.goods_unit_en || 'PCS',
                                       goods_unit_local: dm?.goods_unit_local || '',
-                                      goods_unit_en2: dm?.goods_unit_en2 || '', goods_unit_local2: dm?.goods_unit_local2 || '',
                                       invoice_description: nameVal,
                                       origin_country: idxOrig !== -1 ? String(row[idxOrig]||'TAIWAN').trim().toUpperCase() : 'TAIWAN',
-                                      // Unit1/Unit2: ưu tiên cột trong Excel, nếu không có thì lấy từ HS Code dictionary (Unit 1/Unit 2)
-                                      qty1: qty1v, unit1: idxUnit1 !== -1 ? String(row[idxUnit1]||'PCS').trim() : (dm?.goods_unit_en || 'PCS'),
+                                      qty1: qty1v, unit1: finalUnit1,
                                       qty2: idxQty2 !== -1 ? Number(row[idxQty2])||0 : 0,
-                                      unit2: idxUnit2 !== -1 ? String(row[idxUnit2]||'').trim() : (dm?.goods_unit_en2 || ''),
+                                      unit2: finalUnit2,
                                       unit_price: pv, sale_amount: qty1v * pv,
                                     });
                                     count++;
                                   }
                                   saveGoodsToStorage(batch);
                                   showNotification(`Imported ${count} item(s) to ${goodsForm.invoice_no}${skipped ? ' ('+skipped+' skipped)' : ''}`);
+                                  if (mismatches.length > 0) {
+                                    setTimeout(() => {
+                                      showNotification(`⚠ ${mismatches.length} unit mismatch(es) vs Dictionary:\n${mismatches.slice(0,5).join('\n')}${mismatches.length > 5 ? `\n...and ${mismatches.length-5} more` : ''}`, 'error');
+                                    }, 600);
+                                  }
                                   e.target.value = '';
                                 } catch(err) { console.error(err); showNotification("Failed to read Excel!", "error"); }
                               };
@@ -6117,9 +6167,21 @@
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                         <div>
                           <label className="block text-[11px] text-slate-400 mb-1">Origin</label>
-                          <input type="text" list="goods-origin-list" value={goodsForm.origin_country || ''}
-                            onChange={e => setGoodsForm({...goodsForm, origin_country: e.target.value.toUpperCase()})}
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono" />
+                          {goodsOriginAddingNew ? (
+                            <input type="text" autoFocus list="goods-origin-list" value={goodsForm.origin_country || ''}
+                              onChange={e => setGoodsForm({...goodsForm, origin_country: e.target.value.toUpperCase()})}
+                              onBlur={() => { if (!goodsForm.origin_country) setGoodsOriginAddingNew(false); }}
+                              placeholder="Type new country name..."
+                              className="w-full bg-slate-950 border border-blue-700 rounded px-3 py-2 text-xs text-white font-mono" />
+                          ) : (
+                            <select value={goodsForm.origin_country || ''}
+                              onChange={e => { if (e.target.value === '__ADD_NEW__') { setGoodsOriginAddingNew(true); setGoodsForm({...goodsForm, origin_country: ''}); } else { setGoodsForm({...goodsForm, origin_country: e.target.value}); } }}
+                              className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono">
+                              <option value="">— Select —</option>
+                              {Array.from(new Set([...getUniqueOrigins(), 'TAIWAN','CHINA','CN','JAPAN','KOREA','VIETNAM'])).map((o, i) => <option key={i} value={o}>{o}</option>)}
+                              <option value="__ADD_NEW__">+ Add new...</option>
+                            </select>
+                          )}
                           <datalist id="goods-origin-list">
                             {getUniqueOrigins().map((o, i) => <option key={i} value={o} />)}
                             <option value="TAIWAN" /><option value="CHINA" /><option value="CN" />
