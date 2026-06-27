@@ -542,7 +542,7 @@
 
       const [menuExpanded, setMenuExpanded] = useState(true);
       const [activeMenu, setActiveMenu] = useState('DASHBOARD');
-      const [expandedMenus, setExpandedMenus] = useState({ A: false, B: true, E: true });
+      const [expandedMenus, setExpandedMenus] = useState({ A: false, B: true, E: true, EIP: true });
       const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
       const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
@@ -1313,6 +1313,11 @@
       const [carrierAddingNew, setCarrierAddingNew] = useState(false);
       const [billNoAddingNew, setBillNoAddingNew] = useState(false);
       const [goodsOriginAddingNew, setGoodsOriginAddingNew] = useState(false);
+      // State riêng cho 3 trang Operations mới (Lot No Inf / Invoice Data / Import Declaration) — độc lập với modal cũ
+      const [lniMode, setLniMode] = useState('add'); // 'add' | 'edit' — đang tạo STT mới hay sửa Bill info của 1 STT đã có
+      const [lniEditingStt, setLniEditingStt] = useState(null); // STT (số) đang được sửa trong trang Lot No Inf
+      const [invDataActiveInvoice, setInvDataActiveInvoice] = useState(null); // invoice_no đang active trên trang Invoice Data
+      const [invDataMode, setInvDataMode] = useState('add'); // 'add' | 'edit'
       const addCarrierHistory = (val) => {
         if (!val || carrierHistory.includes(val)) return;
         const next = [val, ...carrierHistory].slice(0, 30);
@@ -2938,6 +2943,51 @@
                         <span className={`flex items-center justify-center w-5 h-5 rounded text-[9px] font-black border ${activeMenu === 'E010' ? 'bg-blue-900/50 text-blue-300 border-blue-700' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>SP</span> Shipment Profiles
                       </button>
 
+                      {/*3.1b IMPORT PROCESSING (sub-group): Invoice Data / Lot No Inf / Import Declaration*/}
+                      <div className="mt-0.5">
+                        <button
+                          onClick={() => setExpandedMenus(p => ({ ...p, EIP: !p.EIP }))}
+                          className="w-full flex items-center justify-between py-2 px-2.5 rounded-lg text-[11px] hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="flex items-center justify-center w-5 h-5 rounded text-[9px] font-black border bg-slate-800 text-slate-400 border-slate-700">IP</span>
+                            Import Processing
+                          </span>
+                          <span className="text-slate-600 text-[9px]">{expandedMenus.EIP ? '▲' : '▼'}</span>
+                        </button>
+
+                        {expandedMenus.EIP && (
+                          <div className="ml-3 mt-0.5 border-l-2 border-slate-800/70 pl-3 space-y-0.5">
+                            {/*Invoice Data*/}
+                            <button
+                              onClick={() => setActiveMenu('INVOICE_DATA')}
+                              className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
+                                ${activeMenu === 'INVOICE_DATA' ? 'bg-indigo-600/20 text-indigo-400 font-bold border border-indigo-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                            >
+                              <span className={`flex items-center justify-center w-5 h-5 rounded text-[9px] font-black border ${activeMenu === 'INVOICE_DATA' ? 'bg-indigo-900/50 text-indigo-300 border-indigo-700' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>IV</span> Invoice Data
+                            </button>
+
+                            {/*Lot No Inf*/}
+                            <button
+                              onClick={() => setActiveMenu('LOT_NO_INFO')}
+                              className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
+                                ${activeMenu === 'LOT_NO_INFO' ? 'bg-blue-600/20 text-blue-400 font-bold border border-blue-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                            >
+                              <span className={`flex items-center justify-center w-5 h-5 rounded text-[9px] font-black border ${activeMenu === 'LOT_NO_INFO' ? 'bg-blue-900/50 text-blue-300 border-blue-700' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>LN</span> Lot No Inf
+                            </button>
+
+                            {/*Import Declaration*/}
+                            <button
+                              onClick={() => setActiveMenu('IMPORT_DECLARATION')}
+                              className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
+                                ${activeMenu === 'IMPORT_DECLARATION' ? 'bg-amber-600/20 text-amber-400 font-bold border border-amber-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                            >
+                              <span className={`flex items-center justify-center w-5 h-5 rounded text-[9px] font-black border ${activeMenu === 'IMPORT_DECLARATION' ? 'bg-amber-900/50 text-amber-300 border-amber-700' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>ID</span> Import Declaration
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
                       {/*3.2 ETA Management*/}
                       <button
                         onClick={() => { setActiveMenu('ETA_MGMT'); setEtaLoaded(false); setEtaSearch(''); }}
@@ -2999,6 +3049,9 @@
                 {activeMenu === 'SUPPLIER_DATA' && 'Master Data — Supplier Data'}
                 {activeMenu === 'PAYMENT_DATA' && 'Master Data — Payment Data'}
                 {activeMenu === 'E010' && 'Operations — Shipment Profiles'}
+                {activeMenu === 'INVOICE_DATA' && 'Operations — Import Processing — Invoice Data'}
+                {activeMenu === 'LOT_NO_INFO' && 'Operations — Import Processing — Lot No Inf'}
+                {activeMenu === 'IMPORT_DECLARATION' && 'Operations — Import Processing — Import Declaration'}
                 {activeMenu === 'NO_ATC' && 'Operations — Pending Storage'}
                 {activeMenu === 'ETA_MGMT' && 'Operations — Enter ETA'}
                 {activeMenu === 'LIST_HANG' && 'Operations — Daily ATC Report'}
@@ -3497,7 +3550,7 @@
                             <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">⏳ Invoices Without Lot Code</span>
                             <span className="bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{draftInvsGlobal.length}</span>
                           </div>
-                          <button onClick={() => { setModalMode('add'); setModalTab('assign'); setShowAddModal(true); }}
+                          <button onClick={() => setActiveMenu('IMPORT_DECLARATION')}
                             className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
                             ✦ Create Lot Now
                           </button>
@@ -3628,17 +3681,10 @@
                       Selected Lot: <strong className="text-white font-mono">{selectedLotNo || 'None'}</strong>
                       {selectedLotNo && <span className="ml-2 text-[10px] text-slate-500">— click ▶ to view details, invoices & actions</span>}
                     </span>
-                    <button onClick={() => {
-                      setModalMode('add'); setModalTab('lot');
-                      const freshStt = getFirstVacantSeq();
-                      setLotForm({ lot_no: '', stt: freshStt, lot_date: getTodayLocal(), get_docs_date: getTodayLocal(), factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: '', carrier: '', transport_type: '', is_cont: true, cont_no: '', seal_no: '', cont_type: '40FT', contList: [{cont_no:'',seal_no:'',cont_type:'40FT'}], pkg_qty: 0, gw: 0, cbm: 0, cbm_str: '', eta: '', atc_date: '', origin_country: '', loai_hinh: 'NEUTRAL', loai_hinh_con: 'DEFAULT', sale_qty: 0, is_hang_chung_bill: false, contract_start: '', contract_end: '' });
-                      setInvoiceForm({ invoice_no: '', lot_no: '', bill_no: '', bill_stt: freshStt, invoice_date: '', inv_pkg_qty: 0, inv_gw: 0, incoterm: '', total_amount: 0, foc_amount: 0, plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '', is_hang_chung_bill: false, loai_hinh: '', loai_hinh_con: '', currency: '', supplier: '', contract_start: '', contract_end: '', factory_no: '' });
-                      setGoodsForm({ invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '', goods_name_local: '', goods_unit_local: 'Pcs', goods_unit_local2: '', hs_code: '', invoice_description: '', sale_amount: 0, origin_country: '', qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: '' });
-                      setSelectedFactories([]);
-                      setDraftInvoiceNos([]);
-                      setLotAssignForm({ loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [], stt: freshStt });
-                      setShowAddModal(true);
-                    }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs">+ Declare New Lot</button>
+                    <button onClick={() => setActiveMenu('LOT_NO_INFO')}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5">
+                      ✦ Start New Declaration <span className="text-blue-200 text-[10px]">→ Lot No Inf</span>
+                    </button>
                   </div>
 
                   {/*MASTER LOT LIST TABLE*/}
