@@ -3851,7 +3851,7 @@
                                               ['CBM', lot.cbm ? `${lot.cbm} m³` : '—', 'text-slate-300 font-mono'],
                                               ['Packages', lot.pkg_qty ? Number(lot.pkg_qty).toLocaleString() : '—', 'text-slate-300 font-mono'],
                                               ['Factory', lot.factory_no || '—', 'text-slate-300'],
-                                              ['Supplier', lot.supplier || '—', 'text-slate-300 truncate'],
+                                              ['Supplier', lot.supplier || (invoices.find(i => String(i.lot_no) === String(lot.lot_no) && i.supplier && i.supplier.trim()) || {}).supplier || '—', 'text-slate-300 truncate'],
                                             ].map(([lbl, val, cls]) => (
                                               <div key={lbl} className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-800/60 min-w-0">
                                                 <div className="text-[9px] text-slate-500 uppercase font-bold mb-0.5 tracking-wide">{lbl}</div>
