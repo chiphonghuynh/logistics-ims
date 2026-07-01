@@ -454,8 +454,15 @@
               setE010QuickEditOpen(true);
             }
           } else if (ctxType === 'invoice') {
+            // Shipment Profiles: không sửa sâu invoice ở đây nữa — điều hướng sang Invoice Data
+            // và mở sẵn form inline (accordion) đúng invoice đang chọn để sửa chuyên sâu.
             const inv = invoices.find(i => i.invoice_no === selectedInvoiceNo);
-            if (inv) startEditInvoice(inv);
+            if (inv) {
+              startEditInvoiceInline(inv);
+              setSelectedIvInvoiceNo(inv.invoice_no);
+              setIvInlineOpen(inv.invoice_no);
+              setActiveMenu('INVOICE_DATA');
+            }
           } else if (ctxType === 'dict') {
             const dict = dbSelectedTab === 'A12' ? dictA12 : dictE21;
             const item = dict.find(i => i.goods_no === [...selectedDictItems][0]);
@@ -3956,7 +3963,7 @@
                                   <td className="px-3 py-2 text-center text-slate-500 text-[10px]">{inv.factory_no || '—'}</td>
                                   <td className="px-3 py-2 text-center font-mono text-slate-500 text-[10px]">{inv.bill_no || '—'}</td>
                                   <td className="px-3 py-2 text-center space-x-1">
-                                    <button onClick={(e) => startEditInvoice(inv, e)} className="text-blue-400 hover:underline text-[10px]">Edit</button>
+                                    <button onClick={(e) => { e.stopPropagation(); startEditInvoiceInline(inv); setSelectedIvInvoiceNo(inv.invoice_no); setIvInlineOpen(inv.invoice_no); setActiveMenu('INVOICE_DATA'); }} className="text-blue-400 hover:underline text-[10px]">Edit</button>
                                     <button onClick={(e) => triggerDeleteInvoiceConfirm(inv.invoice_no, e)} className="text-rose-500 hover:underline text-[10px]">🗑️</button>
                                   </td>
                                 </tr>
@@ -4982,6 +4989,28 @@
                                 </select>
                               </div>
                               <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Dec. Sub-type</label>
+                                <input type="text" value={invoiceForm.loai_hinh_con||''} onChange={e => setInvoiceForm({...invoiceForm, loai_hinh_con: e.target.value})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Lot No.</label>
+                                <input type="text" value={invoiceForm.lot_no||''} onChange={e => setInvoiceForm({...invoiceForm, lot_no: e.target.value.toUpperCase()})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-cyan-300 font-mono" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Bill No.</label>
+                                <input type="text" value={invoiceForm.bill_no||''} onChange={e => setInvoiceForm({...invoiceForm, bill_no: e.target.value.toUpperCase()})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Bill STT</label>
+                                <input type="number" min="1" value={invoiceForm.bill_stt||''} onChange={e => setInvoiceForm({...invoiceForm, bill_stt: Number(e.target.value)||1})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                              </div>
+                              <div>
                                 <label className="block text-[10px] text-slate-400 mb-1">Incoterm</label>
                                 <select value={invoiceForm.incoterm} onChange={e => setInvoiceForm({...invoiceForm, incoterm: e.target.value})}
                                   className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
@@ -5016,6 +5045,30 @@
                             </div>
                             <div className="grid grid-cols-4 gap-3">
                               <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Inv. Pkg Qty</label>
+                                <input type="number" step="0.001" min="0" value={invoiceForm.inv_pkg_qty||''}
+                                  onChange={e => setInvoiceForm({...invoiceForm, inv_pkg_qty: parseFloat(e.target.value)||0})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Inv. Gross Weight</label>
+                                <input type="number" step="0.001" min="0" value={invoiceForm.inv_gw||''}
+                                  onChange={e => setInvoiceForm({...invoiceForm, inv_gw: parseFloat(e.target.value)||0})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Contract Start</label>
+                                <input type="date" value={invoiceForm.contract_start||''} onChange={e => setInvoiceForm({...invoiceForm, contract_start: e.target.value})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Contract End</label>
+                                <input type="date" value={invoiceForm.contract_end||''} onChange={e => setInvoiceForm({...invoiceForm, contract_end: e.target.value})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                              <div>
                                 <label className="block text-[10px] text-slate-400 mb-1">+ Sea Freight</label>
                                 <input type="number" step="0.01" min="0" value={invoiceForm.plus_sea_freight||''}
                                   onChange={e => setInvoiceForm({...invoiceForm, plus_sea_freight: parseFloat(e.target.value)||0})}
@@ -5037,6 +5090,13 @@
                                 <label className="block text-[10px] text-slate-400 mb-1">− FOC</label>
                                 <input type="number" step="0.01" min="0" value={invoiceForm.foc_amount||''}
                                   onChange={e => setInvoiceForm({...invoiceForm, foc_amount: parseFloat(e.target.value)||0})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3">
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Other Charges Note</label>
+                                <input type="text" value={invoiceForm.other_charges_note||''} onChange={e => setInvoiceForm({...invoiceForm, other_charges_note: e.target.value})}
                                   className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
                               </div>
                             </div>
@@ -5107,6 +5167,20 @@
                                     <input type="text" value={goodsForm.hs_code}
                                       onChange={e => setGoodsForm({...goodsForm, hs_code: e.target.value})}
                                       className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono" />
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-4 gap-2.5">
+                                  <div className="col-span-2">
+                                    <label className="block text-[10px] text-slate-400 mb-1">Name (Local)</label>
+                                    <input type="text" value={goodsForm.goods_name_local||''}
+                                      onChange={e => setGoodsForm({...goodsForm, goods_name_local: e.target.value})}
+                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white" />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <label className="block text-[10px] text-slate-400 mb-1">Origin Country</label>
+                                    <input type="text" value={goodsForm.origin_country||''}
+                                      onChange={e => setGoodsForm({...goodsForm, origin_country: e.target.value.toUpperCase()})}
+                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white" />
                                   </div>
                                 </div>
                                 <div className="grid grid-cols-4 gap-2.5">
@@ -5338,9 +5412,19 @@
                   <tr>
                     <td colSpan="8" className="bg-blue-950/20 border-y border-blue-800/40 p-0">
                       <form onSubmit={handleSaveDraftLot} className="p-4 space-y-3">
-                        <p className="text-[11px] font-bold text-blue-300 uppercase tracking-wider">
-                          {draftLotModalMode === 'edit' ? `Edit Draft Lot — STT ${draftLotForm.stt}` : 'Add Draft Lot (STT + Bill Info)'}
-                        </p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-[11px] font-bold text-blue-300 uppercase tracking-wider">
+                            {draftLotModalMode === 'edit' ? `Edit Draft Lot — STT ${draftLotForm.stt}` : 'Add Draft Lot (STT + Bill Info)'}
+                          </p>
+                          <button type="button"
+                            onClick={() => setDraftLotForm(prev => ({...prev, is_hang_chung_bill: !prev.is_hang_chung_bill}))}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all ${draftLotForm.is_hang_chung_bill ? 'bg-amber-950/30 border-amber-700 text-amber-300' : 'bg-slate-950/40 border-slate-800 text-slate-400'}`}>
+                            <span className={`relative w-8 h-4 rounded-full transition-all ${draftLotForm.is_hang_chung_bill ? 'bg-amber-500' : 'bg-slate-700'}`}>
+                              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${draftLotForm.is_hang_chung_bill ? 'left-4' : 'left-0.5'}`}></span>
+                            </span>
+                            🔗 Shared Bill
+                          </button>
+                        </div>
                         <div className="grid grid-cols-4 gap-3">
                           <div>
                             <label className="block text-[10px] text-slate-400 mb-1">STT *</label>
@@ -5355,6 +5439,18 @@
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
                           </div>
                           <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Open Date</label>
+                            <input type="date" value={draftLotForm.lot_date||''} onChange={e => setDraftLotForm({...draftLotForm, lot_date: e.target.value})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Doc. Received Date</label>
+                            <input type="date" value={draftLotForm.get_docs_date||''} onChange={e => setDraftLotForm({...draftLotForm, get_docs_date: e.target.value})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-4 gap-3">
+                          <div>
                             <label className="block text-[10px] text-slate-400 mb-1">Bill No.</label>
                             <input type="text" value={draftLotForm.bill_no}
                               onChange={e => setDraftLotForm({...draftLotForm, bill_no: e.target.value.toUpperCase()})}
@@ -5365,14 +5461,23 @@
                             <input type="date" value={draftLotForm.bill_date||''} onChange={e => setDraftLotForm({...draftLotForm, bill_date: e.target.value})}
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
                           </div>
-                        </div>
-                        <div className="grid grid-cols-4 gap-3">
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Bill Condition</label>
+                            <select value={draftLotForm.bill_term||''} onChange={e => setDraftLotForm({...draftLotForm, bill_term: e.target.value})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
+                              <option value="">— Select —</option>
+                              <option value="Freight Prepaid">Freight Prepaid</option>
+                              <option value="Freight Collect">Freight Collect</option>
+                            </select>
+                          </div>
                           <div>
                             <label className="block text-[10px] text-slate-400 mb-1">Carrier / Forwarder</label>
                             <input type="text" value={draftLotForm.carrier}
                               onChange={e => setDraftLotForm({...draftLotForm, carrier: e.target.value})}
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
                           </div>
+                        </div>
+                        <div className="grid grid-cols-4 gap-3">
                           <div>
                             <label className="block text-[10px] text-slate-400 mb-1">POL</label>
                             <input type="text" value={draftLotForm.pol}
@@ -5386,9 +5491,31 @@
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
                           </div>
                           <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Cargo Origin</label>
+                            <input type="text" value={draftLotForm.origin_country||''}
+                              onChange={e => setDraftLotForm({...draftLotForm, origin_country: e.target.value.toUpperCase()})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                          </div>
+                          <div>
                             <label className="block text-[10px] text-slate-400 mb-1">ETA</label>
                             <input type="date" value={draftLotForm.eta||''} onChange={e => setDraftLotForm({...draftLotForm, eta: e.target.value})}
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1.5">🚢 Shipping Method</label>
+                          <div className="flex gap-2 flex-wrap">
+                            {[
+                              {val:'AIR', label:'✈ AIR'}, {val:'SEA_CONT', label:'🚢 SEA'},
+                              {val:'EXPRESS', label:'📦 EXPRESS'}, {val:'NGOAI_QUAN', label:'🏭 Bonded Warehouse'},
+                              {val:'BY_TRUCK', label:'🚛 By Truck'},
+                            ].map(s => (
+                              <button type="button" key={s.val}
+                                onClick={() => setDraftLotForm({...draftLotForm, transport_type: s.val})}
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${draftLotForm.transport_type === s.val ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                                {s.label}
+                              </button>
+                            ))}
                           </div>
                         </div>
                         <div className="grid grid-cols-4 gap-3">
@@ -5413,16 +5540,42 @@
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono" />
                           </div>
                           <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Cont. Type</label>
+                            <select value={(draftLotForm.contList&&draftLotForm.contList[0]&&draftLotForm.contList[0].cont_type)||'40FT'}
+                              onChange={e => {
+                                const list = [...(draftLotForm.contList||[{cont_no:'',seal_no:'',cont_type:'40FT'}])];
+                                list[0] = {...list[0], cont_type: e.target.value};
+                                setDraftLotForm({...draftLotForm, contList: list});
+                              }}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
+                              <option value="20FT">20FT</option><option value="40FT">40FT</option>
+                            </select>
+                          </div>
+                          <div>
                             <label className="block text-[10px] text-slate-400 mb-1">Pkg Qty</label>
                             <input type="number" step="0.001" min="0" value={draftLotForm.pkg_qty||''}
                               onChange={e => setDraftLotForm({...draftLotForm, pkg_qty: parseFloat(e.target.value)||0})}
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
                           </div>
+                        </div>
+                        <div className="grid grid-cols-4 gap-3">
                           <div>
                             <label className="block text-[10px] text-slate-400 mb-1">Gross Weight (KG)</label>
                             <input type="number" step="0.001" min="0" value={draftLotForm.gw||''}
                               onChange={e => setDraftLotForm({...draftLotForm, gw: parseFloat(e.target.value)||0})}
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">CBM (m³)</label>
+                            <input type="text" inputMode="decimal"
+                              value={draftLotForm.cbm_str !== undefined ? draftLotForm.cbm_str : (draftLotForm.cbm || '')}
+                              onChange={e => {
+                                const raw = e.target.value;
+                                if (!/^[0-9]*\.?[0-9]*$/.test(raw) && raw !== '') return;
+                                setDraftLotForm(prev => ({...prev, cbm_str: raw, cbm: raw === '' || raw === '.' ? 0 : parseFloat(raw)||0}));
+                              }}
+                              placeholder="0.000"
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono" />
                           </div>
                         </div>
                         <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
@@ -8520,9 +8673,9 @@
                           📄 Sale Contract
                         </button>
                       )}
-                      <button onClick={() => { setViewDetailLot(null); startEditLot(lot); }}
+                      <button onClick={() => { setViewDetailLot(null); setE010QuickEditForm({ ...lot }); setE010QuickEditOpen(true); }}
                         className="text-[11px] px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-bold transition-all">
-                        Edit
+                        ✏ Quick Edit
                       </button>
                       <button onClick={(e) => { setViewDetailLot(null); triggerDeleteLotConfirm(lot.lot_no, e); }}
                         className="text-[11px] px-3 py-1.5 rounded-lg bg-rose-900 hover:bg-rose-800 text-rose-300 font-bold transition-all">
