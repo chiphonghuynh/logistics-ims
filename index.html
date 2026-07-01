@@ -4968,6 +4968,27 @@
                             <p className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider">
                               {isEdit ? `Edit Invoice — ${invoiceForm.invoice_no}` : '1. Invoice Information'}
                             </p>
+                            <div className="bg-slate-950/40 p-3 border border-slate-800 rounded-xl space-y-2">
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">🏭 Receiving Factory (this Invoice)</label>
+                              <div className="flex gap-2 flex-wrap">
+                                {FACTORY_OPTIONS.map((fac) => {
+                                  const invFactories = (invoiceForm.factory_no || '').split(',').map(s=>s.trim()).filter(Boolean);
+                                  const isChecked = invFactories.includes(fac);
+                                  return (
+                                    <label key={fac} className={`flex items-center gap-2 cursor-pointer border px-2.5 py-1.5 rounded-lg transition-all text-[11px] font-bold ${isChecked ? 'bg-blue-900/30 border-blue-600 text-white' : 'bg-slate-900 border-slate-800 text-slate-400'}`}>
+                                      <input type="checkbox" checked={isChecked}
+                                        onChange={(e) => {
+                                          const cur = (invoiceForm.factory_no||'').split(',').map(s=>s.trim()).filter(Boolean);
+                                          const next = e.target.checked ? [...cur, fac] : cur.filter(f=>f!==fac);
+                                          setInvoiceForm(prev => ({...prev, factory_no: next.join(', ')}));
+                                        }}
+                                        className="accent-blue-500" />
+                                      {fac}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
                             <div className="grid grid-cols-4 gap-3">
                               <div>
                                 <label className="block text-[10px] text-slate-400 mb-1">Invoice No. *</label>
@@ -5018,16 +5039,11 @@
                                 </select>
                               </div>
                             </div>
-                            <div className="grid grid-cols-4 gap-3">
+                            <div className="grid grid-cols-3 gap-3">
                               <div>
                                 <label className="block text-[10px] text-slate-400 mb-1">Supplier</label>
                                 <input type="text" value={invoiceForm.supplier} onChange={e => setInvoiceForm({...invoiceForm, supplier: e.target.value})}
                                   className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Factory No.</label>
-                                <input type="text" value={invoiceForm.factory_no} onChange={e => setInvoiceForm({...invoiceForm, factory_no: e.target.value.toUpperCase()})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-cyan-300 font-mono" />
                               </div>
                               <div>
                                 <label className="block text-[10px] text-slate-400 mb-1">Currency</label>
@@ -5411,36 +5427,45 @@
                 const DraftLotInlineForm = () => (
                   <tr>
                     <td colSpan="8" className="bg-blue-950/20 border-y border-blue-800/40 p-0">
-                      <form onSubmit={handleSaveDraftLot} className="p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-[11px] font-bold text-blue-300 uppercase tracking-wider">
-                            {draftLotModalMode === 'edit' ? `Edit Draft Lot — STT ${draftLotForm.stt}` : 'Add Draft Lot (STT + Bill Info)'}
-                          </p>
-                          <button type="button"
-                            onClick={() => setDraftLotForm(prev => ({...prev, is_hang_chung_bill: !prev.is_hang_chung_bill}))}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all ${draftLotForm.is_hang_chung_bill ? 'bg-amber-950/30 border-amber-700 text-amber-300' : 'bg-slate-950/40 border-slate-800 text-slate-400'}`}>
-                            <span className={`relative w-8 h-4 rounded-full transition-all ${draftLotForm.is_hang_chung_bill ? 'bg-amber-500' : 'bg-slate-700'}`}>
-                              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${draftLotForm.is_hang_chung_bill ? 'left-4' : 'left-0.5'}`}></span>
-                            </span>
-                            🔗 Shared Bill
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-4 gap-3">
+                      <form onSubmit={handleSaveDraftLot} className="p-4 space-y-4">
+                        <p className="text-[11px] font-bold text-blue-300 uppercase tracking-wider">
+                          {draftLotModalMode === 'edit' ? `Edit Draft Lot — STT ${draftLotForm.stt}` : 'Add Draft Lot (STT + Bill Info)'}
+                        </p>
+
+                        {/*ROW 1: STT + Shared Bill toggle*/}
+                        <div className="grid grid-cols-2 gap-3 items-end">
                           <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">STT *</label>
+                            <label className="block text-[10px] text-slate-400 mb-1">STT (Lot Sequence No.) *</label>
                             <input type="number" required value={draftLotForm.stt}
                               onChange={e => setDraftLotForm({...draftLotForm, stt: Number(e.target.value)})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                            <p className="text-[9px] text-slate-600 mt-1">Lot code will be created in Import Declaration after invoices are linked</p>
                           </div>
                           <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Supplier</label>
-                            <input type="text" value={draftLotForm.supplier}
-                              onChange={e => setDraftLotForm({...draftLotForm, supplier: e.target.value})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                            <div className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${draftLotForm.is_hang_chung_bill ? 'bg-amber-950/30 border-amber-700' : 'bg-slate-950/40 border-slate-800'}`}>
+                              <div>
+                                <p className="text-[11px] font-bold text-white">🔗 Shared Bill</p>
+                                <p className="text-[9px] text-slate-400 mt-0.5">1 bill with multiple invoices (different dec. type or multiple invoices)</p>
+                              </div>
+                              <button type="button"
+                                onClick={() => setDraftLotForm(prev => ({...prev, is_hang_chung_bill: !prev.is_hang_chung_bill}))}
+                                className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-all ml-2 ${draftLotForm.is_hang_chung_bill ? 'bg-amber-500' : 'bg-slate-700'}`}>
+                                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${draftLotForm.is_hang_chung_bill ? 'left-5' : 'left-0.5'}`}></span>
+                              </button>
+                            </div>
                           </div>
+                        </div>
+
+                        {/*ROW 2: Open Date + ETA + Doc Received Date*/}
+                        <div className="grid grid-cols-3 gap-3">
                           <div>
                             <label className="block text-[10px] text-slate-400 mb-1">Open Date</label>
                             <input type="date" value={draftLotForm.lot_date||''} onChange={e => setDraftLotForm({...draftLotForm, lot_date: e.target.value})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">ETA – Estimated Arrival Date</label>
+                            <input type="date" value={draftLotForm.eta||''} onChange={e => setDraftLotForm({...draftLotForm, eta: e.target.value})}
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
                           </div>
                           <div>
@@ -5449,137 +5474,333 @@
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
                           </div>
                         </div>
+
+                        {/*ROW 3: Bill No. + Bill Date + Condition + Carrier/FWD*/}
                         <div className="grid grid-cols-4 gap-3">
                           <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Bill No.</label>
-                            <input type="text" value={draftLotForm.bill_no}
-                              onChange={e => setDraftLotForm({...draftLotForm, bill_no: e.target.value.toUpperCase()})}
+                            <label className="block text-[10px] text-slate-400 mb-1">Bill No. (B/L No.)</label>
+                            <input type="text" value={draftLotForm.bill_no} onChange={e => setDraftLotForm({...draftLotForm, bill_no: e.target.value.toUpperCase()})}
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono" />
                           </div>
                           <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Bill Date</label>
+                            <label className="block text-[10px] text-slate-400 mb-1">Date Bill</label>
                             <input type="date" value={draftLotForm.bill_date||''} onChange={e => setDraftLotForm({...draftLotForm, bill_date: e.target.value})}
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
                           </div>
                           <div>
                             <label className="block text-[10px] text-slate-400 mb-1">Bill Condition</label>
-                            <select value={draftLotForm.bill_term||''} onChange={e => setDraftLotForm({...draftLotForm, bill_term: e.target.value})}
+                            <select value={draftLotForm.bill_term || ''} onChange={e => setDraftLotForm({...draftLotForm, bill_term: e.target.value})}
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
                               <option value="">— Select —</option>
-                              <option value="Freight Prepaid">Freight Prepaid</option>
-                              <option value="Freight Collect">Freight Collect</option>
+                              <option value="Freight Prepaid">Freight Prepaid (Shipper pays)</option>
+                              <option value="Freight Collect">Freight Collect (Consignee pays)</option>
                             </select>
                           </div>
                           <div>
                             <label className="block text-[10px] text-slate-400 mb-1">Carrier / Forwarder</label>
-                            <input type="text" value={draftLotForm.carrier}
-                              onChange={e => setDraftLotForm({...draftLotForm, carrier: e.target.value})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                            {carrierAddingNew ? (
+                              <input type="text" autoFocus list="carrier-history-list-draft" value={draftLotForm.carrier}
+                                onChange={e => setDraftLotForm({...draftLotForm, carrier: e.target.value})}
+                                onBlur={() => { if (!draftLotForm.carrier) setCarrierAddingNew(false); }}
+                                placeholder="VD: EVERGREEN, DHL, GEODIS..."
+                                className="w-full bg-slate-950 border border-blue-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                            ) : (
+                              <select value={draftLotForm.carrier || ''}
+                                onChange={e => { if (e.target.value === '__ADD_NEW__') { setCarrierAddingNew(true); setDraftLotForm({...draftLotForm, carrier: ''}); } else { setDraftLotForm({...draftLotForm, carrier: e.target.value}); } }}
+                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
+                                <option value="">— Select —</option>
+                                {carrierHistory.map((c, i) => <option key={i} value={c}>{c}</option>)}
+                                <option value="__ADD_NEW__">+ Add new...</option>
+                              </select>
+                            )}
+                            <datalist id="carrier-history-list-draft">
+                              {carrierHistory.map((c, i) => <option key={i} value={c} />)}
+                            </datalist>
                           </div>
                         </div>
-                        <div className="grid grid-cols-4 gap-3">
+
+                        {/*ROW 4: POL + POD + Origin*/}
+                        <div className="grid grid-cols-3 gap-3">
                           <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">POL</label>
-                            <input type="text" value={draftLotForm.pol}
-                              onChange={e => setDraftLotForm({...draftLotForm, pol: e.target.value.toUpperCase()})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                            <label className="block text-[10px] text-slate-400 mb-1">Port of Loading (POL)</label>
+                            {polAddingNew ? (
+                              <input type="text" autoFocus value={draftLotForm.pol} onChange={e => setDraftLotForm({...draftLotForm, pol: e.target.value.toUpperCase()})}
+                                onBlur={() => { if (!draftLotForm.pol) setPolAddingNew(false); }}
+                                placeholder="Type new port name..."
+                                className="w-full bg-slate-950 border border-blue-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                            ) : (
+                              <select value={draftLotForm.pol || ''}
+                                onChange={e => { if (e.target.value === '__ADD_NEW__') { setPolAddingNew(true); setDraftLotForm({...draftLotForm, pol: ''}); } else { setDraftLotForm({...draftLotForm, pol: e.target.value}); } }}
+                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
+                                <option value="">— Select POL —</option>
+                                {Array.from(new Set([...getUniquePols(), 'VN', 'TAICHUNG','KAOHSIUNG','SHEKOU','NINGBO','SHENZHEN','HONG KONG'])).map((p,i) => <option key={i} value={p}>{p}</option>)}
+                                <option value="__ADD_NEW__">+ Add new...</option>
+                              </select>
+                            )}
                           </div>
                           <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">POD</label>
-                            <input type="text" value={draftLotForm.pod}
-                              onChange={e => setDraftLotForm({...draftLotForm, pod: e.target.value.toUpperCase()})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                            <label className="block text-[10px] text-slate-400 mb-1">Port of Discharge (POD)</label>
+                            {podAddingNew ? (
+                              <input type="text" autoFocus value={draftLotForm.pod} onChange={e => setDraftLotForm({...draftLotForm, pod: e.target.value.toUpperCase()})}
+                                onBlur={() => { if (!draftLotForm.pod) setPodAddingNew(false); }}
+                                placeholder="Type new port name..."
+                                className="w-full bg-slate-950 border border-blue-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                            ) : (
+                              <select value={draftLotForm.pod || ''}
+                                onChange={e => { if (e.target.value === '__ADD_NEW__') { setPodAddingNew(true); setDraftLotForm({...draftLotForm, pod: ''}); } else { setDraftLotForm({...draftLotForm, pod: e.target.value}); } }}
+                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
+                                <option value="">— Select POD —</option>
+                                {Array.from(new Set([...getUniquePods(), 'VN', 'CAT LAI','TCS','VNSGN'])).map((p,i) => <option key={i} value={p}>{p}</option>)}
+                                <option value="__ADD_NEW__">+ Add new...</option>
+                              </select>
+                            )}
                           </div>
                           <div>
                             <label className="block text-[10px] text-slate-400 mb-1">Cargo Origin</label>
-                            <input type="text" value={draftLotForm.origin_country||''}
-                              onChange={e => setDraftLotForm({...draftLotForm, origin_country: e.target.value.toUpperCase()})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">ETA</label>
-                            <input type="date" value={draftLotForm.eta||''} onChange={e => setDraftLotForm({...draftLotForm, eta: e.target.value})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 mb-1.5">🚢 Shipping Method</label>
-                          <div className="flex gap-2 flex-wrap">
-                            {[
-                              {val:'AIR', label:'✈ AIR'}, {val:'SEA_CONT', label:'🚢 SEA'},
-                              {val:'EXPRESS', label:'📦 EXPRESS'}, {val:'NGOAI_QUAN', label:'🏭 Bonded Warehouse'},
-                              {val:'BY_TRUCK', label:'🚛 By Truck'},
-                            ].map(s => (
-                              <button type="button" key={s.val}
-                                onClick={() => setDraftLotForm({...draftLotForm, transport_type: s.val})}
-                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${draftLotForm.transport_type === s.val ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
-                                {s.label}
-                              </button>
-                            ))}
+                            {originAddingNew ? (
+                              <input type="text" autoFocus value={draftLotForm.origin_country} onChange={e => setDraftLotForm({...draftLotForm, origin_country: e.target.value.toUpperCase()})}
+                                onBlur={() => { if (!draftLotForm.origin_country) setOriginAddingNew(false); }}
+                                placeholder="Type new country name..."
+                                className="w-full bg-slate-950 border border-blue-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                            ) : (
+                              <select value={draftLotForm.origin_country || ''}
+                                onChange={e => { if (e.target.value === '__ADD_NEW__') { setOriginAddingNew(true); setDraftLotForm({...draftLotForm, origin_country: ''}); } else { setDraftLotForm({...draftLotForm, origin_country: e.target.value}); } }}
+                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
+                                <option value="">— Select Origin —</option>
+                                {Array.from(new Set([...getUniqueOrigins(), 'VN', 'TAIWAN','CHINA','JAPAN','KOREA','VIETNAM','GERMANY','USA','ITALY'])).map((o,i) => <option key={i} value={o}>{o}</option>)}
+                                <option value="__ADD_NEW__">+ Add new...</option>
+                              </select>
+                            )}
                           </div>
                         </div>
-                        <div className="grid grid-cols-4 gap-3">
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Container No.</label>
-                            <input type="text" value={(draftLotForm.contList&&draftLotForm.contList[0]&&draftLotForm.contList[0].cont_no)||''}
-                              onChange={e => {
-                                const list = [...(draftLotForm.contList||[{cont_no:'',seal_no:'',cont_type:'40FT'}])];
-                                list[0] = {...list[0], cont_no: e.target.value.toUpperCase()};
-                                setDraftLotForm({...draftLotForm, contList: list});
-                              }}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-cyan-300 font-mono" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Seal No.</label>
-                            <input type="text" value={(draftLotForm.contList&&draftLotForm.contList[0]&&draftLotForm.contList[0].seal_no)||''}
-                              onChange={e => {
-                                const list = [...(draftLotForm.contList||[{cont_no:'',seal_no:'',cont_type:'40FT'}])];
-                                list[0] = {...list[0], seal_no: e.target.value.toUpperCase()};
-                                setDraftLotForm({...draftLotForm, contList: list});
-                              }}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Cont. Type</label>
-                            <select value={(draftLotForm.contList&&draftLotForm.contList[0]&&draftLotForm.contList[0].cont_type)||'40FT'}
-                              onChange={e => {
-                                const list = [...(draftLotForm.contList||[{cont_no:'',seal_no:'',cont_type:'40FT'}])];
-                                list[0] = {...list[0], cont_type: e.target.value};
-                                setDraftLotForm({...draftLotForm, contList: list});
-                              }}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
-                              <option value="20FT">20FT</option><option value="40FT">40FT</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Pkg Qty</label>
-                            <input type="number" step="0.001" min="0" value={draftLotForm.pkg_qty||''}
-                              onChange={e => setDraftLotForm({...draftLotForm, pkg_qty: parseFloat(e.target.value)||0})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+
+                        {/*ROW 5: Shipping method*/}
+                        <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-3 space-y-3">
+                          <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">🚢 Shipping method</label>
+                          {(() => {
+                            const SHIPPING_GROUPS = [
+                              { group: 'AIR', label: '✈ AIR', sub: [{ val: 'AIR', label: 'AIR' }] },
+                              { group: 'SEA', label: '🚢 SEA', sub: [
+                                  { val: 'SEA_CONT', label: '🚢 CONT (FCL)' },
+                                  { val: 'SEA_CFS', label: '⚓ CFS (LCL)' },
+                                ] },
+                              { group: 'EXPRESS', label: '📦 EXPRESS', sub: [
+                                  { val: 'EXPRESS', label: 'DHL', carrier: 'DHL' },
+                                  { val: 'EXPRESS', label: 'FedEx', carrier: 'FedEx' },
+                                ] },
+                              { group: 'NGOAI_QUAN', label: '🏭 Bonded Warehouse', sub: [{ val: 'NGOAI_QUAN', label: 'Bonded Warehouse' }] },
+                              { group: 'BY_TRUCK', label: '🚛 By Truck', sub: [{ val: 'BY_TRUCK', label: 'By Truck' }] },
+                            ];
+                            const activeGroup = SHIPPING_GROUPS.find(g => g.sub.some(s => s.val === draftLotForm.transport_type));
+                            const activeGroupKey = activeGroup ? activeGroup.group : null;
+                            const activeExpressSub = draftLotForm.transport_type === 'EXPRESS'
+                              ? (String(draftLotForm.carrier||'').toUpperCase().includes('FEDEX') ? 'FedEx' : 'DHL')
+                              : null;
+                            return (
+                              <>
+                                <div className="flex gap-2 flex-wrap">
+                                  {SHIPPING_GROUPS.map(g => {
+                                    const isMultiSub = g.sub.length > 1;
+                                    const isActive = activeGroupKey === g.group;
+                                    const NO_BILL_DEFAULTS = { NGOAI_QUAN: 'NGOẠI QUAN', BY_TRUCK: 'BY TRUCK' };
+                                    const NO_BILL_PLACEHOLDER_VALUES = Object.values(NO_BILL_DEFAULTS);
+                                    return (
+                                      <button type="button" key={g.group}
+                                        onClick={() => {
+                                          const currentBillNo = String(draftLotForm.bill_no || '').trim().toUpperCase();
+                                          const isCurrentBillPlaceholder = NO_BILL_PLACEHOLDER_VALUES.includes(currentBillNo);
+                                          const newDefaultBill = NO_BILL_DEFAULTS[g.group];
+                                          let billNoPatch = {};
+                                          if (newDefaultBill) {
+                                            if (!draftLotForm.bill_no || isCurrentBillPlaceholder) billNoPatch = { bill_no: newDefaultBill };
+                                          } else if (isCurrentBillPlaceholder) {
+                                            billNoPatch = { bill_no: '' };
+                                          }
+                                          const isDomesticVN = g.group === 'NGOAI_QUAN' || g.group === 'BY_TRUCK';
+                                          const isCurrentPolVN = String(draftLotForm.pol||'').trim().toUpperCase() === 'VN';
+                                          const isCurrentPodVN = String(draftLotForm.pod||'').trim().toUpperCase() === 'VN';
+                                          const isCurrentOriginVN = String(draftLotForm.origin_country||'').trim().toUpperCase() === 'VN';
+                                          let portPatch = {};
+                                          if (isDomesticVN) {
+                                            if (!draftLotForm.pol || isCurrentPolVN) portPatch.pol = 'VN';
+                                            if (!draftLotForm.pod || isCurrentPodVN) portPatch.pod = 'VN';
+                                            if (g.group === 'BY_TRUCK' && (!draftLotForm.origin_country || isCurrentOriginVN)) portPatch.origin_country = 'VN';
+                                          } else {
+                                            if (isCurrentPolVN) portPatch.pol = '';
+                                            if (isCurrentPodVN) portPatch.pod = '';
+                                            if (isCurrentOriginVN) portPatch.origin_country = '';
+                                          }
+                                          if (isMultiSub) {
+                                            if (isActive) return;
+                                            const first = g.sub[0];
+                                            setDraftLotForm(prev => ({
+                                              ...prev, transport_type: first.val, is_cont: first.val === 'SEA_CONT',
+                                              ...(first.carrier ? { carrier: first.carrier } : {}),
+                                              ...billNoPatch, ...portPatch,
+                                            }));
+                                          } else {
+                                            const only = g.sub[0];
+                                            setDraftLotForm(prev => ({...prev, transport_type: only.val, is_cont: only.val === 'SEA_CONT', ...billNoPatch, ...portPatch}));
+                                          }
+                                        }}
+                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all
+                                          ${isActive
+                                            ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/40'
+                                            : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                                        {g.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+
+                                {activeGroupKey === 'SEA' && (
+                                  <div className="flex gap-2 flex-wrap pl-2 border-l-2 border-blue-800/50">
+                                    {SHIPPING_GROUPS.find(g => g.group === 'SEA').sub.map(s => (
+                                      <button type="button" key={s.val}
+                                        onClick={() => setDraftLotForm(prev => ({...prev, transport_type: s.val, is_cont: s.val === 'SEA_CONT'}))}
+                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all
+                                          ${draftLotForm.transport_type === s.val
+                                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                                            : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                                        {s.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {activeGroupKey === 'EXPRESS' && (
+                                  <div className="flex gap-2 flex-wrap pl-2 border-l-2 border-purple-800/50">
+                                    {SHIPPING_GROUPS.find(g => g.group === 'EXPRESS').sub.map(s => (
+                                      <button type="button" key={s.label}
+                                        onClick={() => setDraftLotForm(prev => ({...prev, transport_type: 'EXPRESS', carrier: s.carrier}))}
+                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all
+                                          ${activeExpressSub === s.label
+                                            ? 'bg-purple-600 border-purple-500 text-white'
+                                            : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                                        {s.label}
+                                      </button>
+                                    ))}
+                                    <span className="text-[9px] text-slate-600 self-center ml-1">Carrier name auto-fills — you can edit it manually if needed</span>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+
+                          {/*SEA CONT: Multi-container list*/}
+                          {draftLotForm.transport_type === 'SEA_CONT' && (
+                            <div className="pt-2 border-t border-slate-800 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                  🚢 Container List
+                                  <span className="ml-2 text-slate-600 normal-case font-normal">({(draftLotForm.contList||[]).filter(c=>c.cont_no).length} cont{(draftLotForm.contList||[]).filter(c=>c.cont_no).length !== 1 ? 's' : ''})</span>
+                                </label>
+                                <button type="button"
+                                  onClick={() => setDraftLotForm(prev => ({
+                                    ...prev,
+                                    contList: [...(prev.contList||[]), {cont_no:'', seal_no:'', cont_type:'40FT'}]
+                                  }))}
+                                  className="text-[9px] px-2.5 py-1 rounded bg-blue-900/50 hover:bg-blue-800/60 text-blue-400 font-bold border border-blue-800/50 transition-all">
+                                  + Add Container
+                                </button>
+                              </div>
+                              <div className="grid grid-cols-12 gap-2 px-1">
+                                <div className="col-span-1 text-[8px] text-slate-600 uppercase">#</div>
+                                <div className="col-span-5 text-[8px] text-slate-600 uppercase">Container No. *</div>
+                                <div className="col-span-3 text-[8px] text-slate-600 uppercase">Seal No.</div>
+                                <div className="col-span-2 text-[8px] text-slate-600 uppercase">Type</div>
+                                <div className="col-span-1"></div>
+                              </div>
+                              {(draftLotForm.contList || [{cont_no:'',seal_no:'',cont_type:'40FT'}]).map((c, idx) => (
+                                <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                                  <div className="col-span-1 text-[9px] text-slate-600 text-center font-mono">{idx+1}</div>
+                                  <div className="col-span-5">
+                                    <input type="text" value={c.cont_no}
+                                      onChange={e => {
+                                        const list = [...(draftLotForm.contList||[])];
+                                        list[idx] = {...list[idx], cont_no: e.target.value.toUpperCase()};
+                                        setDraftLotForm(prev => ({...prev, contList: list}));
+                                      }}
+                                      placeholder="TGBU-9928172"
+                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[11px] text-cyan-300 font-mono focus:border-blue-500 outline-none" />
+                                  </div>
+                                  <div className="col-span-3">
+                                    <input type="text" value={c.seal_no}
+                                      onChange={e => {
+                                        const list = [...(draftLotForm.contList||[])];
+                                        list[idx] = {...list[idx], seal_no: e.target.value.toUpperCase()};
+                                        setDraftLotForm(prev => ({...prev, contList: list}));
+                                      }}
+                                      placeholder="SL-12345"
+                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[11px] text-white font-mono focus:border-blue-500 outline-none" />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <select value={c.cont_type || '40FT'}
+                                      onChange={e => {
+                                        const list = [...(draftLotForm.contList||[])];
+                                        list[idx] = {...list[idx], cont_type: e.target.value};
+                                        setDraftLotForm(prev => ({...prev, contList: list, cont_type: idx === 0 ? e.target.value : prev.cont_type}));
+                                      }}
+                                      className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-white focus:border-blue-500 outline-none">
+                                      <option value="20FT">20FT</option><option value="40FT">40FT</option>
+                                    </select>
+                                  </div>
+                                  <div className="col-span-1 flex justify-center">
+                                    {(draftLotForm.contList||[]).length > 1 ? (
+                                      <button type="button"
+                                        onClick={() => {
+                                          const list = (draftLotForm.contList||[]).filter((_,i) => i !== idx);
+                                          setDraftLotForm(prev => ({...prev, contList: list}));
+                                        }}
+                                        className="text-rose-500 hover:text-rose-400 text-sm leading-none font-bold transition-colors" title="Remove">×</button>
+                                    ) : (
+                                      <span className="text-slate-800 text-sm">×</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                              {(draftLotForm.contList||[]).filter(c=>c.cont_no).length > 1 && (
+                                <div className="text-[9px] text-slate-500 italic pl-1 pt-1">
+                                  💡 {(draftLotForm.contList||[]).filter(c=>c.cont_no).length} containers — primary cont: <span className="text-cyan-400 font-mono">{(draftLotForm.contList||[]).find(c=>c.cont_no)?.cont_no}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/*Pkg Qty + GW + CBM*/}
+                          <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-800">
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1">Pkg Qty</label>
+                              <input type="number" step="0.001" min="0" value={draftLotForm.pkg_qty || ''}
+                                onChange={e => setDraftLotForm({...draftLotForm, pkg_qty: parseFloat(e.target.value)||0})}
+                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1">Gross Weight (KG)</label>
+                              <input type="number" step="0.001" min="0" value={draftLotForm.gw || ''}
+                                onChange={e => setDraftLotForm({...draftLotForm, gw: parseFloat(e.target.value)||0})}
+                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1">
+                                CBM (m³){(draftLotForm.transport_type === 'AIR' || draftLotForm.transport_type === 'EXPRESS') ? ' — N/A' : ''}
+                              </label>
+                              <input type="text" inputMode="decimal"
+                                disabled={draftLotForm.transport_type === 'AIR' || draftLotForm.transport_type === 'EXPRESS'}
+                                value={draftLotForm.cbm_str !== undefined ? draftLotForm.cbm_str : (draftLotForm.cbm || '')}
+                                onChange={e => {
+                                  const raw = e.target.value;
+                                  if (!/^[0-9]*\.?[0-9]*$/.test(raw) && raw !== '') return;
+                                  setDraftLotForm(prev => ({...prev, cbm_str: raw, cbm: raw === '' || raw === '.' ? 0 : parseFloat(raw)||0}));
+                                }}
+                                placeholder="0.000"
+                                className={`w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono ${(draftLotForm.transport_type === 'AIR' || draftLotForm.transport_type === 'EXPRESS') ? 'opacity-30 cursor-not-allowed' : ''}`} />
+                            </div>
                           </div>
                         </div>
-                        <div className="grid grid-cols-4 gap-3">
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Gross Weight (KG)</label>
-                            <input type="number" step="0.001" min="0" value={draftLotForm.gw||''}
-                              onChange={e => setDraftLotForm({...draftLotForm, gw: parseFloat(e.target.value)||0})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">CBM (m³)</label>
-                            <input type="text" inputMode="decimal"
-                              value={draftLotForm.cbm_str !== undefined ? draftLotForm.cbm_str : (draftLotForm.cbm || '')}
-                              onChange={e => {
-                                const raw = e.target.value;
-                                if (!/^[0-9]*\.?[0-9]*$/.test(raw) && raw !== '') return;
-                                setDraftLotForm(prev => ({...prev, cbm_str: raw, cbm: raw === '' || raw === '.' ? 0 : parseFloat(raw)||0}));
-                              }}
-                              placeholder="0.000"
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono" />
-                          </div>
-                        </div>
+
                         <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                          <button type="button" onClick={() => { setLnInlineOpen(null); setSelectedDraftLotId(null); }}
+                          <button type="button" onClick={() => { setLnInlineOpen(null); setSelectedDraftLotId(null); setCarrierAddingNew(false); setPolAddingNew(false); setPodAddingNew(false); setOriginAddingNew(false); }}
                             className="bg-slate-800 px-4 py-1.5 text-xs rounded text-slate-300 hover:bg-slate-700 font-bold">Cancel</button>
                           <button type="submit" className="bg-blue-600 hover:bg-blue-700 px-5 py-1.5 text-xs rounded text-white font-bold">
                             {draftLotModalMode === 'edit' ? '✔ Update' : '+ Save Draft Lot'}
