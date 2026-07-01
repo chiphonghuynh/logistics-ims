@@ -273,7 +273,7 @@
       const {
         activeMenu, setActiveMenu, selectedLotNo, selectedInvoiceNo, viewDetailLot,
         selectedDictItems, showAddModal, showDictModal, showSupplierModal, showPaymentModal,
-        lots, invoices, goods, dictA12, dictE21, dbSelectedTab,
+        lots, invoices, goods, draftLots, dictA12, dictE21, dbSelectedTab,
         startEditLot, startEditInvoice, triggerDeleteLotConfirm, triggerDeleteInvoiceConfirm,
         handleOpenAddDict, handleOpenEditDict, handleDeleteDictConfirm, handleBulkDelete,
         handleOpenAddSupplier, setPaymentForm, setPaymentEditIdx, setShowPaymentModal,
@@ -283,7 +283,17 @@
         showNotification, setViewDetailLot,
         selectedSupplierIdx, supplierData, handleOpenEditSupplier, handleDeleteSupplier,
         pymSelected, setPymSelected, paymentData, filteredPayments, handleDeletePayment,
-        handleExportSelectedPayments, handleBulkDeletePayments
+        handleExportSelectedPayments, handleBulkDeletePayments,
+        // Lot No Inf
+        selectedDraftLotId, setSelectedDraftLotId, lnInlineOpen, setLnInlineOpen,
+        triggerDeleteDraftLotConfirm, emptyDraftLotForm, setDraftLotForm,
+        // Invoice Data
+        selectedIvInvoiceNo, setSelectedIvInvoiceNo, ivInlineOpen, setIvInlineOpen, startEditInvoiceInline,
+        // Import Declaration
+        selectedDeclLotNo, setSelectedDeclLotNo, idInlineOpen, setIdInlineOpen,
+        setDeclModalMode, setDeclForm, triggerUnlinkAllInvoicesConfirm,
+        // E010 quick edit
+        e010QuickEditOpen, setE010QuickEditOpen, setE010QuickEditForm, handleSaveQuickEdit
       } = deps;
 
       React.useEffect(() => {
@@ -314,17 +324,32 @@
           else if (pymSelected.size > 1) { ctxType = 'payment_multi'; ctxLabel = pymSelected.size + ' payments'; }
           else { ctxType = 'payment_none'; ctxLabel = 'Select a payment'; }
         }
+        if (activeMenu === 'LOT_NO_INFO') {
+          if (selectedDraftLotId) {
+            const d = (draftLots||[]).find(x => x.id === selectedDraftLotId);
+            ctxType = 'draft_lot'; ctxLabel = d ? ('STT ' + d.stt) : 'Draft lot';
+          } else { ctxType = 'draft_lot_none'; ctxLabel = 'Select a draft lot (or Add new)'; }
+        }
+        if (activeMenu === 'INVOICE_DATA') {
+          if (selectedIvInvoiceNo) { ctxType = 'iv_invoice'; ctxLabel = 'Invoice: ' + selectedIvInvoiceNo; }
+          else { ctxType = 'iv_invoice_none'; ctxLabel = 'Select an invoice (or Add new)'; }
+        }
+        if (activeMenu === 'IMPORT_DECLARATION') {
+          if (selectedDeclLotNo) { ctxType = 'decl_lot'; ctxLabel = 'Lot: ' + selectedDeclLotNo; }
+          else { ctxType = 'decl_lot_none'; ctxLabel = 'Select a declaration (or Add new)'; }
+        }
 
-        const noToolbarMenus = ['DASHBOARD', 'NO_ATC', 'ETA_MGMT', 'LIST_HANG', 'INVOICE_DATA', 'LOT_NO_INFO', 'IMPORT_DECLARATION'];
+        const noToolbarMenus = ['DASHBOARD', 'NO_ATC', 'ETA_MGMT', 'LIST_HANG'];
         const hidden = (noToolbarMenus.includes(activeMenu) && !viewDetailLot)
           || showAddModal || showDictModal || showSupplierModal || showPaymentModal;
 
-        const canEdit   = !!(ctxType && !['dict_none','dict_multi','supplier_none','payment_none','payment_multi'].includes(ctxType));
-        const canDelete = !!(ctxType && !['dict_none','supplier_none','payment_none'].includes(ctxType));
-        // Shipment Profiles (E010): chỉ View + Edit, KHÔNG cho Add ở đây nữa (Add lô mới phải qua Lot No Inf / Invoice Data / Import Declaration)
+        const canEdit   = !!(ctxType && !['dict_none','dict_multi','supplier_none','payment_none','payment_multi','draft_lot_none','iv_invoice_none','decl_lot_none'].includes(ctxType));
+        const canDelete = !!(ctxType && !['dict_none','supplier_none','payment_none','draft_lot_none','iv_invoice_none','decl_lot_none'].includes(ctxType));
+        // Shipment Profiles (E010): Edit = sửa nhanh (quick-edit), KHÔNG cho Add ở đây nữa (Add lô mới phải qua Lot No Inf / Invoice Data / Import Declaration)
         const canAdd = activeMenu !== 'E010';
         const canExport = (activeMenu === 'E010' && !!selectedLotNo) || activeMenu === 'DATABASE_VIEW' || (activeMenu === 'PAYMENT_DATA' && pymSelected.size > 0);
         const canUpload = activeMenu === 'DATABASE_VIEW';
+
 
         // --- GET/CREATE TOOLBAR DOM ---
         let toolbar = document.getElementById('cy-floating-toolbar');
@@ -391,6 +416,30 @@
           else if (activeMenu === 'PAYMENT_DATA') {
             setPaymentForm({ 'NGÀY': getTodayLocal(), 'SỐ PTT': '', 'SỐ TIỀN': '', 'NỘI DUNG': '', 'NGÀY ĐƯA KẾ TOÁN': '' });
             setPaymentEditIdx(null); setShowPaymentModal(true);
+          } else if (activeMenu === 'LOT_NO_INFO') {
+            setSelectedDraftLotId(null);
+            setDraftLotForm({ ...emptyDraftLotForm(), stt: getFirstVacantSeq() });
+            setLnInlineOpen('NEW');
+          } else if (activeMenu === 'INVOICE_DATA') {
+            setSelectedIvInvoiceNo(null);
+            setModalMode('add');
+            setInvoiceForm({
+              invoice_no: '', lot_no: '', bill_no: '', bill_stt: 0, invoice_date: getTodayLocal(),
+              inv_pkg_qty: 0, inv_gw: 0, incoterm: 'CIF', total_amount: 0, foc_amount: 0,
+              plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '',
+              is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT',
+              currency: 'USD', factory_no: '', supplier: 'CHANG YANG MATERIAL CORP.',
+              contract_start: '', contract_end: ''
+            });
+            setGoodsForm({ invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '',
+              goods_name_local: '', goods_unit_local: 'Pcs', goods_unit_local2: '', hs_code: '', invoice_description: '',
+              sale_amount: 0, origin_country: 'TAIWAN', qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: '' });
+            setIvInlineOpen('NEW');
+          } else if (activeMenu === 'IMPORT_DECLARATION') {
+            setSelectedDeclLotNo(null);
+            setDeclModalMode('add');
+            setDeclForm({ draftLotId: '', lotNo: '', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [] });
+            setIdInlineOpen('NEW');
           }
           // E010 (Shipment Profiles): không còn chức năng Add ở đây — dùng Lot No Inf / Invoice Data / Import Declaration
         };
@@ -398,8 +447,12 @@
         const onEdit = () => {
           if (!canEdit) return;
           if (ctxType === 'lot') {
+            // Shipment Profiles: Edit = mở quick-edit inline (sửa nhanh bill info cơ bản), KHÔNG mở wizard đầy đủ
             const lot = lots.find(l => l.lot_no === (viewDetailLot ? viewDetailLot.lot_no : selectedLotNo));
-            if (lot) { if (viewDetailLot) setViewDetailLot(null); startEditLot(lot); }
+            if (lot) {
+              setE010QuickEditForm({ ...lot });
+              setE010QuickEditOpen(true);
+            }
           } else if (ctxType === 'invoice') {
             const inv = invoices.find(i => i.invoice_no === selectedInvoiceNo);
             if (inv) startEditInvoice(inv);
@@ -417,6 +470,19 @@
               setPaymentEditIdx(realIdx);
               setShowPaymentModal(true);
             }
+          } else if (ctxType === 'draft_lot') {
+            setLnInlineOpen(selectedDraftLotId);
+          } else if (ctxType === 'iv_invoice') {
+            const inv = invoices.find(i => i.invoice_no === selectedIvInvoiceNo);
+            if (inv) {
+              startEditInvoiceInline(inv);
+              setIvInlineOpen(selectedIvInvoiceNo);
+            }
+          } else if (ctxType === 'decl_lot') {
+            const lot = lots.find(l => l.lot_no === selectedDeclLotNo);
+            setDeclModalMode('edit');
+            setDeclForm({ draftLotId: '', lotNo: selectedDeclLotNo, loai_hinh: lot ? lot.loai_hinh : 'A12', loai_hinh_con: lot ? lot.loai_hinh_con : 'DEFAULT', selectedInvoiceNos: [] });
+            setIdInlineOpen(selectedDeclLotNo);
           }
         };
 
@@ -442,6 +508,13 @@
             if (realIdx !== -1) handleDeletePayment(realIdx);
           } else if (ctxType === 'payment_multi') {
             handleBulkDeletePayments(new Set(pymSelected));
+          } else if (ctxType === 'draft_lot') {
+            const d = (draftLots||[]).find(x => x.id === selectedDraftLotId);
+            if (d) triggerDeleteDraftLotConfirm(d);
+          } else if (ctxType === 'iv_invoice') {
+            triggerDeleteInvoiceConfirm(selectedIvInvoiceNo);
+          } else if (ctxType === 'decl_lot') {
+            triggerUnlinkAllInvoicesConfirm(selectedDeclLotNo);
           }
         };
 
@@ -1311,10 +1384,22 @@
       const [idPage, setIdPage] = useState(1);
       const ID_PAGE_SIZE = 30;
 
-      // ══ IMPORT DECLARATION: modal Add/Edit (gắn invoice + lot_no) ══
-      const [showDeclModal, setShowDeclModal] = useState(false);
+      // ══ IMPORT DECLARATION: form inline (gắn invoice + lot_no), thay cho modal cũ ══
       const [declModalMode, setDeclModalMode] = useState('add'); // 'add' | 'edit'
       const [declForm, setDeclForm] = useState({ draftLotId: '', lotNo: '', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [] });
+
+      // ══ Selection + inline-accordion state cho floating toolbar trên 3 trang Lot No Inf / Invoice Data / Import Declaration ══
+      const [selectedDraftLotId, setSelectedDraftLotId] = useState(null);   // Lot No Inf
+      const [selectedIvInvoiceNo, setSelectedIvInvoiceNo] = useState(null); // Invoice Data
+      const [selectedDeclLotNo, setSelectedDeclLotNo] = useState(null);     // Import Declaration (lot_no đã có invoice gắn)
+      // null = đóng, 'NEW' = đang thêm mới, id/no = đang sửa dòng đó (accordion mở ngay dưới dòng)
+      const [lnInlineOpen, setLnInlineOpen] = useState(null);
+      const [ivInlineOpen, setIvInlineOpen] = useState(null);
+      const [idInlineOpen, setIdInlineOpen] = useState(null);
+      // Quick-edit inline cho Shipment Profiles (E010) — sửa nhanh bill info cơ bản, không đụng invoice/goods
+      const [e010QuickEditOpen, setE010QuickEditOpen] = useState(false);
+      const [e010QuickEditForm, setE010QuickEditForm] = useState(null);
+
 
       // Lazy-load flags: chỉ hiện dữ liệu khi user bấm Load hoặc dùng filter
       const [ivLoaded, setIvLoaded] = useState(false);
@@ -1759,6 +1844,32 @@
             saveInvoicesToStorage(invoices.map(inv => inv.invoice_no === invNo ? { ...inv, lot_no: '' } : inv));
             setConfirmState(prev => ({ ...prev, isOpen: false }));
             showNotification(`Invoice ${invNo} unlinked from lot ${lotNo}`);
+          }
+        });
+      };
+
+      // E010 Quick Edit: lưu nhanh bill info cơ bản của lot (không đụng invoice/goods)
+      const handleSaveQuickEdit = () => {
+        if (!e010QuickEditForm) return;
+        const updated = lots.map(l => l.lot_no === e010QuickEditForm.lot_no ? { ...l, ...e010QuickEditForm } : l);
+        saveLotsToStorage(updated);
+        setE010QuickEditOpen(false);
+        setE010QuickEditForm(null);
+        showNotification(`Lot ${e010QuickEditForm.lot_no} updated`);
+      };
+
+      // Xoá cả 1 "Import Declaration" (toolbar Delete) = gỡ TẤT CẢ invoice đang gắn với lot_no đó. Không xoá lot_no, không xoá invoice.
+      const triggerUnlinkAllInvoicesConfirm = (lotNo) => {
+        const count = invoices.filter(i => i.lot_no === lotNo).length;
+        if (!count) return;
+        setConfirmState({
+          isOpen: true,
+          title: 'Delete Declaration',
+          message: `All ${count} invoice(s) linked to Lot [${lotNo}] will be unlinked and return to "Unassigned" status. The lot record itself will NOT be deleted.`,
+          onConfirm: () => {
+            saveInvoicesToStorage(invoices.map(inv => inv.lot_no === lotNo ? { ...inv, lot_no: '' } : inv));
+            setConfirmState(prev => ({ ...prev, isOpen: false }));
+            showNotification(`Declaration for lot ${lotNo} removed (${count} invoice(s) unlinked)`);
           }
         });
       };
@@ -2218,6 +2329,35 @@
         setModalTab('lot');
         setShowAddModal(true);
       };
+      // Load invoice lên invoiceForm để sửa INLINE ngay trên trang Invoice Data (không mở modal/wizard)
+      const startEditInvoiceInline = (inv) => {
+        setInvoiceForm({
+          invoice_no:          toStr(inv.invoice_no),
+          lot_no:              toStr(inv.lot_no),
+          bill_no:             toStr(inv.bill_no),
+          bill_stt:            Number(inv.bill_stt)    || 1,
+          invoice_date:        normalizeDate(inv.invoice_date),
+          incoterm:            toStr(inv.incoterm)     || 'CIF',
+          loai_hinh:           toStr(inv.loai_hinh)   || 'A12',
+          loai_hinh_con:       toStr(inv.loai_hinh_con) || 'DEFAULT',
+          supplier:            toStr(inv.supplier)    || 'CHANG YANG MATERIAL CORP.',
+          currency:            toStr(inv.currency)    || 'USD',
+          total_amount:        Number(inv.total_amount)        || 0,
+          foc_amount:          Number(inv.foc_amount)          || 0,
+          plus_sea_freight:    Number(inv.plus_sea_freight)    || 0,
+          handling_charges:    Number(inv.handling_charges)    || 0,
+          other_charges:       Number(inv.other_charges)       || 0,
+          other_charges_note:  toStr(inv.other_charges_note),
+          inv_pkg_qty:         Number(inv.inv_pkg_qty)         || 0,
+          inv_gw:              Number(inv.inv_gw)              || 0,
+          is_hang_chung_bill:  Boolean(inv.is_hang_chung_bill),
+          factory_no:          toStr(inv.factory_no),
+          contract_start:      normalizeDate(inv.contract_start),
+          contract_end:        normalizeDate(inv.contract_end),
+        });
+        setModalMode('edit');
+      };
+
       const startEditInvoice = (inv, e) => {
         if(e) e.stopPropagation();
         setModalMode('edit');
@@ -2852,7 +2992,7 @@
       useFloatingToolbar({
         activeMenu, setActiveMenu, selectedLotNo, selectedInvoiceNo, viewDetailLot,
         selectedDictItems, showAddModal, showDictModal, showSupplierModal, showPaymentModal,
-        lots, invoices, goods, dictA12, dictE21, dbSelectedTab,
+        lots, invoices, goods, draftLots, dictA12, dictE21, dbSelectedTab,
         startEditLot, startEditInvoice, triggerDeleteLotConfirm, triggerDeleteInvoiceConfirm,
         handleOpenAddDict, handleOpenEditDict, handleDeleteDictConfirm, handleBulkDelete,
         handleOpenAddSupplier, setPaymentForm, setPaymentEditIdx, setShowPaymentModal,
@@ -2862,7 +3002,13 @@
         showNotification, setViewDetailLot,
         selectedSupplierIdx, supplierData, handleOpenEditSupplier, handleDeleteSupplier,
         pymSelected, setPymSelected, paymentData, filteredPayments, handleDeletePayment,
-        handleExportSelectedPayments, handleBulkDeletePayments
+        handleExportSelectedPayments, handleBulkDeletePayments,
+        selectedDraftLotId, setSelectedDraftLotId, lnInlineOpen, setLnInlineOpen,
+        triggerDeleteDraftLotConfirm, emptyDraftLotForm, setDraftLotForm,
+        selectedIvInvoiceNo, setSelectedIvInvoiceNo, ivInlineOpen, setIvInlineOpen,
+        selectedDeclLotNo, setSelectedDeclLotNo, idInlineOpen, setIdInlineOpen,
+        setDeclModalMode, setDeclForm, triggerUnlinkAllInvoicesConfirm,
+        e010QuickEditOpen, setE010QuickEditOpen, setE010QuickEditForm, handleSaveQuickEdit
       });
 
 
@@ -3905,6 +4051,68 @@
                     )}
                   </div>
 
+                  {/*QUICK EDIT PANEL — Edit nhanh bill info cơ bản, không đụng invoice/goods*/}
+                  {e010QuickEditOpen && e010QuickEditForm && (
+                    <div className="bg-blue-950/20 border border-blue-800/50 rounded-xl p-4 space-y-3 shadow-lg">
+                      <div className="flex justify-between items-center">
+                        <p className="text-[11px] font-bold text-blue-300 uppercase tracking-wider">✏ Quick Edit — Lot {e010QuickEditForm.lot_no}</p>
+                        <button onClick={() => { setE010QuickEditOpen(false); setE010QuickEditForm(null); }}
+                          className="text-slate-400 hover:text-white font-bold text-sm">✕</button>
+                      </div>
+                      <div className="grid grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">Bill No.</label>
+                          <input type="text" value={e010QuickEditForm.bill_no||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, bill_no: e.target.value.toUpperCase()})}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">Bill Date</label>
+                          <input type="date" value={e010QuickEditForm.bill_date||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, bill_date: e.target.value})}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">Carrier</label>
+                          <input type="text" value={e010QuickEditForm.carrier||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, carrier: e.target.value})}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">ETA</label>
+                          <input type="date" value={e010QuickEditForm.eta||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, eta: e.target.value})}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">POL</label>
+                          <input type="text" value={e010QuickEditForm.pol||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, pol: e.target.value.toUpperCase()})}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">POD</label>
+                          <input type="text" value={e010QuickEditForm.pod||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, pod: e.target.value.toUpperCase()})}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">Container No.</label>
+                          <input type="text" value={e010QuickEditForm.cont_no||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, cont_no: e.target.value.toUpperCase()})}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-cyan-300 font-mono" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">ATC Date</label>
+                          <input type="date" value={e010QuickEditForm.atc_date||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, atc_date: e.target.value})}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 pt-1 border-t border-slate-800">
+                        <p className="text-[10px] text-slate-500 flex-1">To edit invoice/goods or container list in detail → go to Invoice Data or Import Declaration</p>
+                        <button onClick={() => { setE010QuickEditOpen(false); setE010QuickEditForm(null); }}
+                          className="bg-slate-800 px-4 py-1.5 text-xs rounded text-slate-300 hover:bg-slate-700 font-bold">Cancel</button>
+                        <button onClick={handleSaveQuickEdit}
+                          className="bg-blue-600 hover:bg-blue-700 px-5 py-1.5 text-xs rounded text-white font-bold">✔ Save Changes</button>
+                      </div>
+                    </div>
+                  )}
+
                   {/*CONTROL BAR*/}
                   <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center shadow-lg">
                     <span className="text-xs text-slate-400">
@@ -4738,6 +4946,212 @@
                 const totalVal = filtered.reduce((s,i) => s + getInvoiceValueSum(i), 0);
                 const hasManualFilter = ivFilterLoaiHinh !== 'ALL' || ivFilterSupplier !== 'ALL' || ivFilterFactory !== 'ALL' || ivFilterYear !== 'ALL' || ivSearch.trim();
 
+                const invGoodsList = (invNo) => goods.filter(g => String(g.invoice_no) === String(invNo));
+
+                // ── Form inline (accordion) — Phần trên: Invoice info | Phần dưới: Goods list ──
+                const InvoiceInlineForm = ({ invoiceNoCtx }) => {
+                  const isEdit = modalMode === 'edit';
+                  const curGoods = invoiceNoCtx ? invGoodsList(invoiceNoCtx) : [];
+                  return (
+                    <tr>
+                      <td colSpan="10" className="bg-indigo-950/20 border-y border-indigo-800/40 p-0">
+                        <div className="p-4 space-y-5">
+                          {/*Phần 1: Invoice info*/}
+                          <form onSubmit={handleSaveInvoice} className="space-y-3">
+                            <p className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider">
+                              {isEdit ? `Edit Invoice — ${invoiceForm.invoice_no}` : '1. Invoice Information'}
+                            </p>
+                            <div className="grid grid-cols-4 gap-3">
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Invoice No. *</label>
+                                <input type="text" required disabled={isEdit} value={invoiceForm.invoice_no}
+                                  onChange={e => setInvoiceForm({...invoiceForm, invoice_no: e.target.value.toUpperCase()})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono disabled:opacity-60" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Invoice Date</label>
+                                <input type="date" value={invoiceForm.invoice_date||''} onChange={e => setInvoiceForm({...invoiceForm, invoice_date: e.target.value})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Dec. Type</label>
+                                <select value={invoiceForm.loai_hinh} onChange={e => setInvoiceForm({...invoiceForm, loai_hinh: e.target.value})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
+                                  <option value="A12">A12</option>
+                                  <option value="E21">E21</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Incoterm</label>
+                                <select value={invoiceForm.incoterm} onChange={e => setInvoiceForm({...invoiceForm, incoterm: e.target.value})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
+                                  {['CIF','CFR','CIP','CPT','FOB','FCA','EXW','FAS'].map(t=><option key={t} value={t}>{t}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Supplier</label>
+                                <input type="text" value={invoiceForm.supplier} onChange={e => setInvoiceForm({...invoiceForm, supplier: e.target.value})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Factory No.</label>
+                                <input type="text" value={invoiceForm.factory_no} onChange={e => setInvoiceForm({...invoiceForm, factory_no: e.target.value.toUpperCase()})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-cyan-300 font-mono" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Currency</label>
+                                <select value={invoiceForm.currency} onChange={e => setInvoiceForm({...invoiceForm, currency: e.target.value})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
+                                  <option value="USD">USD</option><option value="EUR">EUR</option><option value="TWD">TWD</option><option value="CNY">CNY</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">Total Amount</label>
+                                <input type="number" step="0.01" min="0" value={invoiceForm.total_amount||''}
+                                  onChange={e => setInvoiceForm({...invoiceForm, total_amount: parseFloat(e.target.value)||0})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">+ Sea Freight</label>
+                                <input type="number" step="0.01" min="0" value={invoiceForm.plus_sea_freight||''}
+                                  onChange={e => setInvoiceForm({...invoiceForm, plus_sea_freight: parseFloat(e.target.value)||0})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">+ Handling</label>
+                                <input type="number" step="0.01" min="0" value={invoiceForm.handling_charges||''}
+                                  onChange={e => setInvoiceForm({...invoiceForm, handling_charges: parseFloat(e.target.value)||0})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">+ Other</label>
+                                <input type="number" step="0.01" min="0" value={invoiceForm.other_charges||''}
+                                  onChange={e => setInvoiceForm({...invoiceForm, other_charges: parseFloat(e.target.value)||0})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-400 mb-1">− FOC</label>
+                                <input type="number" step="0.01" min="0" value={invoiceForm.foc_amount||''}
+                                  onChange={e => setInvoiceForm({...invoiceForm, foc_amount: parseFloat(e.target.value)||0})}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                              <button type="button" onClick={() => { setIvInlineOpen(null); setSelectedIvInvoiceNo(null); }}
+                                className="bg-slate-800 px-4 py-1.5 text-xs rounded text-slate-300 hover:bg-slate-700 font-bold">Close</button>
+                              <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 px-5 py-1.5 text-xs rounded text-white font-bold">
+                                {isEdit ? '✔ Update Invoice' : '+ Save Invoice → Enter Goods'}
+                              </button>
+                            </div>
+                          </form>
+
+                          {/*Phần 2: Goods list — chỉ hiện khi invoice đã có invoice_no (đã lưu hoặc đang sửa)*/}
+                          {invoiceForm.invoice_no && (
+                            <div className="space-y-3 pt-1 border-t border-slate-800">
+                              <p className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">2. Goods List — {invoiceForm.invoice_no}</p>
+                              {curGoods.length > 0 && (
+                                <div className="overflow-x-auto rounded-lg border border-slate-800">
+                                  <table className="w-full text-left text-[11px] border-collapse">
+                                    <thead>
+                                      <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider">
+                                        <th className="px-2.5 py-2">Goods No.</th>
+                                        <th className="px-2.5 py-2">Name</th>
+                                        <th className="px-2.5 py-2 text-right">Qty</th>
+                                        <th className="px-2.5 py-2 text-right">Unit Price</th>
+                                        <th className="px-2.5 py-2 text-right">Amount</th>
+                                        <th className="px-2.5 py-2 text-center">Actions</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800/60">
+                                      {curGoods.map(g => (
+                                        <tr key={g.id} className="hover:bg-slate-800/30">
+                                          <td className="px-2.5 py-2 font-mono text-amber-300">{g.goods_no}</td>
+                                          <td className="px-2.5 py-2 text-slate-300 max-w-[220px] truncate" title={g.goods_name_en}>{g.goods_name_en}</td>
+                                          <td className="px-2.5 py-2 text-right font-mono text-slate-300">{Number(g.qty1).toLocaleString()} {g.unit1}</td>
+                                          <td className="px-2.5 py-2 text-right font-mono text-slate-300">{Number(g.unit_price).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                                          <td className="px-2.5 py-2 text-right font-mono font-bold text-emerald-400">{Number(g.sale_amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                                          <td className="px-2.5 py-2 text-center">
+                                            <div className="flex gap-1 justify-center">
+                                              <button type="button" onClick={() => startEditGoods(g)}
+                                                className="text-[9px] px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-600 text-white font-bold">Edit</button>
+                                              <button type="button" onClick={() => triggerDeleteGoodsConfirm(g.id)}
+                                                className="text-[9px] px-2 py-0.5 rounded bg-rose-900 hover:bg-rose-800 text-rose-300 font-bold">Del</button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                              <form onSubmit={handleSaveGoods} className="bg-slate-950/50 border border-slate-800 rounded-lg p-3 space-y-2.5">
+                                <div className="grid grid-cols-4 gap-2.5">
+                                  <div>
+                                    <label className="block text-[10px] text-slate-400 mb-1">Goods No. *</label>
+                                    <input type="text" required value={goodsForm.goods_no}
+                                      onChange={e => setGoodsForm({...goodsForm, goods_no: e.target.value.toUpperCase()})}
+                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono" />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <label className="block text-[10px] text-slate-400 mb-1">Name (EN) *</label>
+                                    <input type="text" required value={goodsForm.goods_name_en}
+                                      onChange={e => setGoodsForm({...goodsForm, goods_name_en: e.target.value})}
+                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] text-slate-400 mb-1">HS Code</label>
+                                    <input type="text" value={goodsForm.hs_code}
+                                      onChange={e => setGoodsForm({...goodsForm, hs_code: e.target.value})}
+                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono" />
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-4 gap-2.5">
+                                  <div>
+                                    <label className="block text-[10px] text-slate-400 mb-1">Qty</label>
+                                    <input type="number" step="0.001" min="0" value={goodsForm.qty1||''}
+                                      onChange={e => setGoodsForm({...goodsForm, qty1: parseFloat(e.target.value)||0})}
+                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] text-slate-400 mb-1">Unit</label>
+                                    <input type="text" value={goodsForm.unit1}
+                                      onChange={e => setGoodsForm({...goodsForm, unit1: e.target.value.toUpperCase()})}
+                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] text-slate-400 mb-1">Unit Price</label>
+                                    <input type="number" step="0.0001" min="0" value={goodsForm.unit_price||''}
+                                      onChange={e => {
+                                        const up = parseFloat(e.target.value)||0;
+                                        setGoodsForm({...goodsForm, unit_price: up, sale_amount: up * (Number(goodsForm.qty1)||0)});
+                                      }}
+                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] text-slate-400 mb-1">Amount</label>
+                                    <input type="number" step="0.01" min="0" value={goodsForm.sale_amount||''}
+                                      onChange={e => setGoodsForm({...goodsForm, sale_amount: parseFloat(e.target.value)||0})}
+                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-emerald-300 font-bold" />
+                                  </div>
+                                </div>
+                                <div className="flex justify-end gap-2 pt-1">
+                                  <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 px-4 py-1.5 text-xs rounded text-white font-bold">
+                                    {modalMode === 'edit' && goodsForm.id ? '✔ Update Goods Item' : '+ Add Goods Item'}
+                                  </button>
+                                </div>
+                              </form>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                };
+
                 return (
                   <div className="space-y-4">
                     {/*Header + search*/}
@@ -4747,7 +5161,7 @@
                         <p className="text-[10px] text-slate-500 mt-0.5">
                           {hasActiveFilter
                             ? <>{filtered.length} invoice(s) · Value: <span className="text-emerald-400 font-mono font-bold">${totalVal.toLocaleString(undefined,{minimumFractionDigits:2})}</span></>
-                            : 'Use search or filter to view invoices — or press Load All'}
+                            : 'Use search or filter to view invoices — or press Load All. Click a row to select, use the toolbar below to Add/Edit/Delete.'}
                         </p>
                       </div>
                       <div className="flex gap-2 items-center flex-wrap">
@@ -4762,22 +5176,6 @@
                         <button onClick={() => { setIvLoaded(true); setIvPage(1); }}
                           className="bg-blue-700 hover:bg-blue-600 text-white font-bold px-4 py-2 rounded-lg text-xs">
                           Load All
-                        </button>
-                        <button onClick={() => {
-                            setModalMode('add'); setModalTab('invoice');
-                            setInvoiceForm({
-                              invoice_no: '', lot_no: '', bill_no: '', bill_stt: 0, invoice_date: getTodayLocal(),
-                              inv_pkg_qty: 0, inv_gw: 0, incoterm: 'CIF', total_amount: 0, foc_amount: 0,
-                              plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '',
-                              is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT',
-                              currency: 'USD', factory_no: '', supplier: 'CHANG YANG MATERIAL CORP.',
-                              contract_start: '', contract_end: ''
-                            });
-                            setSelectedLotNo(null); setSelectedInvoiceNo(null);
-                            setShowAddModal(true);
-                          }}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5">
-                          + Add Invoice
                         </button>
                       </div>
                     </div>
@@ -4812,16 +5210,16 @@
                     )}
 
                     {/*Empty state*/}
-                    {!hasActiveFilter && (
+                    {!hasActiveFilter && ivInlineOpen !== 'NEW' && (
                       <div className="bg-slate-900 border border-slate-800 rounded-xl p-14 text-center">
                         <div className="text-5xl mb-4 opacity-20">📄</div>
                         <p className="text-slate-400 font-bold text-sm">Search or Load All to view invoices</p>
-                        <p className="text-slate-600 text-xs mt-1">Type in the search box and press Enter, or click Load All</p>
+                        <p className="text-slate-600 text-xs mt-1">Type in the search box and press Enter, or click Load All. Use the toolbar (Add) to create a new invoice.</p>
                       </div>
                     )}
 
                     {/*Table*/}
-                    {hasActiveFilter && (
+                    {(hasActiveFilter || ivInlineOpen === 'NEW') && (
                       <>
                         <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                           <div className="overflow-x-auto">
@@ -4837,48 +5235,45 @@
                                   <th className="px-3 py-3 text-center">Incoterm</th>
                                   <th className="px-3 py-3 text-center">Currency</th>
                                   <th className="px-3 py-3 text-right">Invoice Value</th>
-                                  <th className="px-3 py-3 text-center">→</th>
+                                  <th className="px-3 py-3 text-center">Selected</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-800/60">
+                                {ivInlineOpen === 'NEW' && <InvoiceInlineForm invoiceNoCtx={invoiceForm.invoice_no} />}
                                 {paged.map(inv => {
                                   const val = getInvoiceValueSum(inv);
                                   const isDraft = !inv.lot_no;
+                                  const isSelected = selectedIvInvoiceNo === inv.invoice_no;
                                   return (
-                                    <tr key={inv.invoice_no} className={`transition-colors ${isDraft ? 'bg-amber-950/10 hover:bg-amber-950/20' : 'hover:bg-slate-800/40'}`}>
-                                      <td className="px-3 py-2.5 font-mono font-bold text-indigo-300">{inv.invoice_no}</td>
-                                      <td className="px-3 py-2.5">
-                                        {inv.lot_no
-                                          ? <span className="font-mono font-bold text-amber-400">{inv.lot_no}</span>
-                                          : <span className="text-amber-600 italic text-[10px] font-bold">⏳ Unassigned</span>}
-                                      </td>
-                                      <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(inv.invoice_date)}</td>
-                                      <td className="px-3 py-2.5 text-center">
-                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${inv.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':inv.loai_hinh==='E21'?'bg-emerald-900/50 text-emerald-300':'bg-slate-800 text-slate-400'}`}>
-                                          {inv.loai_hinh||'—'}
-                                        </span>
-                                      </td>
-                                      <td className="px-3 py-2.5 text-slate-300 text-[11px] max-w-[160px] truncate" title={inv.supplier}>{inv.supplier||'—'}</td>
-                                      <td className="px-3 py-2.5 text-center text-sky-400 font-mono text-[11px]">{inv.factory_no||'—'}</td>
-                                      <td className="px-3 py-2.5 text-center text-slate-400">{inv.incoterm||'—'}</td>
-                                      <td className="px-3 py-2.5 text-center font-mono text-slate-300">{inv.currency||'USD'}</td>
-                                      <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-400">${val.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                                      <td className="px-3 py-2.5 text-center">
-                                        <div className="flex gap-1.5 justify-center">
-                                          <button onClick={() => startEditInvoice(inv)}
-                                            className="text-[10px] px-2.5 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white font-bold">
-                                            Edit
-                                          </button>
-                                          <button onClick={() => triggerDeleteInvoiceConfirm(inv.invoice_no)}
-                                            className="text-[10px] px-2.5 py-1 rounded bg-rose-900 hover:bg-rose-800 text-rose-300 font-bold">
-                                            Delete
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
+                                    <React.Fragment key={inv.invoice_no}>
+                                      <tr onClick={() => setSelectedIvInvoiceNo(isSelected ? null : inv.invoice_no)}
+                                        className={`cursor-pointer transition-colors ${isSelected ? 'bg-indigo-950/40' : isDraft ? 'bg-amber-950/10 hover:bg-amber-950/20' : 'hover:bg-slate-800/40'}`}>
+                                        <td className="px-3 py-2.5 font-mono font-bold text-indigo-300">{inv.invoice_no}</td>
+                                        <td className="px-3 py-2.5">
+                                          {inv.lot_no
+                                            ? <span className="font-mono font-bold text-amber-400">{inv.lot_no}</span>
+                                            : <span className="text-amber-600 italic text-[10px] font-bold">⏳ Unassigned</span>}
+                                        </td>
+                                        <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(inv.invoice_date)}</td>
+                                        <td className="px-3 py-2.5 text-center">
+                                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${inv.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':inv.loai_hinh==='E21'?'bg-emerald-900/50 text-emerald-300':'bg-slate-800 text-slate-400'}`}>
+                                            {inv.loai_hinh||'—'}
+                                          </span>
+                                        </td>
+                                        <td className="px-3 py-2.5 text-slate-300 text-[11px] max-w-[160px] truncate" title={inv.supplier}>{inv.supplier||'—'}</td>
+                                        <td className="px-3 py-2.5 text-center text-sky-400 font-mono text-[11px]">{inv.factory_no||'—'}</td>
+                                        <td className="px-3 py-2.5 text-center text-slate-400">{inv.incoterm||'—'}</td>
+                                        <td className="px-3 py-2.5 text-center font-mono text-slate-300">{inv.currency||'USD'}</td>
+                                        <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-400">${val.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                                        <td className="px-3 py-2.5 text-center">
+                                          {isSelected && <span className="text-indigo-400 font-black">✓</span>}
+                                        </td>
+                                      </tr>
+                                      {ivInlineOpen === inv.invoice_no && <InvoiceInlineForm invoiceNoCtx={inv.invoice_no} />}
+                                    </React.Fragment>
                                   );
                                 })}
-                                {paged.length === 0 && (
+                                {paged.length === 0 && ivInlineOpen !== 'NEW' && (
                                   <tr><td colSpan="10" className="p-10 text-center text-slate-500 italic">No invoices match.</td></tr>
                                 )}
                               </tbody>
@@ -4899,6 +5294,7 @@
                   </div>
                 );
               })()}
+
 
               {/*--- LOT NO INFO VIEW ---*/}
               {activeMenu === 'LOT_NO_INFO' && (() => {
@@ -4937,6 +5333,110 @@
                 const safePage = Math.min(lnPage, totalPages);
                 const paged = displayList.slice((safePage-1)*LN_PAGE_SIZE, safePage*LN_PAGE_SIZE);
 
+                // ── Form inline (accordion) cho Add/Edit Draft Lot ──
+                const DraftLotInlineForm = () => (
+                  <tr>
+                    <td colSpan="8" className="bg-blue-950/20 border-y border-blue-800/40 p-0">
+                      <form onSubmit={handleSaveDraftLot} className="p-4 space-y-3">
+                        <p className="text-[11px] font-bold text-blue-300 uppercase tracking-wider">
+                          {draftLotModalMode === 'edit' ? `Edit Draft Lot — STT ${draftLotForm.stt}` : 'Add Draft Lot (STT + Bill Info)'}
+                        </p>
+                        <div className="grid grid-cols-4 gap-3">
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">STT *</label>
+                            <input type="number" required value={draftLotForm.stt}
+                              onChange={e => setDraftLotForm({...draftLotForm, stt: Number(e.target.value)})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Supplier</label>
+                            <input type="text" value={draftLotForm.supplier}
+                              onChange={e => setDraftLotForm({...draftLotForm, supplier: e.target.value})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Bill No.</label>
+                            <input type="text" value={draftLotForm.bill_no}
+                              onChange={e => setDraftLotForm({...draftLotForm, bill_no: e.target.value.toUpperCase()})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Bill Date</label>
+                            <input type="date" value={draftLotForm.bill_date||''} onChange={e => setDraftLotForm({...draftLotForm, bill_date: e.target.value})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-4 gap-3">
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Carrier / Forwarder</label>
+                            <input type="text" value={draftLotForm.carrier}
+                              onChange={e => setDraftLotForm({...draftLotForm, carrier: e.target.value})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">POL</label>
+                            <input type="text" value={draftLotForm.pol}
+                              onChange={e => setDraftLotForm({...draftLotForm, pol: e.target.value.toUpperCase()})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">POD</label>
+                            <input type="text" value={draftLotForm.pod}
+                              onChange={e => setDraftLotForm({...draftLotForm, pod: e.target.value.toUpperCase()})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">ETA</label>
+                            <input type="date" value={draftLotForm.eta||''} onChange={e => setDraftLotForm({...draftLotForm, eta: e.target.value})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-4 gap-3">
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Container No.</label>
+                            <input type="text" value={(draftLotForm.contList&&draftLotForm.contList[0]&&draftLotForm.contList[0].cont_no)||''}
+                              onChange={e => {
+                                const list = [...(draftLotForm.contList||[{cont_no:'',seal_no:'',cont_type:'40FT'}])];
+                                list[0] = {...list[0], cont_no: e.target.value.toUpperCase()};
+                                setDraftLotForm({...draftLotForm, contList: list});
+                              }}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-cyan-300 font-mono" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Seal No.</label>
+                            <input type="text" value={(draftLotForm.contList&&draftLotForm.contList[0]&&draftLotForm.contList[0].seal_no)||''}
+                              onChange={e => {
+                                const list = [...(draftLotForm.contList||[{cont_no:'',seal_no:'',cont_type:'40FT'}])];
+                                list[0] = {...list[0], seal_no: e.target.value.toUpperCase()};
+                                setDraftLotForm({...draftLotForm, contList: list});
+                              }}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Pkg Qty</label>
+                            <input type="number" step="0.001" min="0" value={draftLotForm.pkg_qty||''}
+                              onChange={e => setDraftLotForm({...draftLotForm, pkg_qty: parseFloat(e.target.value)||0})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1">Gross Weight (KG)</label>
+                            <input type="number" step="0.001" min="0" value={draftLotForm.gw||''}
+                              onChange={e => setDraftLotForm({...draftLotForm, gw: parseFloat(e.target.value)||0})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                          <button type="button" onClick={() => { setLnInlineOpen(null); setSelectedDraftLotId(null); }}
+                            className="bg-slate-800 px-4 py-1.5 text-xs rounded text-slate-300 hover:bg-slate-700 font-bold">Cancel</button>
+                          <button type="submit" className="bg-blue-600 hover:bg-blue-700 px-5 py-1.5 text-xs rounded text-white font-bold">
+                            {draftLotModalMode === 'edit' ? '✔ Update' : '+ Save Draft Lot'}
+                          </button>
+                        </div>
+                      </form>
+                    </td>
+                  </tr>
+                );
+
                 return (
                   <div className="space-y-4">
                     {/*Header*/}
@@ -4945,7 +5445,7 @@
                         <h3 className="text-sm font-black text-blue-300 uppercase tracking-wide">🔢 Lot No. Information</h3>
                         <p className="text-[10px] text-slate-500 mt-0.5">
                           {lnTab === 'draft'
-                            ? <>{draftListFiltered.length} draft lot(s) — STT &amp; Bill info, not yet assigned a lot code</>
+                            ? <>{draftListFiltered.length} draft lot(s) — STT &amp; Bill info, not yet assigned a lot code. Click a row to select, use the toolbar below to Add/Edit/Delete.</>
                             : hasActiveFilter
                               ? <>{displayList.length} lots shown · {lots.length} total</>
                               : 'Use search, filter, or Load to view data'}
@@ -4966,24 +5466,18 @@
                             Load
                           </button>
                         )}
-                        {lnTab === 'draft' && (
-                          <button onClick={startAddDraftLot}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5">
-                            + Add Draft Lot (STT/Bill)
-                          </button>
-                        )}
                       </div>
                     </div>
 
                     {/*Tab bar + filters*/}
                     <div className="flex flex-wrap gap-3 items-center justify-between">
                       <div className="flex gap-1 bg-slate-950 border border-slate-800 rounded-xl p-1">
-                        <button onClick={() => { setLnTab('draft'); setLnPage(1); }}
+                        <button onClick={() => { setLnTab('draft'); setLnPage(1); setSelectedDraftLotId(null); setLnInlineOpen(null); }}
                           className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${lnTab==='draft'?'bg-amber-600 text-white shadow':'text-slate-400 hover:text-white'}`}>
                           ⏳ Draft Lots (STT/Bill)
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${lnTab==='draft'?'bg-white/20 text-white':'bg-slate-800 text-slate-400'}`}>{draftLots.length}</span>
                         </button>
-                        <button onClick={() => { setLnTab('all'); setLnPage(1); }}
+                        <button onClick={() => { setLnTab('all'); setLnPage(1); setSelectedDraftLotId(null); setLnInlineOpen(null); }}
                           className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${lnTab==='all'?'bg-blue-600 text-white shadow':'text-slate-400 hover:text-white'}`}>
                           📋 Finalized Lots
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${lnTab==='all'?'bg-white/20 text-white':'bg-slate-800 text-slate-400'}`}>{lots.length}</span>
@@ -5016,14 +5510,14 @@
                       </div>
                     )}
 
-                    {/*Table: Draft Lots (STT/Bill) — full CRUD*/}
+                    {/*Table: Draft Lots (STT/Bill) — chọn dòng + toolbar nổi để Add/Edit/Delete*/}
                     {lnTab === 'draft' && (
                       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                        {draftListFiltered.length === 0 ? (
+                        {draftListFiltered.length === 0 && lnInlineOpen !== 'NEW' ? (
                           <div className="p-12 text-center">
                             <div className="text-4xl mb-3 opacity-20">⏳</div>
                             <p className="text-slate-400 font-bold text-sm">No draft lots yet</p>
-                            <p className="text-slate-600 text-xs mt-1">Click "+ Add Draft Lot" to enter a new STT + Bill info</p>
+                            <p className="text-slate-600 text-xs mt-1">Use the toolbar below (Add) to enter a new STT + Bill info</p>
                           </div>
                         ) : (
                           <div className="overflow-x-auto">
@@ -5037,30 +5531,31 @@
                                   <th className="px-3 py-3">POL → POD</th>
                                   <th className="px-3 py-3 text-center">ETA</th>
                                   <th className="px-3 py-3 text-center">Linked Invoices</th>
-                                  <th className="px-3 py-3 text-center">Actions</th>
+                                  <th className="px-3 py-3 text-center">Selected</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-800/60">
+                                {lnInlineOpen === 'NEW' && <DraftLotInlineForm />}
                                 {paged.map(d => {
                                   const linkedCount = invoices.filter(i => Number(i.bill_stt) === Number(d.stt) && i.lot_no).length;
+                                  const isSelected = selectedDraftLotId === d.id;
                                   return (
-                                    <tr key={d.id} className="hover:bg-slate-800/40 transition-colors">
-                                      <td className="px-3 py-2.5 text-center font-mono font-bold text-amber-300">{d.stt}</td>
-                                      <td className="px-3 py-2.5 font-mono text-slate-300">{d.bill_no||'—'}</td>
-                                      <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(d.bill_date)}</td>
-                                      <td className="px-3 py-2.5 text-slate-300">{d.carrier||'—'}</td>
-                                      <td className="px-3 py-2.5 text-slate-400 text-[11px]">{d.pol||'—'} → {d.pod||'—'}</td>
-                                      <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(d.eta)}</td>
-                                      <td className="px-3 py-2.5 text-center text-slate-300">{linkedCount}</td>
-                                      <td className="px-3 py-2.5 text-center">
-                                        <div className="flex gap-1.5 justify-center">
-                                          <button onClick={() => startEditDraftLot(d)}
-                                            className="text-[10px] px-2.5 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white font-bold">Edit</button>
-                                          <button onClick={() => triggerDeleteDraftLotConfirm(d)}
-                                            className="text-[10px] px-2.5 py-1 rounded bg-rose-900 hover:bg-rose-800 text-rose-300 font-bold">Delete</button>
-                                        </div>
-                                      </td>
-                                    </tr>
+                                    <React.Fragment key={d.id}>
+                                      <tr onClick={() => setSelectedDraftLotId(isSelected ? null : d.id)}
+                                        className={`cursor-pointer transition-colors ${isSelected ? 'bg-blue-950/40' : 'hover:bg-slate-800/40'}`}>
+                                        <td className="px-3 py-2.5 text-center font-mono font-bold text-amber-300">{d.stt}</td>
+                                        <td className="px-3 py-2.5 font-mono text-slate-300">{d.bill_no||'—'}</td>
+                                        <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(d.bill_date)}</td>
+                                        <td className="px-3 py-2.5 text-slate-300">{d.carrier||'—'}</td>
+                                        <td className="px-3 py-2.5 text-slate-400 text-[11px]">{d.pol||'—'} → {d.pod||'—'}</td>
+                                        <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(d.eta)}</td>
+                                        <td className="px-3 py-2.5 text-center text-slate-300">{linkedCount}</td>
+                                        <td className="px-3 py-2.5 text-center">
+                                          {isSelected && <span className="text-blue-400 font-black">✓</span>}
+                                        </td>
+                                      </tr>
+                                      {lnInlineOpen === d.id && <DraftLotInlineForm />}
+                                    </React.Fragment>
                                   );
                                 })}
                               </tbody>
@@ -5143,6 +5638,7 @@
                 );
               })()}
 
+
               {/*--- IMPORT DECLARATION VIEW ---*/}
               {activeMenu === 'IMPORT_DECLARATION' && (() => {
                 const unassigned = invoices.filter(inv => !inv.lot_no || !lots.some(l=>l.lot_no===inv.lot_no));
@@ -5152,7 +5648,7 @@
                 const hasActiveFilter = idLoaded || idSearch.trim() || idFilterLoaiHinh !== 'ALL' || idFilterFactory !== 'ALL';
                 const hasManualFilter = idSearch.trim() || idFilterLoaiHinh !== 'ALL' || idFilterFactory !== 'ALL';
 
-                const filtered = !hasActiveFilter ? [] : unassigned.filter(inv => {
+                const filteredUnassigned = !hasActiveFilter ? [] : unassigned.filter(inv => {
                   if (idFilterLoaiHinh !== 'ALL' && inv.loai_hinh !== idFilterLoaiHinh) return false;
                   if (idFilterFactory !== 'ALL' && inv.factory_no !== idFilterFactory) return false;
                   if (idSearch.trim()) {
@@ -5166,14 +5662,134 @@
                   return true;
                 });
 
-                const totalPages = Math.max(1, Math.ceil(filtered.length / ID_PAGE_SIZE));
-                const safePage = Math.min(idPage, totalPages);
-                const paged = filtered.slice((safePage-1)*ID_PAGE_SIZE, safePage*ID_PAGE_SIZE);
-                const totalUnassignedVal = filtered.reduce((s,i)=>s+getInvoiceValueSum(i),0);
+                const totalUnassignedVal = filteredUnassigned.reduce((s,i)=>s+getInvoiceValueSum(i),0);
+                const totalUnassignedPages = Math.max(1, Math.ceil(filteredUnassigned.length / ID_PAGE_SIZE));
+                const safeIdPage = Math.min(idPage, totalUnassignedPages);
+                const pagedUnassigned = filteredUnassigned.slice((safeIdPage-1)*ID_PAGE_SIZE, safeIdPage*ID_PAGE_SIZE);
 
-                // Các lot_no đã finalize (= 1 Import Declaration đã tạo) — để Edit (gắn thêm invoice) / Delete (gỡ liên kết)
+                // Các lot_no đã finalize (= 1 Import Declaration đã tạo)
                 const declaredLots = lots.filter(l => l.lot_no && invoices.some(i => i.lot_no === l.lot_no))
                   .sort((a,b) => Number(b.stt||0) - Number(a.stt||0));
+
+                // ── Form inline Add (chọn draft lot + invoice) ──
+                const DeclInlineForm = ({ lotNo }) => {
+                  const isEdit = !!lotNo;
+                  const selectedDraft = draftLots.find(d => d.id === declForm.draftLotId);
+                  const previewLotNo = !isEdit && selectedDraft
+                    ? generateLotNoString(declForm.loai_hinh, declForm.loai_hinh_con, Number(selectedDraft.stt))
+                    : lotNo;
+                  const alreadyExists = !isEdit && previewLotNo && lots.some(l => String(l.lot_no||'').toLowerCase() === String(previewLotNo).toLowerCase());
+                  const toggleInv = (invNo) => setDeclForm(prev => ({
+                    ...prev,
+                    selectedInvoiceNos: prev.selectedInvoiceNos.includes(invNo)
+                      ? prev.selectedInvoiceNos.filter(n => n !== invNo)
+                      : [...prev.selectedInvoiceNos, invNo]
+                  }));
+                  const handleSubmit = () => {
+                    if (isEdit) {
+                      handleAssignInvoicesToExistingLot(lotNo, declForm.selectedInvoiceNos);
+                      setIdInlineOpen(null); setSelectedDeclLotNo(null);
+                    } else {
+                      const newLotNo = handleCreateDeclarationFromDraft(selectedDraft, declForm.loai_hinh, declForm.loai_hinh_con, declForm.selectedInvoiceNos);
+                      if (newLotNo) { setIdInlineOpen(null); setSelectedDeclLotNo(null); }
+                    }
+                  };
+                  return (
+                    <div className="bg-amber-950/10 border-y border-amber-800/40 p-4 space-y-4">
+                      <p className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">
+                        {isEdit ? `Add Invoice → Lot ${lotNo}` : '✦ Create New Import Declaration'}
+                      </p>
+                      {!isEdit && (
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1 font-bold uppercase">1. Select Draft Lot (STT)</label>
+                            {draftLots.length === 0 ? (
+                              <p className="text-[11px] text-amber-500 italic bg-amber-950/20 border border-amber-800/40 rounded-lg p-2">
+                                No draft lots — go to Lot No Inf to add one first.
+                              </p>
+                            ) : (
+                              <select value={declForm.draftLotId} onChange={e => setDeclForm({...declForm, draftLotId: e.target.value})}
+                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
+                                <option value="">— Select STT / Bill —</option>
+                                {draftLots.map(d => <option key={d.id} value={d.id}>STT {d.stt}{d.bill_no ? ` — ${d.bill_no}` : ''}</option>)}
+                              </select>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1 font-bold uppercase">2. Dec. Type</label>
+                            <select value={declForm.loai_hinh} onChange={e => setDeclForm({...declForm, loai_hinh: e.target.value, loai_hinh_con: 'DEFAULT'})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
+                              <option value="A12">A12 (Kinh doanh)</option>
+                              <option value="E21">E21 (Processing)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 mb-1 font-bold uppercase">Sub-type</label>
+                            <select value={declForm.loai_hinh_con} onChange={e => setDeclForm({...declForm, loai_hinh_con: e.target.value})}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
+                              {declForm.loai_hinh === 'A12'
+                                ? <><option value="DEFAULT">Standard</option><option value="H11">H11 (Bonded/PMD)</option><option value="DT">DT</option></>
+                                : <><option value="DEFAULT">Standard</option><option value="CHUYEN_TIEP">Chuyển tiếp (CT)</option></>}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                      {selectedDraft && !isEdit && (
+                        <div className={`text-[11px] px-3 py-2 rounded-lg border ${alreadyExists ? 'bg-rose-950/20 border-rose-700 text-rose-400' : 'bg-amber-950/20 border-amber-800/40 text-amber-300'}`}>
+                          Lot code preview: <span className="font-mono font-bold">{previewLotNo}</span>
+                          {alreadyExists && <span className="font-bold ml-2">⚠ Already exists! Change STT or dec. type.</span>}
+                        </div>
+                      )}
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <label className="text-[10px] text-slate-400 font-bold uppercase">
+                            {isEdit ? '3. Select Invoice(s) to Add' : '3. Select Invoice(s)'}
+                          </label>
+                          {unassigned.length > 0 && (
+                            <button type="button"
+                              onClick={() => setDeclForm(prev => ({
+                                ...prev,
+                                selectedInvoiceNos: prev.selectedInvoiceNos.length === unassigned.length ? [] : unassigned.map(i => i.invoice_no)
+                              }))}
+                              className="text-[10px] text-blue-400 hover:text-blue-300 font-bold">
+                              {declForm.selectedInvoiceNos.length === unassigned.length ? 'Deselect all' : 'Select all'}
+                            </button>
+                          )}
+                        </div>
+                        {unassigned.length === 0 ? (
+                          <p className="text-[11px] text-emerald-400 italic">All invoices have been assigned!</p>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-1.5 max-h-52 overflow-y-auto">
+                            {unassigned.map(inv => {
+                              const checked = declForm.selectedInvoiceNos.includes(inv.invoice_no);
+                              return (
+                                <div key={inv.invoice_no} onClick={() => toggleInv(inv.invoice_no)}
+                                  className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-[11px] transition-all ${checked ? 'bg-amber-950/40 border-amber-600' : 'bg-slate-950/40 border-slate-800 hover:border-slate-600'}`}>
+                                  <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center flex-shrink-0 ${checked ? 'bg-amber-500 border-amber-500' : 'border-slate-600'}`}>
+                                    {checked && <span className="text-white text-[9px] font-black">✓</span>}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="font-mono font-bold text-amber-300 truncate">{inv.invoice_no}</div>
+                                    <div className="text-[10px] text-slate-500">STT {inv.bill_stt||'—'} · {inv.currency||'USD'} {Number(getInvoiceValueSum(inv)).toLocaleString(undefined,{minimumFractionDigits:2})}</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                        <button type="button" onClick={() => { setIdInlineOpen(null); setSelectedDeclLotNo(null); }}
+                          className="bg-slate-800 px-4 py-1.5 text-xs rounded text-slate-300 hover:bg-slate-700 font-bold">Cancel</button>
+                        <button type="button" onClick={handleSubmit}
+                          disabled={!isEdit && alreadyExists}
+                          className="bg-amber-600 hover:bg-amber-500 disabled:opacity-40 px-5 py-1.5 text-xs rounded text-white font-bold">
+                          {isEdit ? '✔ Add to Lot' : '✦ Create Declaration'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                };
 
                 return (
                   <div className="space-y-4">
@@ -5183,31 +5799,17 @@
                         <h3 className="text-sm font-black text-amber-300 uppercase tracking-wide">✦ Import Declaration — Link Invoice to Lot</h3>
                         <p className="text-[10px] text-slate-500 mt-0.5">
                           {hasActiveFilter
-                            ? <>{filtered.length} unassigned invoice(s) · Value: <span className="text-emerald-400 font-mono font-bold">${totalUnassignedVal.toLocaleString(undefined,{minimumFractionDigits:2})}</span></>
-                            : `${unassigned.length} invoice(s) pending — press Load or use filter to view`}
+                            ? <>{filteredUnassigned.length} unassigned invoice(s) · Value: <span className="text-emerald-400 font-mono font-bold">${totalUnassignedVal.toLocaleString(undefined,{minimumFractionDigits:2})}</span></>
+                            : `${unassigned.length} invoice(s) pending — click a declared lot to select, use toolbar below to Add/Edit/Delete`}
                         </p>
                       </div>
                       <div className="flex gap-2 items-center flex-wrap">
-                        <input
-                          value={idSearch}
-                          onChange={e => { setIdSearch(e.target.value); setIdPage(1); }}
+                        <input value={idSearch} onChange={e => { setIdSearch(e.target.value); setIdPage(1); }}
                           onKeyDown={e => { if (e.key === 'Enter') setIdLoaded(true); }}
-                          placeholder="Search invoice, bill… (Enter)"
-                          className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white w-64"
-                          style={{colorScheme:'dark'}}
-                        />
+                          placeholder="Search unassigned invoice, bill… (Enter)"
+                          className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white w-64" style={{colorScheme:'dark'}}/>
                         <button onClick={() => { setIdLoaded(true); setIdPage(1); }}
-                          className="bg-amber-700 hover:bg-amber-600 text-white font-bold px-4 py-2 rounded-lg text-xs">
-                          Load
-                        </button>
-                        <button onClick={() => {
-                            setDeclModalMode('add');
-                            setDeclForm({ draftLotId: '', lotNo: '', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [] });
-                            setShowDeclModal(true);
-                          }}
-                          className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5">
-                          ✦ Create Declaration
-                        </button>
+                          className="bg-amber-700 hover:bg-amber-600 text-white font-bold px-4 py-2 rounded-lg text-xs">Load</button>
                       </div>
                     </div>
 
@@ -5230,135 +5832,111 @@
                       </div>
                     )}
 
-                    {/*Empty state*/}
-                    {!hasActiveFilter && (
-                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-14 text-center">
-                        <div className="text-5xl mb-4 opacity-20">✦</div>
-                        <p className="text-slate-400 font-bold text-sm">Search or press Load to view pending invoices</p>
-                        <p className="text-slate-600 text-xs mt-1">Or click <strong className="text-amber-400">✦ Create Declaration</strong> to link invoices to a draft lot (STT)</p>
-                      </div>
-                    )}
+                    {/*inline form Add (top — before declared lots table) */}
+                    {idInlineOpen === 'NEW' && <DeclInlineForm lotNo={null} />}
 
-                    {/*Loaded: all assigned*/}
-                    {hasActiveFilter && unassigned.length === 0 && (
-                      <div className="bg-emerald-950/30 border border-emerald-800/40 rounded-xl p-12 text-center">
-                        <div className="text-4xl mb-3">🎉</div>
-                        <p className="text-emerald-400 font-bold text-sm">All invoices have been assigned to lots!</p>
-                      </div>
-                    )}
-
-                    {/*Table of unassigned invoices*/}
-                    {hasActiveFilter && filtered.length > 0 && (
-                      <>
-                        <div className="bg-slate-900 border border-amber-800/30 rounded-xl overflow-hidden">
-                          <div className="bg-amber-950/20 px-4 py-2.5 border-b border-amber-800/30 flex justify-between items-center">
-                            <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">⏳ Invoices Pending Lot Assignment</p>
-                            <span className="text-[10px] text-slate-500">{filtered.length} invoice(s)</span>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs border-collapse min-w-[800px]">
-                              <thead>
-                                <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                                  <th className="px-3 py-3">Invoice No.</th>
-                                  <th className="px-3 py-3 text-center">STT</th>
-                                  <th className="px-3 py-3 text-center">Date</th>
-                                  <th className="px-3 py-3 text-center">Dec. Type</th>
-                                  <th className="px-3 py-3">Bill No.</th>
-                                  <th className="px-3 py-3 text-center">Factory</th>
-                                  <th className="px-3 py-3 text-right">Value</th>
-                                  <th className="px-3 py-3 text-center">Goods</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-800/60">
-                                {paged.map(inv => {
-                                  const invGoods = goods.filter(g=>String(g.invoice_no)===String(inv.invoice_no));
-                                  return (
-                                    <tr key={inv.invoice_no} className="bg-amber-950/5 hover:bg-amber-950/15 transition-colors">
-                                      <td className="px-3 py-2.5 font-mono font-bold text-amber-300">{inv.invoice_no}</td>
-                                      <td className="px-3 py-2.5 text-center font-mono text-slate-400">{inv.bill_stt||'—'}</td>
-                                      <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(inv.invoice_date)}</td>
-                                      <td className="px-3 py-2.5 text-center">
-                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${inv.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':inv.loai_hinh==='E21'?'bg-emerald-900/50 text-emerald-300':'bg-slate-800 text-slate-400'}`}>
-                                          {inv.loai_hinh||'—'}
-                                        </span>
-                                      </td>
-                                      <td className="px-3 py-2.5 font-mono text-slate-300">{inv.bill_no||'—'}</td>
-                                      <td className="px-3 py-2.5 text-center text-sky-400 font-mono">{inv.factory_no||'—'}</td>
-                                      <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-400">${getInvoiceValueSum(inv).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                                      <td className="px-3 py-2.5 text-center text-slate-400">{invGoods.length} item{invGoods.length!==1?'s':''}</td>
-                                    </tr>
-                                  );
-                                })}
-                                {paged.length === 0 && (
-                                  <tr><td colSpan="8" className="p-10 text-center text-slate-500 italic">No invoices match the filter.</td></tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                        {totalPages > 1 && (
-                          <div className="flex justify-center items-center gap-2 pt-1">
-                            <button onClick={() => setIdPage(1)} disabled={safePage===1} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">«</button>
-                            <button onClick={() => setIdPage(p=>Math.max(1,p-1))} disabled={safePage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">‹ Prev</button>
-                            {Array.from({length:totalPages},(_,i)=>i+1).filter(p=>p===1||p===totalPages||Math.abs(p-safePage)<=2).reduce((acc,p,idx,arr)=>{if(idx>0&&p-arr[idx-1]>1)acc.push('...');acc.push(p);return acc;},[]).map((p,i)=>p==='...'?<span key={`e${i}`} className="text-slate-500 text-xs px-1">…</span>:<button key={p} onClick={()=>setIdPage(p)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${p===safePage?'bg-amber-600 text-white':'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{p}</button>)}
-                            <button onClick={() => setIdPage(p=>Math.min(totalPages,p+1))} disabled={safePage===totalPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">Next ›</button>
-                            <button onClick={() => setIdPage(totalPages)} disabled={safePage===totalPages} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">»</button>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {/*No match after filtering*/}
-                    {hasActiveFilter && unassigned.length > 0 && filtered.length === 0 && (
-                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
-                        <p className="text-slate-500 italic text-xs">No invoices match the current filter.</p>
-                      </div>
-                    )}
-
-                    {/*Declared lots — Edit (add more invoices) / Delete (unlink invoice)*/}
+                    {/*Existing declarations — click row to select → toolbar Edit/Delete*/}
                     {declaredLots.length > 0 && (
-                      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mt-2">
-                        <div className="bg-slate-950 px-4 py-2.5 border-b border-slate-800">
-                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">📑 Existing Declarations ({declaredLots.length})</p>
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                        <div className="bg-slate-950 px-4 py-2.5 border-b border-slate-800 flex justify-between items-center">
+                          <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">📑 Declarations ({declaredLots.length})</p>
+                          <p className="text-[10px] text-slate-500">Click a row to select · Use toolbar to Edit (add more invoices) or Delete (unlink all invoices)</p>
                         </div>
-                        <div className="divide-y divide-slate-800/60 max-h-[420px] overflow-y-auto">
+                        <div className="divide-y divide-slate-800/60">
                           {declaredLots.map(lot => {
                             const lotInvoices = invoices.filter(i => i.lot_no === lot.lot_no);
+                            const isSelected = selectedDeclLotNo === lot.lot_no;
                             return (
-                              <div key={lot.lot_no} className="px-4 py-3">
-                                <div className="flex items-center justify-between flex-wrap gap-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono font-bold text-amber-400 text-xs">{lot.lot_no}</span>
-                                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${lot.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':'bg-emerald-900/50 text-emerald-300'}`}>{lot.loai_hinh}</span>
-                                    <span className="text-[10px] text-slate-500">STT {lot.stt} · {lotInvoices.length} invoice(s)</span>
+                              <React.Fragment key={lot.lot_no}>
+                                <div onClick={() => setSelectedDeclLotNo(isSelected ? null : lot.lot_no)}
+                                  className={`px-4 py-3 cursor-pointer transition-colors ${isSelected ? 'bg-amber-950/30' : 'hover:bg-slate-800/30'}`}>
+                                  <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <div className="flex items-center gap-2">
+                                      {isSelected && <span className="text-amber-400 font-black text-sm">✓</span>}
+                                      <span className="font-mono font-bold text-amber-400 text-xs">{lot.lot_no}</span>
+                                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${lot.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':'bg-emerald-900/50 text-emerald-300'}`}>{lot.loai_hinh}</span>
+                                      <span className="text-[10px] text-slate-500">STT {lot.stt} · {lotInvoices.length} invoice(s)</span>
+                                    </div>
                                   </div>
-                                  <button onClick={() => {
-                                      setDeclModalMode('edit');
-                                      setDeclForm({ draftLotId: '', lotNo: lot.lot_no, loai_hinh: lot.loai_hinh, loai_hinh_con: lot.loai_hinh_con, selectedInvoiceNos: [] });
-                                      setShowDeclModal(true);
-                                    }}
-                                    className="text-[10px] px-2.5 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white font-bold">
-                                    + Add Invoice to this Lot
-                                  </button>
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {lotInvoices.map(inv => (
+                                      <span key={inv.invoice_no} className="flex items-center gap-1.5 bg-slate-950/60 border border-slate-800 rounded-lg px-2.5 py-1 text-[10px]">
+                                        <span className="font-mono text-indigo-300 font-bold">{inv.invoice_no}</span>
+                                        <button onClick={e => { e.stopPropagation(); triggerUnlinkInvoiceConfirm(inv.invoice_no, lot.lot_no); }}
+                                          className="text-rose-400 hover:text-rose-300 font-bold" title="Unlink this invoice">✕</button>
+                                      </span>
+                                    ))}
+                                  </div>
                                 </div>
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {lotInvoices.map(inv => (
-                                    <span key={inv.invoice_no} className="flex items-center gap-1.5 bg-slate-950/60 border border-slate-800 rounded-lg px-2.5 py-1 text-[10px]">
-                                      <span className="font-mono text-indigo-300 font-bold">{inv.invoice_no}</span>
-                                      <button onClick={() => triggerUnlinkInvoiceConfirm(inv.invoice_no, lot.lot_no)}
-                                        className="text-rose-400 hover:text-rose-300 font-bold" title="Unlink this invoice from the lot">✕</button>
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
+                                {idInlineOpen === lot.lot_no && <DeclInlineForm lotNo={lot.lot_no} />}
+                              </React.Fragment>
                             );
                           })}
                         </div>
                       </div>
                     )}
+
+                    {declaredLots.length === 0 && idInlineOpen !== 'NEW' && (
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-14 text-center">
+                        <div className="text-5xl mb-4 opacity-20">✦</div>
+                        <p className="text-slate-400 font-bold text-sm">No Import Declarations yet</p>
+                        <p className="text-slate-600 text-xs mt-1">Use the toolbar below (Add) to link invoices to a draft lot</p>
+                      </div>
+                    )}
+
+                    {/*Unassigned invoices — info panel*/}
+                    {hasActiveFilter && filteredUnassigned.length > 0 && (
+                      <>
+                        <div className="bg-slate-900 border border-amber-800/30 rounded-xl overflow-hidden">
+                          <div className="bg-amber-950/20 px-4 py-2.5 border-b border-amber-800/30">
+                            <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">⏳ Invoices Pending Assignment ({filteredUnassigned.length})</p>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse min-w-[700px]">
+                              <thead>
+                                <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                                  <th className="px-3 py-2.5">Invoice No.</th>
+                                  <th className="px-3 py-2.5 text-center">STT</th>
+                                  <th className="px-3 py-2.5 text-center">Dec. Type</th>
+                                  <th className="px-3 py-2.5">Bill No.</th>
+                                  <th className="px-3 py-2.5 text-center">Factory</th>
+                                  <th className="px-3 py-2.5 text-right">Value</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-800/60">
+                                {pagedUnassigned.map(inv => (
+                                  <tr key={inv.invoice_no} className="bg-amber-950/5 hover:bg-amber-950/15 transition-colors">
+                                    <td className="px-3 py-2 font-mono font-bold text-amber-300">{inv.invoice_no}</td>
+                                    <td className="px-3 py-2 text-center font-mono text-slate-400">{inv.bill_stt||'—'}</td>
+                                    <td className="px-3 py-2 text-center">
+                                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${inv.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':inv.loai_hinh==='E21'?'bg-emerald-900/50 text-emerald-300':'bg-slate-800 text-slate-400'}`}>
+                                        {inv.loai_hinh||'—'}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 font-mono text-slate-300">{inv.bill_no||'—'}</td>
+                                    <td className="px-3 py-2 text-center text-sky-400 font-mono">{inv.factory_no||'—'}</td>
+                                    <td className="px-3 py-2 text-right font-mono font-bold text-emerald-400">${getInvoiceValueSum(inv).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                        {totalUnassignedPages > 1 && (
+                          <div className="flex justify-center items-center gap-2 pt-1">
+                            <button onClick={() => setIdPage(1)} disabled={safeIdPage===1} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">«</button>
+                            <button onClick={() => setIdPage(p=>Math.max(1,p-1))} disabled={safeIdPage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">‹</button>
+                            <span className="text-xs text-slate-400">{safeIdPage} / {totalUnassignedPages}</span>
+                            <button onClick={() => setIdPage(p=>Math.min(totalUnassignedPages,p+1))} disabled={safeIdPage===totalUnassignedPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">›</button>
+                            <button onClick={() => setIdPage(totalUnassignedPages)} disabled={safeIdPage===totalUnassignedPages} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">»</button>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 );
               })()}
+
 
 
 
@@ -5901,262 +6479,6 @@
             </div>
           )}
 
-          {/*--- MODAL ADD/EDIT DRAFT LOT (Lot No Inf — STT/Bill info) ---*/}
-          {showDraftLotModal && (
-            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-              <div className="bg-slate-900 border border-blue-800/50 rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl my-8">
-                <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex justify-between items-center">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-blue-300">
-                    {draftLotModalMode === 'edit' ? `Edit Draft Lot — STT ${draftLotForm.stt}` : 'Add Draft Lot (STT + Bill Info)'}
-                  </h3>
-                  <button onClick={() => setShowDraftLotModal(false)} className="text-slate-400 hover:text-white font-bold text-lg leading-none">✕</button>
-                </div>
-                <form onSubmit={handleSaveDraftLot} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">STT (Lot Sequence No.) *</label>
-                      <input type="number" required value={draftLotForm.stt}
-                        onChange={e => setDraftLotForm({...draftLotForm, stt: Number(e.target.value)})}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Supplier</label>
-                      <input type="text" value={draftLotForm.supplier}
-                        onChange={e => setDraftLotForm({...draftLotForm, supplier: e.target.value})}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Bill No. (B/L No.)</label>
-                      <input type="text" value={draftLotForm.bill_no}
-                        onChange={e => setDraftLotForm({...draftLotForm, bill_no: e.target.value.toUpperCase()})}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono" />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Bill Date</label>
-                      <input type="date" value={draftLotForm.bill_date||''}
-                        onChange={e => setDraftLotForm({...draftLotForm, bill_date: e.target.value})}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:'dark'}} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Carrier / Forwarder</label>
-                      <input type="text" value={draftLotForm.carrier}
-                        onChange={e => setDraftLotForm({...draftLotForm, carrier: e.target.value})}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Bill Condition</label>
-                      <select value={draftLotForm.bill_term||''} onChange={e => setDraftLotForm({...draftLotForm, bill_term: e.target.value})}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:'dark'}}>
-                        <option value="">— Select —</option>
-                        <option value="Freight Prepaid">Freight Prepaid</option>
-                        <option value="Freight Collect">Freight Collect</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Port of Loading (POL)</label>
-                      <input type="text" value={draftLotForm.pol}
-                        onChange={e => setDraftLotForm({...draftLotForm, pol: e.target.value.toUpperCase()})}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Port of Discharge (POD)</label>
-                      <input type="text" value={draftLotForm.pod}
-                        onChange={e => setDraftLotForm({...draftLotForm, pod: e.target.value.toUpperCase()})}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">ETA</label>
-                      <input type="date" value={draftLotForm.eta||''} onChange={e => setDraftLotForm({...draftLotForm, eta: e.target.value})}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:'dark'}} />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Container No.</label>
-                      <input type="text" value={(draftLotForm.contList&&draftLotForm.contList[0]&&draftLotForm.contList[0].cont_no)||''}
-                        onChange={e => {
-                          const list = [...(draftLotForm.contList||[{cont_no:'',seal_no:'',cont_type:'40FT'}])];
-                          list[0] = {...list[0], cont_no: e.target.value.toUpperCase()};
-                          setDraftLotForm({...draftLotForm, contList: list});
-                        }}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-cyan-300 font-mono" />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Seal No.</label>
-                      <input type="text" value={(draftLotForm.contList&&draftLotForm.contList[0]&&draftLotForm.contList[0].seal_no)||''}
-                        onChange={e => {
-                          const list = [...(draftLotForm.contList||[{cont_no:'',seal_no:'',cont_type:'40FT'}])];
-                          list[0] = {...list[0], seal_no: e.target.value.toUpperCase()};
-                          setDraftLotForm({...draftLotForm, contList: list});
-                        }}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white font-mono" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Pkg Qty</label>
-                      <input type="number" step="0.001" min="0" value={draftLotForm.pkg_qty||''}
-                        onChange={e => setDraftLotForm({...draftLotForm, pkg_qty: parseFloat(e.target.value)||0})}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white" />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Gross Weight (KG)</label>
-                      <input type="number" step="0.001" min="0" value={draftLotForm.gw||''}
-                        onChange={e => setDraftLotForm({...draftLotForm, gw: parseFloat(e.target.value)||0})}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white" />
-                    </div>
-                  </div>
-                  <div className="pt-4 border-t border-slate-800 flex justify-end gap-2">
-                    <button type="button" onClick={() => setShowDraftLotModal(false)} className="bg-slate-800 px-4 py-2 text-xs rounded text-slate-300 hover:bg-slate-700 font-bold">Cancel</button>
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 px-5 py-2 text-xs rounded text-white font-bold">
-                      {draftLotModalMode === 'edit' ? '✔ Update Draft Lot' : '+ Save Draft Lot'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/*--- MODAL CREATE/EDIT IMPORT DECLARATION (gắn invoice + lot_no) ---*/}
-          {showDeclModal && (() => {
-            const unassignedInvoices = invoices.filter(inv => !inv.lot_no || !lots.some(l=>l.lot_no===inv.lot_no));
-            const selectedDraft = draftLots.find(d => d.id === declForm.draftLotId);
-            const previewLotNo = declModalMode === 'add' && selectedDraft
-              ? generateLotNoString(declForm.loai_hinh, declForm.loai_hinh_con, Number(selectedDraft.stt))
-              : declForm.lotNo;
-            const toggleInv = (invNo) => setDeclForm(prev => ({
-              ...prev,
-              selectedInvoiceNos: prev.selectedInvoiceNos.includes(invNo)
-                ? prev.selectedInvoiceNos.filter(n => n !== invNo)
-                : [...prev.selectedInvoiceNos, invNo]
-            }));
-            const handleSubmitDecl = () => {
-              if (declModalMode === 'add') {
-                if (!selectedDraft) return showNotification("Select a draft lot (STT) first!", "error");
-                const lot_no = handleCreateDeclarationFromDraft(selectedDraft, declForm.loai_hinh, declForm.loai_hinh_con, declForm.selectedInvoiceNos);
-                if (lot_no) setShowDeclModal(false);
-              } else {
-                handleAssignInvoicesToExistingLot(declForm.lotNo, declForm.selectedInvoiceNos);
-                setShowDeclModal(false);
-              }
-            };
-            return (
-              <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-                <div className="bg-slate-900 border border-amber-800/50 rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl my-8 flex flex-col max-h-[88vh]">
-                  <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex justify-between items-center flex-shrink-0">
-                    <h3 className="font-bold text-xs uppercase tracking-wider text-amber-300">
-                      {declModalMode === 'edit' ? `Add Invoice to Lot ${declForm.lotNo}` : '✦ Create Import Declaration'}
-                    </h3>
-                    <button onClick={() => setShowDeclModal(false)} className="text-slate-400 hover:text-white font-bold text-lg leading-none">✕</button>
-                  </div>
-                  <div className="p-6 space-y-4 overflow-y-auto flex-1">
-                    {declModalMode === 'add' && (
-                      <>
-                        <div>
-                          <label className="block text-[11px] text-slate-400 mb-1.5 font-bold uppercase">1. Select Draft Lot (STT)</label>
-                          {draftLots.length === 0 ? (
-                            <p className="text-[11px] text-amber-500 italic bg-amber-950/20 border border-amber-800/40 rounded-lg p-3">
-                              No draft lots available. Go to <strong>Lot No Inf</strong> to add a draft lot (STT + Bill info) first.
-                            </p>
-                          ) : (
-                            <select value={declForm.draftLotId} onChange={e => setDeclForm({...declForm, draftLotId: e.target.value})}
-                              className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:'dark'}}>
-                              <option value="">— Select STT / Bill —</option>
-                              {draftLots.map(d => <option key={d.id} value={d.id}>STT {d.stt} {d.bill_no ? `— Bill ${d.bill_no}` : ''}</option>)}
-                            </select>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[11px] text-slate-400 mb-1.5 font-bold uppercase">2. Customs Dec. Type</label>
-                            <select value={declForm.loai_hinh} onChange={e => setDeclForm({...declForm, loai_hinh: e.target.value, loai_hinh_con: 'DEFAULT'})}
-                              className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:'dark'}}>
-                              <option value="A12">A12 (Kinh doanh)</option>
-                              <option value="E21">E21 (Processing)</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[11px] text-slate-400 mb-1.5 font-bold uppercase">Sub-type</label>
-                            <select value={declForm.loai_hinh_con} onChange={e => setDeclForm({...declForm, loai_hinh_con: e.target.value})}
-                              className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-white" style={{colorScheme:'dark'}}>
-                              {declForm.loai_hinh === 'A12' ? <>
-                                <option value="DEFAULT">Standard</option>
-                                <option value="H11">H11 (Bonded/PMD)</option>
-                                <option value="DT">DT</option>
-                              </> : <>
-                                <option value="DEFAULT">Standard</option>
-                                <option value="CHUYEN_TIEP">Chuyển tiếp (CT)</option>
-                              </>}
-                            </select>
-                          </div>
-                        </div>
-                        {selectedDraft && (
-                          <div className="bg-amber-950/20 border border-amber-800/40 rounded-lg px-3 py-2 text-[11px] text-amber-300">
-                            Lot code preview: <span className="font-mono font-bold">{previewLotNo}</span>
-                            {lots.some(l => String(l.lot_no||'').toLowerCase() === String(previewLotNo).toLowerCase()) && (
-                              <span className="text-rose-400 font-bold ml-2">⚠ Already exists!</span>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    <div>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <label className="text-[11px] text-slate-400 font-bold uppercase">
-                          {declModalMode === 'edit' ? '3. Select Invoice(s) to Add' : '3. Select Invoice(s)'}
-                        </label>
-                        {unassignedInvoices.length > 0 && (
-                          <button type="button"
-                            onClick={() => setDeclForm(prev => ({
-                              ...prev,
-                              selectedInvoiceNos: prev.selectedInvoiceNos.length === unassignedInvoices.length
-                                ? [] : unassignedInvoices.map(i => i.invoice_no)
-                            }))}
-                            className="text-[10px] text-blue-400 hover:text-blue-300">
-                            {declForm.selectedInvoiceNos.length === unassignedInvoices.length ? 'Deselect all' : 'Select all'}
-                          </button>
-                        )}
-                      </div>
-                      {unassignedInvoices.length === 0 ? (
-                        <p className="text-[11px] text-emerald-400 italic">All invoices have been assigned to lots!</p>
-                      ) : (
-                        <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-                          {unassignedInvoices.map(inv => {
-                            const checked = declForm.selectedInvoiceNos.includes(inv.invoice_no);
-                            return (
-                              <div key={inv.invoice_no} onClick={() => toggleInv(inv.invoice_no)}
-                                className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-all ${checked ? 'bg-amber-950/30 border-amber-600' : 'bg-slate-950/40 border-slate-800 hover:border-slate-600'}`}>
-                                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${checked ? 'bg-amber-500 border-amber-500' : 'border-slate-600'}`}>
-                                  {checked && <span className="text-white text-[10px] font-black">✓</span>}
-                                </div>
-                                <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                                  <span className="font-mono font-bold text-xs text-amber-300">{inv.invoice_no}</span>
-                                  <span className="text-[10px] text-slate-500">STT {inv.bill_stt||'—'} · {inv.loai_hinh||'—'} · {inv.currency||'USD'} {Number(getInvoiceValueSum(inv)).toLocaleString(undefined,{minimumFractionDigits:2})}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-2 flex-shrink-0">
-                    <button onClick={() => setShowDeclModal(false)} className="bg-slate-800 px-4 py-2 text-xs rounded text-slate-300 hover:bg-slate-700 font-bold">Cancel</button>
-                    <button onClick={handleSubmitDecl} className="bg-amber-600 hover:bg-amber-500 px-5 py-2 text-xs rounded text-white font-bold">
-                      {declModalMode === 'edit' ? '✔ Add to Lot' : '✦ Create Declaration'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
 
           {/*--- ADD/EDIT PRODUCT MODAL (Source Dict) ---*/}
           {showDictModal && (
