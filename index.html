@@ -294,6 +294,10 @@
           if (selectedInvoiceNo) { ctxType = 'invoice'; ctxLabel = 'Invoice: ' + selectedInvoiceNo; }
           else if (selectedLotNo) { ctxType = 'lot'; ctxLabel = 'Lot: ' + selectedLotNo; }
         }
+        if (activeMenu === 'LOT_NO_INFO') {
+          if (selectedLotNo) { ctxType = 'lot'; ctxLabel = 'Lot: ' + selectedLotNo; }
+          else { ctxType = 'lot_none'; ctxLabel = 'Select a lot / STT'; }
+        }
         if (viewDetailLot && !showAddModal) {
           ctxType = 'lot'; ctxLabel = 'Lot: ' + viewDetailLot.lot_no;
         }
@@ -319,9 +323,9 @@
         const hidden = (noToolbarMenus.includes(activeMenu) && !viewDetailLot)
           || showAddModal || showDictModal || showSupplierModal || showPaymentModal;
 
-        const canEdit   = !!(ctxType && !['dict_none','dict_multi','supplier_none','payment_none','payment_multi'].includes(ctxType));
-        const canDelete = !!(ctxType && !['dict_none','supplier_none','payment_none'].includes(ctxType));
-        const canExport = (activeMenu === 'E010' && !!selectedLotNo) || activeMenu === 'DATABASE_VIEW' || (activeMenu === 'PAYMENT_DATA' && pymSelected.size > 0);
+        const canEdit   = !!(ctxType && !['dict_none','dict_multi','supplier_none','payment_none','payment_multi','lot_none'].includes(ctxType));
+        const canDelete = !!(ctxType && !['dict_none','supplier_none','payment_none','lot_none'].includes(ctxType));
+        const canExport = (activeMenu === 'E010' && !!selectedLotNo) || (activeMenu === 'LOT_NO_INFO' && !!selectedLotNo) || activeMenu === 'DATABASE_VIEW' || (activeMenu === 'PAYMENT_DATA' && pymSelected.size > 0);
         const canUpload = activeMenu === 'DATABASE_VIEW';
 
         // --- GET/CREATE TOOLBAR DOM ---
@@ -392,6 +396,8 @@
           } else if (activeMenu === 'E010') {
             // Tạo mới đã chuyển sang luồng Import Processing (Lot No Inf → Invoice Data → Import Declaration)
             setActiveMenu('LOT_NO_INFO');
+          } else if (activeMenu === 'LOT_NO_INFO') {
+            deps.openNewLot && deps.openNewLot();
           }
         };
 
@@ -459,7 +465,7 @@
             XLSX.utils.book_append_sheet(wb, ws, 'Dict_' + dbSelectedTab);
             XLSX.writeFile(wb, 'Dictionary_' + dbSelectedTab + '_' + getTodayLocal() + '.xlsx');
             showNotification('Exported ' + toExport.length + ' items from Dictionary ' + dbSelectedTab + (selectedDictItems.size > 0 ? ' (selected)' : ' (all)'));
-          } else if (activeMenu === 'E010') {
+          } else if (activeMenu === 'E010' || activeMenu === 'LOT_NO_INFO') {
             if (!selectedLotNo) return showNotification('Please select a lot to export first.', 'error');
             handleExportSelectedLot(selectedLotNo);
           } else if (activeMenu === 'PAYMENT_DATA') {
@@ -2655,9 +2661,28 @@
         showNotification('Form 02 invoice list downloaded successfully!');
       };
 
+      // Mở form "Thêm mới" cho trang Lot No Inf (Tab 1) — dùng chung state/logic với luồng cũ,
+      // chỉ khác là hiển thị inline trên trang thay vì popup.
+      const openNewLot = () => {
+        setLotForm({
+          lot_no: '', stt: getFirstVacantSeq(), lot_date: getTodayLocal(), get_docs_date: getTodayLocal(),
+          factory_no: '', bill_no: '', bill_date: '', pol: '', pod: '', bill_term: '',
+          carrier: '', transport_type: '', is_cont: true, cont_no: '', seal_no: '', cont_type: '40FT',
+          contList: [{cont_no:'',seal_no:'',cont_type:'40FT'}],
+          pkg_qty: 0, gw: 0, cbm: 0, eta: '', atc_date: '',
+          origin_country: '', loai_hinh: 'NEUTRAL', loai_hinh_con: 'DEFAULT', sale_qty: 0,
+          is_hang_chung_bill: false, contract_start: '', contract_end: ''
+        });
+        setSelectedFactories([]);
+        setModalMode('add');
+        setModalTab('lot');
+        setShowAddModal(true);
+      };
+
       // Màn hình chờ khởi tạo
       // --- FLOATING TOOLBAR (vanilla DOM hook) ---
       useFloatingToolbar({
+        openNewLot,
         activeMenu, setActiveMenu, selectedLotNo, selectedInvoiceNo, viewDetailLot,
         selectedDictItems, showAddModal, showDictModal, showSupplierModal, showPaymentModal,
         lots, invoices, goods, dictA12, dictE21, dbSelectedTab,
@@ -4099,6 +4124,117 @@
                 </div>
               )}
 
+              {/*SECTION — LOT NO INF (Import Processing, Tab 1: Lot) */}
+              {activeMenu === 'LOT_NO_INFO' && (
+                <div className="space-y-6">
+
+                  {/*FILTER TOOLBAR — đồng bộ giao diện với Shipment Profiles*/}
+                  <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow-md space-y-3">
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Quick filter:</span>
+                      {[
+                        ['📅 Today', () => { const d=getTodayLocal(); setFilterFromDate(d); setFilterToDate(d); setFilterLotNo(''); setSelectedLotNo(null); }],
+                        ['📆 This month', () => { const n=new Date(); setFilterFromDate(new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10)); setFilterToDate(new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().slice(0,10)); setFilterLotNo(''); setSelectedLotNo(null); }],
+                        ['🗓 This year', () => { const y=new Date().getFullYear(); setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); setSelectedLotNo(null); }],
+                        ['🗓 Last year', () => { const y=new Date().getFullYear()-1; setFilterFromDate(`${y}-01-01`); setFilterToDate(`${y}-12-31`); setFilterLotNo(''); setSelectedLotNo(null); }],
+                        ['📋 All', () => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo('__ALL__'); setSelectedLotNo(null); }],
+                      ].map(([l, fn], i) => (
+                        <button key={i} onClick={fn} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] px-3 py-1.5 rounded-lg border border-slate-700 font-bold transition-colors">{l}</button>
+                      ))}
+                      {hasActiveFilter && (
+                        <button onClick={() => { setFilterFromDate(''); setFilterToDate(''); setFilterLotNo(''); setSelectedLotNo(null); }} className="text-[10px] text-rose-400 hover:text-rose-300 ml-auto font-bold">✕ Clear filter</button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-4 items-end">
+                      <div className="flex-1 min-w-[150px]">
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">From Date</label>
+                        <input type="date" value={filterFromDate} onChange={(e) => { setFilterFromDate(e.target.value); setSelectedLotNo(null); }} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                      </div>
+                      <div className="flex-1 min-w-[150px]">
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">To Date</label>
+                        <input type="date" value={filterToDate} onChange={(e) => { setFilterToDate(e.target.value); setSelectedLotNo(null); }} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Search Keyword</label>
+                        <input type="text" placeholder="Search by lot no., Bill no..." value={filterLotNo === '__ALL__' ? '' : filterLotNo} onChange={(e) => { setFilterLotNo(e.target.value); setSelectedLotNo(null); }} className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white" style={{colorScheme:"dark"}} />
+                      </div>
+                    </div>
+                    {hasActiveFilter && filteredLots.length > 0 && (
+                      <p className="text-[10px] text-slate-500">Showing <strong className="text-slate-300">{filteredLots.length}</strong> records{filterFromDate ? ` from ${filterFromDate}` : ''}{filterToDate ? ` to ${filterToDate}` : ''}</p>
+                    )}
+                  </div>
+
+                  {/*CONTROL BAR*/}
+                  <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center shadow-lg">
+                    <span className="text-xs text-slate-400">
+                      {showAddModal && modalTab === 'lot'
+                        ? (modalMode === 'edit' ? <>Editing: <strong className="text-white font-mono">{lotForm.lot_no || `STT ${lotForm.stt}`}</strong></> : 'Entering new STT / Bill info below…')
+                        : <>Selected: <strong className="text-white font-mono">{selectedLotNo || 'None'}</strong></>}
+                    </span>
+                    {!(showAddModal && modalTab === 'lot') && (
+                      <button onClick={openNewLot} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5">
+                        ✦ New STT / Lot
+                      </button>
+                    )}
+                  </div>
+
+                  {/*Không có filter → trống, chưa hiển thị dữ liệu cũ*/}
+                  {!hasActiveFilter && !(showAddModal && modalTab === 'lot') && (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4">
+                      <div className="text-5xl opacity-20">🔍</div>
+                      <div>
+                        <p className="text-slate-400 font-bold text-sm">No filters applied</p>
+                        <p className="text-slate-600 text-xs mt-1">Use date filters or keyword above to view previously created STT / Lot records, or click "New STT / Lot" to start a new declaration.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/*Danh sách STT/Lot đã tạo trước đó — chỉ hiện khi có filter*/}
+                  {hasActiveFilter && (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-[11px] border-collapse">
+                          <thead>
+                            <tr className="bg-slate-950/60 text-slate-500 border-b border-slate-800">
+                              <th className="px-3 py-2 text-center">STT</th>
+                              <th className="px-3 py-2 text-left">Lot No.</th>
+                              <th className="px-3 py-2 text-left">Bill No.</th>
+                              <th className="px-3 py-2 text-center">Open Date</th>
+                              <th className="px-3 py-2 text-center">ETA</th>
+                              <th className="px-3 py-2 text-left">Carrier</th>
+                              <th className="px-3 py-2 text-center">POL → POD</th>
+                              <th className="px-3 py-2 text-center w-20">Act</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-900">
+                            {filteredLots.length === 0 && (
+                              <tr><td colSpan="8" className="text-center text-slate-600 py-6">No matching records.</td></tr>
+                            )}
+                            {filteredLots.map(lot => (
+                              <tr key={lot.lot_no} onClick={() => setSelectedLotNo(lot.lot_no)}
+                                className={`cursor-pointer hover:bg-slate-800/40 ${selectedLotNo === lot.lot_no ? 'bg-blue-950/30' : ''}`}>
+                                <td className="px-3 py-2 text-center font-mono text-slate-400">{lot.stt}</td>
+                                <td className="px-3 py-2 font-mono font-bold text-blue-300">{lot.lot_no}</td>
+                                <td className="px-3 py-2 font-mono text-slate-400">{lot.bill_no || '—'}</td>
+                                <td className="px-3 py-2 text-center text-slate-400">{fmtDisplayDate(lot.lot_date)}</td>
+                                <td className="px-3 py-2 text-center text-slate-400">{fmtDisplayDate(lot.eta)}</td>
+                                <td className="px-3 py-2 text-slate-400">{lot.carrier || '—'}</td>
+                                <td className="px-3 py-2 text-center text-slate-500 text-[10px]">{lot.pol || '—'} → {lot.pod || '—'}</td>
+                                <td className="px-3 py-2 text-center space-x-1">
+                                  <button onClick={(e) => startEditLot(lot, e)} className="text-blue-400 hover:underline text-[10px]">Edit</button>
+                                  <button onClick={(e) => triggerDeleteLotConfirm(lot.lot_no, e)} className="text-rose-500 hover:underline text-[10px]">🗑️</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
               {/*SECTION*/}
               {activeMenu === 'SUPPLIER_DATA' && (() => {
                 const MD_PAGE_SIZE = 30;
@@ -5117,9 +5253,13 @@
           )}
 
           {/*--- MAIN MODAL FORM ---*/}
-          {showAddModal && (
-            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col my-8 max-h-[90vh]">
+          {/*Khi đang ở trang "Lot No Inf" và sửa Tab 1, hiển thị INLINE ngay trên trang (không popup);
+              các trường hợp khác (Invoice/Goods/Create Lot, hoặc sửa Lot từ trang Shipment Profiles) vẫn dùng popup như cũ.*/}
+          {showAddModal && (() => {
+            const isInlineLot = modalTab === 'lot' && activeMenu === 'LOT_NO_INFO';
+            return (
+            <div className={isInlineLot ? "w-full" : "fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"}>
+              <div className={isInlineLot ? "bg-slate-900 border border-slate-800 rounded-xl w-full overflow-hidden shadow-lg flex flex-col" : "bg-slate-900 border border-slate-800 rounded-xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col my-8 max-h-[90vh]"}>
                 <div className={`px-6 py-4 border-b border-slate-800 flex justify-between items-center ${modalMode === 'edit' ? 'bg-amber-950/30' : 'bg-slate-950'}`}>
                   <div className="flex items-center gap-3">
                     <h3 className="font-bold text-xs uppercase tracking-wider text-white">
@@ -5133,9 +5273,10 @@
                       </span>
                     )}
                   </div>
-                  <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white font-black">✕</button>
+                  <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white font-black">✕ {isInlineLot ? 'Cancel' : ''}</button>
                 </div>
 
+                {!isInlineLot && (
                 <div className="bg-slate-950/40 px-6 flex border-b border-slate-850 shrink-0">
                   <button onClick={() => setModalTab('lot')} className={`py-3 px-4 font-bold text-[11px] uppercase tracking-wider border-b-2 ${modalTab === 'lot' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400'}`}>1. Lot</button>
                   <button onClick={() => setModalTab('invoice')} className={`py-3 px-4 font-bold text-[11px] uppercase tracking-wider border-b-2 ${modalTab === 'invoice' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-slate-400'}`}>2. Invoice</button>
@@ -5144,6 +5285,7 @@
                     <button onClick={() => setModalTab('assign')} className={`py-3 px-4 font-bold text-[11px] uppercase tracking-wider border-b-2 ${modalTab === 'assign' ? 'border-amber-500 text-amber-400' : 'border-transparent text-slate-400'}`}>4. Create Lot ✦</button>
                   )}
                 </div>
+                )}
 
                 <div className="flex-1 overflow-y-auto p-6">
                   {/*TAB 1: LOT INFO*/}
@@ -6669,7 +6811,8 @@
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/*--- B NG K PREVIEW IN (M u 02/BKH /GSQL) ---*/}
           {showMasterInvoiceModal && selectedLotNo && (() => {
