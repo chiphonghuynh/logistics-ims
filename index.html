@@ -4169,13 +4169,8 @@
                     <span className="text-xs text-slate-400">
                       {showAddModal && modalTab === 'lot'
                         ? (modalMode === 'edit' ? <>Editing: <strong className="text-white font-mono">{lotForm.lot_no || `STT ${lotForm.stt}`}</strong></> : 'Entering new STT / Bill info below…')
-                        : <>Selected: <strong className="text-white font-mono">{selectedLotNo || 'None'}</strong></>}
+                        : <>Selected: <strong className="text-white font-mono">{selectedLotNo || 'None'}</strong> <span className="text-slate-600">— use the floating toolbar below (＋) to add a new STT / Lot</span></>}
                     </span>
-                    {!(showAddModal && modalTab === 'lot') && (
-                      <button onClick={openNewLot} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5">
-                        ✦ New STT / Lot
-                      </button>
-                    )}
                   </div>
 
                   {/*Không có filter → trống, chưa hiển thị dữ liệu cũ*/}
@@ -5259,7 +5254,7 @@
             const isInlineLot = modalTab === 'lot' && activeMenu === 'LOT_NO_INFO';
             return (
             <div className={isInlineLot ? "w-full" : "fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"}>
-              <div className={isInlineLot ? "bg-slate-900 border border-slate-800 rounded-xl w-full overflow-hidden shadow-lg flex flex-col" : "bg-slate-900 border border-slate-800 rounded-xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col my-8 max-h-[90vh]"}>
+              <div className={isInlineLot ? "bg-slate-900 border border-slate-800 rounded-xl w-full shadow-lg" : "bg-slate-900 border border-slate-800 rounded-xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col my-8 max-h-[90vh]"}>
                 <div className={`px-6 py-4 border-b border-slate-800 flex justify-between items-center ${modalMode === 'edit' ? 'bg-amber-950/30' : 'bg-slate-950'}`}>
                   <div className="flex items-center gap-3">
                     <h3 className="font-bold text-xs uppercase tracking-wider text-white">
@@ -5287,7 +5282,7 @@
                 </div>
                 )}
 
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className={isInlineLot ? "p-6" : "flex-1 overflow-y-auto p-6"}>
                   {/*TAB 1: LOT INFO*/}
                   {modalTab === 'lot' && (
                     <form onSubmit={handleSaveLot} className="space-y-5">
