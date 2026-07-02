@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chang Yang Logistics IMS v2.9 [20260627_IP_PAGES]</title>
+  <title>Chang Yang Logistics IMS v2.9 [20260626_FLOATING_TOOLBAR]</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -273,7 +273,7 @@
       const {
         activeMenu, setActiveMenu, selectedLotNo, selectedInvoiceNo, viewDetailLot,
         selectedDictItems, showAddModal, showDictModal, showSupplierModal, showPaymentModal,
-        lots, invoices, goods, draftLots, dictA12, dictE21, dbSelectedTab,
+        lots, invoices, goods, dictA12, dictE21, dbSelectedTab,
         startEditLot, startEditInvoice, triggerDeleteLotConfirm, triggerDeleteInvoiceConfirm,
         handleOpenAddDict, handleOpenEditDict, handleDeleteDictConfirm, handleBulkDelete,
         handleOpenAddSupplier, setPaymentForm, setPaymentEditIdx, setShowPaymentModal,
@@ -283,17 +283,7 @@
         showNotification, setViewDetailLot,
         selectedSupplierIdx, supplierData, handleOpenEditSupplier, handleDeleteSupplier,
         pymSelected, setPymSelected, paymentData, filteredPayments, handleDeletePayment,
-        handleExportSelectedPayments, handleBulkDeletePayments,
-        // Lot No Inf
-        selectedDraftLotId, setSelectedDraftLotId, lnInlineOpen, setLnInlineOpen,
-        triggerDeleteDraftLotConfirm, emptyDraftLotForm, setDraftLotForm,
-        // Invoice Data
-        selectedIvInvoiceNo, setSelectedIvInvoiceNo, ivInlineOpen, setIvInlineOpen, startEditInvoiceInline,
-        // Import Declaration
-        selectedDeclLotNo, setSelectedDeclLotNo, idInlineOpen, setIdInlineOpen,
-        setDeclModalMode, setDeclForm, triggerUnlinkAllInvoicesConfirm,
-        // E010 quick edit
-        e010QuickEditOpen, setE010QuickEditOpen, setE010QuickEditForm, handleSaveQuickEdit
+        handleExportSelectedPayments, handleBulkDeletePayments
       } = deps;
 
       React.useEffect(() => {
@@ -324,32 +314,15 @@
           else if (pymSelected.size > 1) { ctxType = 'payment_multi'; ctxLabel = pymSelected.size + ' payments'; }
           else { ctxType = 'payment_none'; ctxLabel = 'Select a payment'; }
         }
-        if (activeMenu === 'LOT_NO_INFO') {
-          if (selectedDraftLotId) {
-            const d = (draftLots||[]).find(x => x.id === selectedDraftLotId);
-            ctxType = 'draft_lot'; ctxLabel = d ? ('STT ' + d.stt) : 'Draft lot';
-          } else { ctxType = 'draft_lot_none'; ctxLabel = 'Select a draft lot (or Add new)'; }
-        }
-        if (activeMenu === 'INVOICE_DATA') {
-          if (selectedIvInvoiceNo) { ctxType = 'iv_invoice'; ctxLabel = 'Invoice: ' + selectedIvInvoiceNo; }
-          else { ctxType = 'iv_invoice_none'; ctxLabel = 'Select an invoice (or Add new)'; }
-        }
-        if (activeMenu === 'IMPORT_DECLARATION') {
-          if (selectedDeclLotNo) { ctxType = 'decl_lot'; ctxLabel = 'Lot: ' + selectedDeclLotNo; }
-          else { ctxType = 'decl_lot_none'; ctxLabel = 'Select a declaration (or Add new)'; }
-        }
 
         const noToolbarMenus = ['DASHBOARD', 'NO_ATC', 'ETA_MGMT', 'LIST_HANG'];
         const hidden = (noToolbarMenus.includes(activeMenu) && !viewDetailLot)
           || showAddModal || showDictModal || showSupplierModal || showPaymentModal;
 
-        const canEdit   = !!(ctxType && !['dict_none','dict_multi','supplier_none','payment_none','payment_multi','draft_lot_none','iv_invoice_none','decl_lot_none'].includes(ctxType));
-        const canDelete = !!(ctxType && !['dict_none','supplier_none','payment_none','draft_lot_none','iv_invoice_none','decl_lot_none'].includes(ctxType));
-        // Shipment Profiles (E010): Edit = sửa nhanh (quick-edit), KHÔNG cho Add ở đây nữa (Add lô mới phải qua Lot No Inf / Invoice Data / Import Declaration)
-        const canAdd = activeMenu !== 'E010';
+        const canEdit   = !!(ctxType && !['dict_none','dict_multi','supplier_none','payment_none','payment_multi'].includes(ctxType));
+        const canDelete = !!(ctxType && !['dict_none','supplier_none','payment_none'].includes(ctxType));
         const canExport = (activeMenu === 'E010' && !!selectedLotNo) || activeMenu === 'DATABASE_VIEW' || (activeMenu === 'PAYMENT_DATA' && pymSelected.size > 0);
         const canUpload = activeMenu === 'DATABASE_VIEW';
-
 
         // --- GET/CREATE TOOLBAR DOM ---
         let toolbar = document.getElementById('cy-floating-toolbar');
@@ -416,53 +389,20 @@
           else if (activeMenu === 'PAYMENT_DATA') {
             setPaymentForm({ 'NGÀY': getTodayLocal(), 'SỐ PTT': '', 'SỐ TIỀN': '', 'NỘI DUNG': '', 'NGÀY ĐƯA KẾ TOÁN': '' });
             setPaymentEditIdx(null); setShowPaymentModal(true);
-          } else if (activeMenu === 'LOT_NO_INFO') {
-            setSelectedDraftLotId(null);
-            setDraftLotForm({ ...emptyDraftLotForm(), stt: getFirstVacantSeq() });
-            setLnInlineOpen('NEW');
-          } else if (activeMenu === 'INVOICE_DATA') {
-            setSelectedIvInvoiceNo(null);
-            setModalMode('add');
-            setInvoiceForm({
-              invoice_no: '', lot_no: '', bill_no: '', bill_stt: 0, invoice_date: getTodayLocal(),
-              inv_pkg_qty: 0, inv_gw: 0, incoterm: 'CIF', total_amount: 0, foc_amount: 0,
-              plus_sea_freight: 0, handling_charges: 0, other_charges: 0, other_charges_note: '',
-              is_hang_chung_bill: false, loai_hinh: 'A12', loai_hinh_con: 'DEFAULT',
-              currency: 'USD', factory_no: '', supplier: 'CHANG YANG MATERIAL CORP.',
-              contract_start: '', contract_end: ''
-            });
-            setGoodsForm({ invoice_no: '', goods_no: '', goods_item: 1, goods_name_en: '', goods_unit_en: 'PCS', goods_unit_en2: '',
-              goods_name_local: '', goods_unit_local: 'Pcs', goods_unit_local2: '', hs_code: '', invoice_description: '',
-              sale_amount: 0, origin_country: 'TAIWAN', qty1: 0, unit1: 'PCS', qty2: 0, unit2: '', unit_price: 0, unit_price_str: '' });
-            setIvInlineOpen('NEW');
-          } else if (activeMenu === 'IMPORT_DECLARATION') {
-            setSelectedDeclLotNo(null);
-            setDeclModalMode('add');
-            setDeclForm({ draftLotId: '', lotNo: '', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [] });
-            setIdInlineOpen('NEW');
+          } else if (activeMenu === 'E010') {
+            // Tạo mới đã chuyển sang luồng Import Processing (Lot No Inf → Invoice Data → Import Declaration)
+            setActiveMenu('LOT_NO_INFO');
           }
-          // E010 (Shipment Profiles): không còn chức năng Add ở đây — dùng Lot No Inf / Invoice Data / Import Declaration
         };
 
         const onEdit = () => {
           if (!canEdit) return;
           if (ctxType === 'lot') {
-            // Shipment Profiles: Edit = mở quick-edit inline (sửa nhanh bill info cơ bản), KHÔNG mở wizard đầy đủ
             const lot = lots.find(l => l.lot_no === (viewDetailLot ? viewDetailLot.lot_no : selectedLotNo));
-            if (lot) {
-              setE010QuickEditForm({ ...lot });
-              setE010QuickEditOpen(true);
-            }
+            if (lot) { if (viewDetailLot) setViewDetailLot(null); startEditLot(lot); }
           } else if (ctxType === 'invoice') {
-            // Shipment Profiles: không sửa sâu invoice ở đây nữa — điều hướng sang Invoice Data
-            // và mở sẵn form inline (accordion) đúng invoice đang chọn để sửa chuyên sâu.
             const inv = invoices.find(i => i.invoice_no === selectedInvoiceNo);
-            if (inv) {
-              startEditInvoiceInline(inv);
-              setSelectedIvInvoiceNo(inv.invoice_no);
-              setIvInlineOpen(inv.invoice_no);
-              setActiveMenu('INVOICE_DATA');
-            }
+            if (inv) startEditInvoice(inv);
           } else if (ctxType === 'dict') {
             const dict = dbSelectedTab === 'A12' ? dictA12 : dictE21;
             const item = dict.find(i => i.goods_no === [...selectedDictItems][0]);
@@ -477,19 +417,6 @@
               setPaymentEditIdx(realIdx);
               setShowPaymentModal(true);
             }
-          } else if (ctxType === 'draft_lot') {
-            setLnInlineOpen(selectedDraftLotId);
-          } else if (ctxType === 'iv_invoice') {
-            const inv = invoices.find(i => i.invoice_no === selectedIvInvoiceNo);
-            if (inv) {
-              startEditInvoiceInline(inv);
-              setIvInlineOpen(selectedIvInvoiceNo);
-            }
-          } else if (ctxType === 'decl_lot') {
-            const lot = lots.find(l => l.lot_no === selectedDeclLotNo);
-            setDeclModalMode('edit');
-            setDeclForm({ draftLotId: '', lotNo: selectedDeclLotNo, loai_hinh: lot ? lot.loai_hinh : 'A12', loai_hinh_con: lot ? lot.loai_hinh_con : 'DEFAULT', selectedInvoiceNos: [] });
-            setIdInlineOpen(selectedDeclLotNo);
           }
         };
 
@@ -515,13 +442,6 @@
             if (realIdx !== -1) handleDeletePayment(realIdx);
           } else if (ctxType === 'payment_multi') {
             handleBulkDeletePayments(new Set(pymSelected));
-          } else if (ctxType === 'draft_lot') {
-            const d = (draftLots||[]).find(x => x.id === selectedDraftLotId);
-            if (d) triggerDeleteDraftLotConfirm(d);
-          } else if (ctxType === 'iv_invoice') {
-            triggerDeleteInvoiceConfirm(selectedIvInvoiceNo);
-          } else if (ctxType === 'decl_lot') {
-            triggerUnlinkAllInvoicesConfirm(selectedDeclLotNo);
           }
         };
 
@@ -580,7 +500,7 @@
           action: { bg: 'rgba(37,99,235,0.2)', bgHover: 'rgba(37,99,235,0.4)', text: '#60a5fa' },
         };
 
-        toolbar.appendChild(mkBtn('+', 'Add', COLORS.action, canAdd, onAdd));
+        toolbar.appendChild(mkBtn('+', 'Add', COLORS.action, true, onAdd));
         toolbar.appendChild(mkBtn('&#9998;', 'Edit', COLORS.action, canEdit, onEdit));
         toolbar.appendChild(mkBtn('&#128465;', 'Delete', COLORS.action, canDelete, onDelete));
 
@@ -713,7 +633,6 @@
       // Sanitize cho draft_lots (STT/Bill info đang chờ — chưa có lot_no thật).
       // Không áp fallback ép buộc (Freight Prepaid/TAIWAN...) như sanitizeLot, vì draft mới luôn nên để trống đúng UX đã chốt trước đó.
       const sanitizeDraftLot = (d) => ({
-        id:                 toStr(d.id) || ("draft_" + Date.now() + "_" + Math.random().toString(36).slice(2,8)),
         stt:                Number(d.stt)         || 0,
         lot_date:           normalizeDate(d.lot_date),
         get_docs_date:      normalizeDate(d.get_docs_date),
@@ -1366,52 +1285,6 @@
       // Advanced Filters
       const [filterFromDate, setFilterFromDate] = useState('');
       const [filterToDate, setFilterToDate] = useState('');
-
-      // ══ INVOICE DATA page filters ══
-      const [ivSearch, setIvSearch] = useState('');
-      const [ivFilterLoaiHinh, setIvFilterLoaiHinh] = useState('ALL');
-      const [ivFilterSupplier, setIvFilterSupplier] = useState('ALL');
-      const [ivFilterFactory, setIvFilterFactory] = useState('ALL');
-      const [ivFilterYear, setIvFilterYear] = useState('ALL');
-      const [ivPage, setIvPage] = useState(1);
-      const IV_PAGE_SIZE = 30;
-
-      // ══ LOT NO INFO page filters ══
-      const [lnSearch, setLnSearch] = useState('');
-      const [lnFilterLoaiHinh, setLnFilterLoaiHinh] = useState('ALL');
-      const [lnFilterYear, setLnFilterYear] = useState('ALL');
-      const [lnTab, setLnTab] = useState('draft'); // 'draft' | 'all'
-      const [lnPage, setLnPage] = useState(1);
-      const LN_PAGE_SIZE = 30;
-
-      // ══ IMPORT DECLARATION page filters ══
-      const [idSearch, setIdSearch] = useState('');
-      const [idFilterLoaiHinh, setIdFilterLoaiHinh] = useState('ALL');
-      const [idFilterFactory, setIdFilterFactory] = useState('ALL');
-      const [idPage, setIdPage] = useState(1);
-      const ID_PAGE_SIZE = 30;
-
-      // ══ IMPORT DECLARATION: form inline (gắn invoice + lot_no), thay cho modal cũ ══
-      const [declModalMode, setDeclModalMode] = useState('add'); // 'add' | 'edit'
-      const [declForm, setDeclForm] = useState({ draftLotId: '', lotNo: '', loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [] });
-
-      // ══ Selection + inline-accordion state cho floating toolbar trên 3 trang Lot No Inf / Invoice Data / Import Declaration ══
-      const [selectedDraftLotId, setSelectedDraftLotId] = useState(null);   // Lot No Inf
-      const [selectedIvInvoiceNo, setSelectedIvInvoiceNo] = useState(null); // Invoice Data
-      const [selectedDeclLotNo, setSelectedDeclLotNo] = useState(null);     // Import Declaration (lot_no đã có invoice gắn)
-      // null = đóng, 'NEW' = đang thêm mới, id/no = đang sửa dòng đó (accordion mở ngay dưới dòng)
-      const [lnInlineOpen, setLnInlineOpen] = useState(null);
-      const [ivInlineOpen, setIvInlineOpen] = useState(null);
-      const [idInlineOpen, setIdInlineOpen] = useState(null);
-      // Quick-edit inline cho Shipment Profiles (E010) — sửa nhanh bill info cơ bản, không đụng invoice/goods
-      const [e010QuickEditOpen, setE010QuickEditOpen] = useState(false);
-      const [e010QuickEditForm, setE010QuickEditForm] = useState(null);
-
-
-      // Lazy-load flags: chỉ hiện dữ liệu khi user bấm Load hoặc dùng filter
-      const [ivLoaded, setIvLoaded] = useState(false);
-      const [lnLoaded, setLnLoaded] = useState(false);
-      const [idLoaded, setIdLoaded] = useState(false);
       const [filterLotNo, setFilterLotNo] = useState('');
 
       // Từ khóa tìm kiếm trong danh mục gốc
@@ -1529,20 +1402,6 @@
       const [selectedFactories, setSelectedFactories] = useState([]);
       // Danh sách invoice tạm thời cho lô đang tạo (Tab 2 preview)
       const [draftInvoiceNos, setDraftInvoiceNos] = useState([]);
-
-      // ── LOT NO INF (trang riêng): Add/Edit/Delete cho draftLots (STT/Bill info, chưa có lot_no) ──
-      const emptyDraftLotForm = () => ({
-        id: '', stt: 1, lot_date: getTodayLocal(), get_docs_date: getTodayLocal(),
-        bill_no: '', bill_date: '', pol: '', pod: '', bill_term: '',
-        carrier: '', transport_type: 'SEA_CONT', is_cont: true,
-        cont_no: '', seal_no: '', cont_type: '40FT', contList: [{cont_no:'',seal_no:'',cont_type:'40FT'}],
-        pkg_qty: 0, gw: 0, cbm: 0, cbm_str: '', eta: '', atc_date: '',
-        origin_country: '', factory_no: '', supplier: '', sale_qty: 0,
-        is_hang_chung_bill: false, contract_start: '', contract_end: ''
-      });
-      const [showDraftLotModal, setShowDraftLotModal] = useState(false);
-      const [draftLotModalMode, setDraftLotModalMode] = useState('add'); // 'add' | 'edit'
-      const [draftLotForm, setDraftLotForm] = useState(emptyDraftLotForm());
       // Tab 4: Tạo Mã Lô — state gắn invoice vào lô
       const [lotAssignForm, setLotAssignForm] = useState({
         loai_hinh: 'A12', loai_hinh_con: 'DEFAULT', selectedInvoiceNos: [], stt: 1
@@ -1785,100 +1644,6 @@
         showNotification(`Created Lot [${lot_no}] with ${selectedInvoiceNos.length} invoices!`);
         // Stay on Tab 4 so user can create more lots (e.g. 2nd lot for hang chung bill diff type)
         // Close modal only if no more unassigned invoices
-      };
-
-      // ── IMPORT DECLARATION (trang riêng): tạo lot_no từ 1 draft lot (Lot No Inf) + các invoice được chọn ──
-      // Khác handleFinalizeLot (dùng lotForm của wizard cũ): hàm này dùng draftLot độc lập, không phụ thuộc wizard.
-      const handleCreateDeclarationFromDraft = (draftLot, loaiHinh, loaiHinhCon, selectedInvoiceNos) => {
-        if (!draftLot) return showNotification("Select a draft lot (STT) first!", "error");
-        if (!loaiHinh) return showNotification("Please select customs dec. type!", "error");
-        if (!selectedInvoiceNos || selectedInvoiceNos.length === 0) return showNotification("Please select at least 1 invoice!", "error");
-        const stt = Number(draftLot.stt);
-        if (!stt) return showNotification("Draft lot has invalid STT!", "error");
-        const lot_no = generateLotNoString(loaiHinh, loaiHinhCon, stt);
-        if (lots.some(l => String(l.lot_no||'').toLowerCase() === lot_no.toLowerCase())) {
-          return showNotification(`Lot code [${lot_no}] already exists! Change STT or dec. type.`, "error");
-        }
-        const selInvs = invoices.filter(i => selectedInvoiceNos.includes(i.invoice_no));
-        const totalInvPkg = selInvs.reduce((s, i) => s + Number(i.inv_pkg_qty||0), 0);
-        const totalInvGw  = selInvs.reduce((s, i) => s + Number(i.inv_gw||0), 0);
-        const finalPkgQty = totalInvPkg > 0 ? totalInvPkg : Number(draftLot.pkg_qty)||0;
-        const finalGw     = totalInvGw  > 0 ? totalInvGw  : Number(draftLot.gw)||0;
-        const allFactories = new Set();
-        selInvs.forEach(i => (i.factory_no||'').split(',').map(f=>f.trim()).filter(Boolean).forEach(f => allFactories.add(f)));
-
-        const finalLot = {
-          ...draftLot, lot_no, stt, loai_hinh: loaiHinh, loai_hinh_con: loaiHinhCon,
-          factory_no: allFactories.size ? Array.from(allFactories).join(', ') : (draftLot.factory_no || ''),
-          pkg_qty: finalPkgQty, gw: finalGw,
-        };
-        delete finalLot.id; // id chỉ dùng cho draftLots, không cần trong lots
-        if (finalLot.carrier) addCarrierHistory(finalLot.carrier.trim());
-        saveLotsToStorage([finalLot, ...lots]);
-        const updatedInvoices = invoices.map(inv =>
-          selectedInvoiceNos.includes(inv.invoice_no)
-            ? { ...inv, lot_no, loai_hinh: loaiHinh, loai_hinh_con: loaiHinhCon }
-            : inv
-        );
-        saveInvoicesToStorage(updatedInvoices);
-        // Xoá draft lot đã dùng (đã chuyển thành lot thật)
-        saveDraftLotsToStorage(draftLots.filter(d => d.id !== draftLot.id));
-        showNotification(`Created Lot [${lot_no}] with ${selectedInvoiceNos.length} invoice(s)!`);
-        return lot_no;
-      };
-
-      // Gắn thêm invoice vào 1 lot_no đã tồn tại (Edit của Import Declaration)
-      const handleAssignInvoicesToExistingLot = (lotNo, invoiceNosToAdd) => {
-        const lot = lots.find(l => l.lot_no === lotNo);
-        if (!lot) return showNotification("Lot not found!", "error");
-        if (!invoiceNosToAdd || invoiceNosToAdd.length === 0) return showNotification("Select at least 1 invoice!", "error");
-        const updatedInvoices = invoices.map(inv =>
-          invoiceNosToAdd.includes(inv.invoice_no)
-            ? { ...inv, lot_no: lotNo, loai_hinh: lot.loai_hinh, loai_hinh_con: lot.loai_hinh_con }
-            : inv
-        );
-        saveInvoicesToStorage(updatedInvoices);
-        showNotification(`Added ${invoiceNosToAdd.length} invoice(s) to Lot [${lotNo}]`);
-      };
-
-      // Xoá Import Declaration = gỡ liên kết invoice khỏi lot_no (invoice quay về unassigned). Không xoá lot_no, không xoá invoice.
-      const triggerUnlinkInvoiceConfirm = (invNo, lotNo) => {
-        setConfirmState({
-          isOpen: true,
-          title: 'Remove from Lot',
-          message: `Invoice [${invNo}] will be unlinked from Lot [${lotNo}] and return to "Unassigned" status. The lot record itself will NOT be deleted.`,
-          onConfirm: () => {
-            saveInvoicesToStorage(invoices.map(inv => inv.invoice_no === invNo ? { ...inv, lot_no: '' } : inv));
-            setConfirmState(prev => ({ ...prev, isOpen: false }));
-            showNotification(`Invoice ${invNo} unlinked from lot ${lotNo}`);
-          }
-        });
-      };
-
-      // E010 Quick Edit: lưu nhanh bill info cơ bản của lot (không đụng invoice/goods)
-      const handleSaveQuickEdit = () => {
-        if (!e010QuickEditForm) return;
-        const updated = lots.map(l => l.lot_no === e010QuickEditForm.lot_no ? { ...l, ...e010QuickEditForm } : l);
-        saveLotsToStorage(updated);
-        setE010QuickEditOpen(false);
-        setE010QuickEditForm(null);
-        showNotification(`Lot ${e010QuickEditForm.lot_no} updated`);
-      };
-
-      // Xoá cả 1 "Import Declaration" (toolbar Delete) = gỡ TẤT CẢ invoice đang gắn với lot_no đó. Không xoá lot_no, không xoá invoice.
-      const triggerUnlinkAllInvoicesConfirm = (lotNo) => {
-        const count = invoices.filter(i => i.lot_no === lotNo).length;
-        if (!count) return;
-        setConfirmState({
-          isOpen: true,
-          title: 'Delete Declaration',
-          message: `All ${count} invoice(s) linked to Lot [${lotNo}] will be unlinked and return to "Unassigned" status. The lot record itself will NOT be deleted.`,
-          onConfirm: () => {
-            saveInvoicesToStorage(invoices.map(inv => inv.lot_no === lotNo ? { ...inv, lot_no: '' } : inv));
-            setConfirmState(prev => ({ ...prev, isOpen: false }));
-            showNotification(`Declaration for lot ${lotNo} removed (${count} invoice(s) unlinked)`);
-          }
-        });
       };
 
       const handleSaveInvoice = (e) => {
@@ -2336,35 +2101,6 @@
         setModalTab('lot');
         setShowAddModal(true);
       };
-      // Load invoice lên invoiceForm để sửa INLINE ngay trên trang Invoice Data (không mở modal/wizard)
-      const startEditInvoiceInline = (inv) => {
-        setInvoiceForm({
-          invoice_no:          toStr(inv.invoice_no),
-          lot_no:              toStr(inv.lot_no),
-          bill_no:             toStr(inv.bill_no),
-          bill_stt:            Number(inv.bill_stt)    || 1,
-          invoice_date:        normalizeDate(inv.invoice_date),
-          incoterm:            toStr(inv.incoterm)     || 'CIF',
-          loai_hinh:           toStr(inv.loai_hinh)   || 'A12',
-          loai_hinh_con:       toStr(inv.loai_hinh_con) || 'DEFAULT',
-          supplier:            toStr(inv.supplier)    || 'CHANG YANG MATERIAL CORP.',
-          currency:            toStr(inv.currency)    || 'USD',
-          total_amount:        Number(inv.total_amount)        || 0,
-          foc_amount:          Number(inv.foc_amount)          || 0,
-          plus_sea_freight:    Number(inv.plus_sea_freight)    || 0,
-          handling_charges:    Number(inv.handling_charges)    || 0,
-          other_charges:       Number(inv.other_charges)       || 0,
-          other_charges_note:  toStr(inv.other_charges_note),
-          inv_pkg_qty:         Number(inv.inv_pkg_qty)         || 0,
-          inv_gw:              Number(inv.inv_gw)              || 0,
-          is_hang_chung_bill:  Boolean(inv.is_hang_chung_bill),
-          factory_no:          toStr(inv.factory_no),
-          contract_start:      normalizeDate(inv.contract_start),
-          contract_end:        normalizeDate(inv.contract_end),
-        });
-        setModalMode('edit');
-      };
-
       const startEditInvoice = (inv, e) => {
         if(e) e.stopPropagation();
         setModalMode('edit');
@@ -2457,81 +2193,6 @@
       };
       const triggerDeleteInvoiceConfirm = (invNo, e) => { if(e) e.stopPropagation(); setConfirmState({ isOpen: true, title: 'Delete Invoice', message: `Commercial invoice [${invNo}] and all its goods items will be removed from the system.`, onConfirm: () => executeDeleteInvoice(invNo) }); };
       const triggerDeleteGoodsConfirm = (gId, e) => { if(e) e.stopPropagation(); setConfirmState({ isOpen: true, title: 'Delete Goods Item', message: `Confirm delete this goods item from the invoice?`, onConfirm: () => executeDeleteGoods(gId) }); };
-
-      // ── LOT NO INF: Add/Edit/Delete cho draftLots (STT/Bill info) ──
-      const startAddDraftLot = () => {
-        setDraftLotModalMode('add');
-        setDraftLotForm({ ...emptyDraftLotForm(), stt: getFirstVacantSeq() });
-        setShowDraftLotModal(true);
-      };
-      const startEditDraftLot = (d) => {
-        setDraftLotModalMode('edit');
-        setDraftLotForm({
-          ...emptyDraftLotForm(),
-          ...d,
-          lot_date: normalizeDate(d.lot_date),
-          get_docs_date: normalizeDate(d.get_docs_date),
-          bill_date: normalizeDate(d.bill_date),
-          eta: normalizeDate(d.eta),
-          atc_date: normalizeDate(d.atc_date),
-          contract_start: normalizeDate(d.contract_start),
-          contract_end: normalizeDate(d.contract_end),
-          contList: parseContainers(d),
-          cbm_str: d.cbm ? String(d.cbm) : '',
-        });
-        setShowDraftLotModal(true);
-      };
-      // Sửa trực tiếp bill info của 1 lô đã finalize (đã có lot_no thật) — dùng lại startEditLot có sẵn
-      const startEditFinalizedLotBillInfo = (lot) => { startEditLot(lot); };
-
-      const handleSaveDraftLot = (e) => {
-        e.preventDefault();
-        if (!Number(draftLotForm.stt)) return showNotification("Please enter Sequence No. (STT)!", "error");
-        const validConts = (draftLotForm.contList || []).filter(c => c.cont_no && c.cont_no.trim());
-        const primaryCont = validConts[0] || {};
-        const finalDraft = {
-          ...draftLotForm,
-          id: draftLotForm.id || ("draft_" + Date.now() + "_" + Math.random().toString(36).slice(2,8)),
-          stt: Number(draftLotForm.stt),
-          pkg_qty: Number(draftLotForm.pkg_qty)||0, gw: Number(draftLotForm.gw)||0, cbm: Number(draftLotForm.cbm)||0,
-          lot_date: normalizeDate(draftLotForm.lot_date),
-          get_docs_date: normalizeDate(draftLotForm.get_docs_date),
-          bill_date: normalizeDate(draftLotForm.bill_date),
-          eta: normalizeDate(draftLotForm.eta),
-          atc_date: normalizeDate(draftLotForm.atc_date),
-          contract_start: normalizeDate(draftLotForm.contract_start),
-          contract_end: normalizeDate(draftLotForm.contract_end),
-          containers: serializeContainers(validConts.length > 0 ? validConts : [{cont_no:'',seal_no:'',cont_type:draftLotForm.cont_type||'40FT'}]),
-          cont_no: primaryCont.cont_no || '', seal_no: primaryCont.seal_no || '',
-          cont_type: primaryCont.cont_type || draftLotForm.cont_type || '40FT',
-        };
-        if (finalDraft.carrier) addCarrierHistory(finalDraft.carrier.trim());
-
-        if (draftLotModalMode === 'edit') {
-          saveDraftLotsToStorage(draftLots.map(d => d.id === finalDraft.id ? finalDraft : d));
-          showNotification(`Draft lot (STT ${finalDraft.stt}) updated`);
-        } else {
-          if (draftLots.some(d => Number(d.stt) === finalDraft.stt) || lots.some(l => Number(l.stt) === finalDraft.stt)) {
-            return showNotification(`STT ${finalDraft.stt} already in use!`, "error");
-          }
-          saveDraftLotsToStorage([finalDraft, ...draftLots]);
-          showNotification(`Draft lot (STT ${finalDraft.stt}) created — go to Import Declaration to assign invoices`);
-        }
-        setShowDraftLotModal(false);
-      };
-
-      const triggerDeleteDraftLotConfirm = (d) => {
-        setConfirmState({
-          isOpen: true,
-          title: 'Delete Draft Lot',
-          message: `Draft lot (STT ${d.stt}${d.bill_no ? ', Bill ' + d.bill_no : ''}) will be permanently deleted. This cannot be undone.`,
-          onConfirm: () => {
-            saveDraftLotsToStorage(draftLots.filter(x => x.id !== d.id));
-            setConfirmState(prev => ({ ...prev, isOpen: false }));
-            showNotification(`Draft lot deleted`);
-          }
-        });
-      };
 
       const handlePortalQuickSearch = (e) => { e.preventDefault(); setFilterLotNo(homeSearchQuery); setActiveMenu('E010'); setSelectedLotNo(null); setSelectedInvoiceNo(null); };
       
@@ -2999,7 +2660,7 @@
       useFloatingToolbar({
         activeMenu, setActiveMenu, selectedLotNo, selectedInvoiceNo, viewDetailLot,
         selectedDictItems, showAddModal, showDictModal, showSupplierModal, showPaymentModal,
-        lots, invoices, goods, draftLots, dictA12, dictE21, dbSelectedTab,
+        lots, invoices, goods, dictA12, dictE21, dbSelectedTab,
         startEditLot, startEditInvoice, triggerDeleteLotConfirm, triggerDeleteInvoiceConfirm,
         handleOpenAddDict, handleOpenEditDict, handleDeleteDictConfirm, handleBulkDelete,
         handleOpenAddSupplier, setPaymentForm, setPaymentEditIdx, setShowPaymentModal,
@@ -3009,13 +2670,7 @@
         showNotification, setViewDetailLot,
         selectedSupplierIdx, supplierData, handleOpenEditSupplier, handleDeleteSupplier,
         pymSelected, setPymSelected, paymentData, filteredPayments, handleDeletePayment,
-        handleExportSelectedPayments, handleBulkDeletePayments,
-        selectedDraftLotId, setSelectedDraftLotId, lnInlineOpen, setLnInlineOpen,
-        triggerDeleteDraftLotConfirm, emptyDraftLotForm, setDraftLotForm,
-        selectedIvInvoiceNo, setSelectedIvInvoiceNo, ivInlineOpen, setIvInlineOpen,
-        selectedDeclLotNo, setSelectedDeclLotNo, idInlineOpen, setIdInlineOpen,
-        setDeclModalMode, setDeclForm, triggerUnlinkAllInvoicesConfirm,
-        e010QuickEditOpen, setE010QuickEditOpen, setE010QuickEditForm, handleSaveQuickEdit
+        handleExportSelectedPayments, handleBulkDeletePayments
       });
 
 
@@ -3343,7 +2998,7 @@
                           <div className="ml-3 mt-0.5 border-l-2 border-slate-800/70 pl-3 space-y-0.5">
                             {/*Invoice Data*/}
                             <button
-                              onClick={() => { setActiveMenu('INVOICE_DATA'); setIvPage(1); setIvSearch(''); setIvFilterLoaiHinh('ALL'); setIvFilterSupplier('ALL'); setIvFilterFactory('ALL'); setIvFilterYear('ALL'); setIvLoaded(false); }}
+                              onClick={() => setActiveMenu('INVOICE_DATA')}
                               className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
                                 ${activeMenu === 'INVOICE_DATA' ? 'bg-indigo-600/20 text-indigo-400 font-bold border border-indigo-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                             >
@@ -3352,7 +3007,7 @@
 
                             {/*Lot No Inf*/}
                             <button
-                              onClick={() => { setActiveMenu('LOT_NO_INFO'); setLnPage(1); setLnSearch(''); setLnFilterLoaiHinh('ALL'); setLnFilterYear('ALL'); setLnTab('draft'); setLnLoaded(false); }}
+                              onClick={() => setActiveMenu('LOT_NO_INFO')}
                               className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
                                 ${activeMenu === 'LOT_NO_INFO' ? 'bg-blue-600/20 text-blue-400 font-bold border border-blue-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                             >
@@ -3361,7 +3016,7 @@
 
                             {/*Import Declaration*/}
                             <button
-                              onClick={() => { setActiveMenu('IMPORT_DECLARATION'); setIdPage(1); setIdSearch(''); setIdFilterLoaiHinh('ALL'); setIdFilterFactory('ALL'); setIdLoaded(false); }}
+                              onClick={() => setActiveMenu('IMPORT_DECLARATION')}
                               className={`w-full text-left py-2 px-2.5 rounded-lg text-[11px] transition-colors flex items-center gap-2
                                 ${activeMenu === 'IMPORT_DECLARATION' ? 'bg-amber-600/20 text-amber-400 font-bold border border-amber-800' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                             >
@@ -3411,7 +3066,7 @@
               </div>
             </div>
             <div className="p-3 text-center border-t border-slate-800 bg-slate-950/60 text-[10px] text-slate-500">
-              {menuExpanded ? <span>Version: <strong className="text-blue-500">v2.1.0-pro [20260627_IP_PAGES]</strong></span> : <span>v2.1</span>}
+              {menuExpanded ? <span>Version: <strong className="text-blue-500">v2.1.0-pro [20260617_UNIFIED_MD]</strong></span> : <span>v2.1</span>}
             </div>
           </div>
 
@@ -3963,7 +3618,7 @@
                                   <td className="px-3 py-2 text-center text-slate-500 text-[10px]">{inv.factory_no || '—'}</td>
                                   <td className="px-3 py-2 text-center font-mono text-slate-500 text-[10px]">{inv.bill_no || '—'}</td>
                                   <td className="px-3 py-2 text-center space-x-1">
-                                    <button onClick={(e) => { e.stopPropagation(); startEditInvoiceInline(inv); setSelectedIvInvoiceNo(inv.invoice_no); setIvInlineOpen(inv.invoice_no); setActiveMenu('INVOICE_DATA'); }} className="text-blue-400 hover:underline text-[10px]">Edit</button>
+                                    <button onClick={(e) => startEditInvoice(inv, e)} className="text-blue-400 hover:underline text-[10px]">Edit</button>
                                     <button onClick={(e) => triggerDeleteInvoiceConfirm(inv.invoice_no, e)} className="text-rose-500 hover:underline text-[10px]">🗑️</button>
                                   </td>
                                 </tr>
@@ -4057,68 +3712,6 @@
                       <p className="text-[10px] text-slate-500">Showing <strong className="text-slate-300">{filteredLots.length}</strong> lots{filterFromDate ? ` from ${filterFromDate}` : ''}{filterToDate ? ` to ${filterToDate}` : ''}</p>
                     )}
                   </div>
-
-                  {/*QUICK EDIT PANEL — Edit nhanh bill info cơ bản, không đụng invoice/goods*/}
-                  {e010QuickEditOpen && e010QuickEditForm && (
-                    <div className="bg-blue-950/20 border border-blue-800/50 rounded-xl p-4 space-y-3 shadow-lg">
-                      <div className="flex justify-between items-center">
-                        <p className="text-[11px] font-bold text-blue-300 uppercase tracking-wider">✏ Quick Edit — Lot {e010QuickEditForm.lot_no}</p>
-                        <button onClick={() => { setE010QuickEditOpen(false); setE010QuickEditForm(null); }}
-                          className="text-slate-400 hover:text-white font-bold text-sm">✕</button>
-                      </div>
-                      <div className="grid grid-cols-4 gap-3">
-                        <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">Bill No.</label>
-                          <input type="text" value={e010QuickEditForm.bill_no||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, bill_no: e.target.value.toUpperCase()})}
-                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono" />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">Bill Date</label>
-                          <input type="date" value={e010QuickEditForm.bill_date||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, bill_date: e.target.value})}
-                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">Carrier</label>
-                          <input type="text" value={e010QuickEditForm.carrier||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, carrier: e.target.value})}
-                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">ETA</label>
-                          <input type="date" value={e010QuickEditForm.eta||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, eta: e.target.value})}
-                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-4 gap-3">
-                        <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">POL</label>
-                          <input type="text" value={e010QuickEditForm.pol||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, pol: e.target.value.toUpperCase()})}
-                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">POD</label>
-                          <input type="text" value={e010QuickEditForm.pod||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, pod: e.target.value.toUpperCase()})}
-                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">Container No.</label>
-                          <input type="text" value={e010QuickEditForm.cont_no||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, cont_no: e.target.value.toUpperCase()})}
-                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-cyan-300 font-mono" />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">ATC Date</label>
-                          <input type="date" value={e010QuickEditForm.atc_date||''} onChange={e => setE010QuickEditForm({...e010QuickEditForm, atc_date: e.target.value})}
-                            className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 pt-1 border-t border-slate-800">
-                        <p className="text-[10px] text-slate-500 flex-1">To edit invoice/goods or container list in detail → go to Invoice Data or Import Declaration</p>
-                        <button onClick={() => { setE010QuickEditOpen(false); setE010QuickEditForm(null); }}
-                          className="bg-slate-800 px-4 py-1.5 text-xs rounded text-slate-300 hover:bg-slate-700 font-bold">Cancel</button>
-                        <button onClick={handleSaveQuickEdit}
-                          className="bg-blue-600 hover:bg-blue-700 px-5 py-1.5 text-xs rounded text-white font-bold">✔ Save Changes</button>
-                      </div>
-                    </div>
-                  )}
 
                   {/*CONTROL BAR*/}
                   <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center shadow-lg">
@@ -4374,6 +3967,13 @@
                                                 <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wide">
                                                   📄 Invoices <span className="text-slate-500 font-normal ml-1">({accInvoices.length} · ${totalVal.toLocaleString(undefined,{minimumFractionDigits:2})})</span>
                                                 </span>
+                                                <button onClick={() => {
+                                                  setLotForm(prev => ({...prev, ...lot, cbm_str: lot.cbm ? String(lot.cbm) : ''}));
+                                                  setSelectedFactories(lot.factory_no ? lot.factory_no.split(',').map(s=>s.trim()).filter(Boolean) : []);
+                                                  setModalMode('add'); setModalTab('invoice');
+                                                  setInvoiceForm(prev => ({...prev, lot_no: lot.lot_no, bill_no: lot.bill_no || '', bill_stt: lot.stt || 0, invoice_no: '', total_amount: 0, invoice_date: getTodayLocal()}));
+                                                  setShowAddModal(true);
+                                                }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-[10px]">+ Add</button>
                                               </div>
                                               <div className="overflow-y-auto" style={{maxHeight:'260px'}}>
                                                 <table className="w-full text-left text-xs border-collapse">
@@ -4427,6 +4027,14 @@
                                                   📦 Goods <span className="text-slate-500 font-normal ml-1">(Inv: {accSelInv || 'N/A'})</span>
                                                 </span>
                                                 <div className="flex gap-1.5">
+                                                  {accSelInv && (
+                                                    <button onClick={() => {
+                                                      setModalMode('add');
+                                                      setGoodsForm(prev => ({...prev, invoice_no: accSelInv}));
+                                                      setModalTab('goods');
+                                                      setShowAddModal(true);
+                                                    }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-[10px]">+ Add Item</button>
+                                                  )}
                                                   <button onClick={() => {
                                                     const lotInvNos2 = accInvoices.map(i => String(i.invoice_no));
                                                     const lotGoodsAll2 = goods.filter(g => lotInvNos2.includes(String(g.invoice_no)));
@@ -4918,1401 +4526,6 @@
               </div>
                 );
               })()}
-
-              {/*--- INVOICE DATA VIEW ---*/}
-              {activeMenu === 'INVOICE_DATA' && (() => {
-                const hasActiveFilter = ivLoaded || ivSearch.trim() || ivFilterLoaiHinh !== 'ALL' || ivFilterSupplier !== 'ALL' || ivFilterFactory !== 'ALL' || ivFilterYear !== 'ALL';
-
-                // Derive filter options from all data
-                const ivYears = ['ALL', ...Array.from(new Set(invoices.map(i => (i.invoice_date||'').slice(0,4)).filter(Boolean))).sort((a,b)=>b-a)];
-                const ivLoaiHinhs = ['ALL', ...Array.from(new Set(invoices.map(i => i.loai_hinh).filter(Boolean))).sort()];
-                const ivSuppliers = ['ALL', ...Array.from(new Set(invoices.map(i => i.supplier).filter(Boolean))).sort()];
-                const ivFactories = ['ALL', ...Array.from(new Set(invoices.map(i => i.factory_no).filter(Boolean))).sort()];
-
-                const filtered = !hasActiveFilter ? [] : invoices.filter(inv => {
-                  if (ivFilterLoaiHinh !== 'ALL' && inv.loai_hinh !== ivFilterLoaiHinh) return false;
-                  if (ivFilterSupplier !== 'ALL' && inv.supplier !== ivFilterSupplier) return false;
-                  if (ivFilterFactory !== 'ALL' && inv.factory_no !== ivFilterFactory) return false;
-                  if (ivFilterYear !== 'ALL' && (inv.invoice_date||'').slice(0,4) !== ivFilterYear) return false;
-                  if (ivSearch.trim()) {
-                    const q = ivSearch.toLowerCase();
-                    if (!(
-                      (inv.invoice_no||'').toLowerCase().includes(q) ||
-                      (inv.lot_no||'').toLowerCase().includes(q) ||
-                      (inv.bill_no||'').toLowerCase().includes(q) ||
-                      (inv.supplier||'').toLowerCase().includes(q) ||
-                      (inv.factory_no||'').toLowerCase().includes(q)
-                    )) return false;
-                  }
-                  return true;
-                }).sort((a,b) => (b.invoice_date||'').localeCompare(a.invoice_date||''));
-
-                const totalPages = Math.max(1, Math.ceil(filtered.length / IV_PAGE_SIZE));
-                const safePage = Math.min(ivPage, totalPages);
-                const paged = filtered.slice((safePage-1)*IV_PAGE_SIZE, safePage*IV_PAGE_SIZE);
-                const totalVal = filtered.reduce((s,i) => s + getInvoiceValueSum(i), 0);
-                const hasManualFilter = ivFilterLoaiHinh !== 'ALL' || ivFilterSupplier !== 'ALL' || ivFilterFactory !== 'ALL' || ivFilterYear !== 'ALL' || ivSearch.trim();
-
-                const invGoodsList = (invNo) => goods.filter(g => String(g.invoice_no) === String(invNo));
-
-                // ── Form inline (accordion) — Phần trên: Invoice info | Phần dưới: Goods list ──
-                const InvoiceInlineForm = ({ invoiceNoCtx }) => {
-                  const isEdit = modalMode === 'edit';
-                  const curGoods = invoiceNoCtx ? invGoodsList(invoiceNoCtx) : [];
-                  return (
-                    <tr>
-                      <td colSpan="10" className="bg-indigo-950/20 border-y border-indigo-800/40 p-0">
-                        <div className="p-4 space-y-5">
-                          {/*Phần 1: Invoice info*/}
-                          <form onSubmit={handleSaveInvoice} className="space-y-3">
-                            <p className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider">
-                              {isEdit ? `Edit Invoice — ${invoiceForm.invoice_no}` : '1. Invoice Information'}
-                            </p>
-                            <div className="bg-slate-950/40 p-3 border border-slate-800 rounded-xl space-y-2">
-                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">🏭 Receiving Factory (this Invoice)</label>
-                              <div className="flex gap-2 flex-wrap">
-                                {FACTORY_OPTIONS.map((fac) => {
-                                  const invFactories = (invoiceForm.factory_no || '').split(',').map(s=>s.trim()).filter(Boolean);
-                                  const isChecked = invFactories.includes(fac);
-                                  return (
-                                    <label key={fac} className={`flex items-center gap-2 cursor-pointer border px-2.5 py-1.5 rounded-lg transition-all text-[11px] font-bold ${isChecked ? 'bg-blue-900/30 border-blue-600 text-white' : 'bg-slate-900 border-slate-800 text-slate-400'}`}>
-                                      <input type="checkbox" checked={isChecked}
-                                        onChange={(e) => {
-                                          const cur = (invoiceForm.factory_no||'').split(',').map(s=>s.trim()).filter(Boolean);
-                                          const next = e.target.checked ? [...cur, fac] : cur.filter(f=>f!==fac);
-                                          setInvoiceForm(prev => ({...prev, factory_no: next.join(', ')}));
-                                        }}
-                                        className="accent-blue-500" />
-                                      {fac}
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-4 gap-3">
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Invoice No. *</label>
-                                <input type="text" required disabled={isEdit} value={invoiceForm.invoice_no}
-                                  onChange={e => setInvoiceForm({...invoiceForm, invoice_no: e.target.value.toUpperCase()})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono disabled:opacity-60" />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Invoice Date</label>
-                                <input type="date" value={invoiceForm.invoice_date||''} onChange={e => setInvoiceForm({...invoiceForm, invoice_date: e.target.value})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Dec. Type</label>
-                                <select value={invoiceForm.loai_hinh} onChange={e => setInvoiceForm({...invoiceForm, loai_hinh: e.target.value})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
-                                  <option value="A12">A12</option>
-                                  <option value="E21">E21</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Dec. Sub-type</label>
-                                <input type="text" value={invoiceForm.loai_hinh_con||''} onChange={e => setInvoiceForm({...invoiceForm, loai_hinh_con: e.target.value})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-4 gap-3">
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Lot No.</label>
-                                <input type="text" value={invoiceForm.lot_no||''} onChange={e => setInvoiceForm({...invoiceForm, lot_no: e.target.value.toUpperCase()})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-cyan-300 font-mono" />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Bill No.</label>
-                                <input type="text" value={invoiceForm.bill_no||''} onChange={e => setInvoiceForm({...invoiceForm, bill_no: e.target.value.toUpperCase()})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono" />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Bill STT</label>
-                                <input type="number" min="1" value={invoiceForm.bill_stt||''} onChange={e => setInvoiceForm({...invoiceForm, bill_stt: Number(e.target.value)||1})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Incoterm</label>
-                                <select value={invoiceForm.incoterm} onChange={e => setInvoiceForm({...invoiceForm, incoterm: e.target.value})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
-                                  {['CIF','CFR','CIP','CPT','FOB','FCA','EXW','FAS'].map(t=><option key={t} value={t}>{t}</option>)}
-                                </select>
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-3">
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Supplier</label>
-                                <input type="text" value={invoiceForm.supplier} onChange={e => setInvoiceForm({...invoiceForm, supplier: e.target.value})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Currency</label>
-                                <select value={invoiceForm.currency} onChange={e => setInvoiceForm({...invoiceForm, currency: e.target.value})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
-                                  <option value="USD">USD</option><option value="EUR">EUR</option><option value="TWD">TWD</option><option value="CNY">CNY</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Total Amount</label>
-                                <input type="number" step="0.01" min="0" value={invoiceForm.total_amount||''}
-                                  onChange={e => setInvoiceForm({...invoiceForm, total_amount: parseFloat(e.target.value)||0})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-4 gap-3">
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Inv. Pkg Qty</label>
-                                <input type="number" step="0.001" min="0" value={invoiceForm.inv_pkg_qty||''}
-                                  onChange={e => setInvoiceForm({...invoiceForm, inv_pkg_qty: parseFloat(e.target.value)||0})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Inv. Gross Weight</label>
-                                <input type="number" step="0.001" min="0" value={invoiceForm.inv_gw||''}
-                                  onChange={e => setInvoiceForm({...invoiceForm, inv_gw: parseFloat(e.target.value)||0})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Contract Start</label>
-                                <input type="date" value={invoiceForm.contract_start||''} onChange={e => setInvoiceForm({...invoiceForm, contract_start: e.target.value})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Contract End</label>
-                                <input type="date" value={invoiceForm.contract_end||''} onChange={e => setInvoiceForm({...invoiceForm, contract_end: e.target.value})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-4 gap-3">
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">+ Sea Freight</label>
-                                <input type="number" step="0.01" min="0" value={invoiceForm.plus_sea_freight||''}
-                                  onChange={e => setInvoiceForm({...invoiceForm, plus_sea_freight: parseFloat(e.target.value)||0})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">+ Handling</label>
-                                <input type="number" step="0.01" min="0" value={invoiceForm.handling_charges||''}
-                                  onChange={e => setInvoiceForm({...invoiceForm, handling_charges: parseFloat(e.target.value)||0})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">+ Other</label>
-                                <input type="number" step="0.01" min="0" value={invoiceForm.other_charges||''}
-                                  onChange={e => setInvoiceForm({...invoiceForm, other_charges: parseFloat(e.target.value)||0})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">− FOC</label>
-                                <input type="number" step="0.01" min="0" value={invoiceForm.foc_amount||''}
-                                  onChange={e => setInvoiceForm({...invoiceForm, foc_amount: parseFloat(e.target.value)||0})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-1 gap-3">
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Other Charges Note</label>
-                                <input type="text" value={invoiceForm.other_charges_note||''} onChange={e => setInvoiceForm({...invoiceForm, other_charges_note: e.target.value})}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                              </div>
-                            </div>
-                            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                              <button type="button" onClick={() => { setIvInlineOpen(null); setSelectedIvInvoiceNo(null); }}
-                                className="bg-slate-800 px-4 py-1.5 text-xs rounded text-slate-300 hover:bg-slate-700 font-bold">Close</button>
-                              <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 px-5 py-1.5 text-xs rounded text-white font-bold">
-                                {isEdit ? '✔ Update Invoice' : '+ Save Invoice → Enter Goods'}
-                              </button>
-                            </div>
-                          </form>
-
-                          {/*Phần 2: Goods list — chỉ hiện khi invoice đã có invoice_no (đã lưu hoặc đang sửa)*/}
-                          {invoiceForm.invoice_no && (
-                            <div className="space-y-3 pt-1 border-t border-slate-800">
-                              <p className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">2. Goods List — {invoiceForm.invoice_no}</p>
-                              {curGoods.length > 0 && (
-                                <div className="overflow-x-auto rounded-lg border border-slate-800">
-                                  <table className="w-full text-left text-[11px] border-collapse">
-                                    <thead>
-                                      <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider">
-                                        <th className="px-2.5 py-2">Goods No.</th>
-                                        <th className="px-2.5 py-2">Name</th>
-                                        <th className="px-2.5 py-2 text-right">Qty</th>
-                                        <th className="px-2.5 py-2 text-right">Unit Price</th>
-                                        <th className="px-2.5 py-2 text-right">Amount</th>
-                                        <th className="px-2.5 py-2 text-center">Actions</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-800/60">
-                                      {curGoods.map(g => (
-                                        <tr key={g.id} className="hover:bg-slate-800/30">
-                                          <td className="px-2.5 py-2 font-mono text-amber-300">{g.goods_no}</td>
-                                          <td className="px-2.5 py-2 text-slate-300 max-w-[220px] truncate" title={g.goods_name_en}>{g.goods_name_en}</td>
-                                          <td className="px-2.5 py-2 text-right font-mono text-slate-300">{Number(g.qty1).toLocaleString()} {g.unit1}</td>
-                                          <td className="px-2.5 py-2 text-right font-mono text-slate-300">{Number(g.unit_price).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                                          <td className="px-2.5 py-2 text-right font-mono font-bold text-emerald-400">{Number(g.sale_amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                                          <td className="px-2.5 py-2 text-center">
-                                            <div className="flex gap-1 justify-center">
-                                              <button type="button" onClick={() => startEditGoods(g)}
-                                                className="text-[9px] px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-600 text-white font-bold">Edit</button>
-                                              <button type="button" onClick={() => triggerDeleteGoodsConfirm(g.id)}
-                                                className="text-[9px] px-2 py-0.5 rounded bg-rose-900 hover:bg-rose-800 text-rose-300 font-bold">Del</button>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-                              <form onSubmit={handleSaveGoods} className="bg-slate-950/50 border border-slate-800 rounded-lg p-3 space-y-2.5">
-                                <div className="grid grid-cols-4 gap-2.5">
-                                  <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1">Goods No. *</label>
-                                    <input type="text" required value={goodsForm.goods_no}
-                                      onChange={e => setGoodsForm({...goodsForm, goods_no: e.target.value.toUpperCase()})}
-                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono" />
-                                  </div>
-                                  <div className="col-span-2">
-                                    <label className="block text-[10px] text-slate-400 mb-1">Name (EN) *</label>
-                                    <input type="text" required value={goodsForm.goods_name_en}
-                                      onChange={e => setGoodsForm({...goodsForm, goods_name_en: e.target.value})}
-                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white" />
-                                  </div>
-                                  <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1">HS Code</label>
-                                    <input type="text" value={goodsForm.hs_code}
-                                      onChange={e => setGoodsForm({...goodsForm, hs_code: e.target.value})}
-                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono" />
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-4 gap-2.5">
-                                  <div className="col-span-2">
-                                    <label className="block text-[10px] text-slate-400 mb-1">Name (Local)</label>
-                                    <input type="text" value={goodsForm.goods_name_local||''}
-                                      onChange={e => setGoodsForm({...goodsForm, goods_name_local: e.target.value})}
-                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white" />
-                                  </div>
-                                  <div className="col-span-2">
-                                    <label className="block text-[10px] text-slate-400 mb-1">Origin Country</label>
-                                    <input type="text" value={goodsForm.origin_country||''}
-                                      onChange={e => setGoodsForm({...goodsForm, origin_country: e.target.value.toUpperCase()})}
-                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white" />
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-4 gap-2.5">
-                                  <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1">Qty</label>
-                                    <input type="number" step="0.001" min="0" value={goodsForm.qty1||''}
-                                      onChange={e => setGoodsForm({...goodsForm, qty1: parseFloat(e.target.value)||0})}
-                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white" />
-                                  </div>
-                                  <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1">Unit</label>
-                                    <input type="text" value={goodsForm.unit1}
-                                      onChange={e => setGoodsForm({...goodsForm, unit1: e.target.value.toUpperCase()})}
-                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white" />
-                                  </div>
-                                  <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1">Unit Price</label>
-                                    <input type="number" step="0.0001" min="0" value={goodsForm.unit_price||''}
-                                      onChange={e => {
-                                        const up = parseFloat(e.target.value)||0;
-                                        setGoodsForm({...goodsForm, unit_price: up, sale_amount: up * (Number(goodsForm.qty1)||0)});
-                                      }}
-                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white" />
-                                  </div>
-                                  <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1">Amount</label>
-                                    <input type="number" step="0.01" min="0" value={goodsForm.sale_amount||''}
-                                      onChange={e => setGoodsForm({...goodsForm, sale_amount: parseFloat(e.target.value)||0})}
-                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-emerald-300 font-bold" />
-                                  </div>
-                                </div>
-                                <div className="flex justify-end gap-2 pt-1">
-                                  <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 px-4 py-1.5 text-xs rounded text-white font-bold">
-                                    {modalMode === 'edit' && goodsForm.id ? '✔ Update Goods Item' : '+ Add Goods Item'}
-                                  </button>
-                                </div>
-                              </form>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                };
-
-                return (
-                  <div className="space-y-4">
-                    {/*Header + search*/}
-                    <div className="bg-slate-900 border border-indigo-800/40 rounded-xl px-5 py-4 flex flex-wrap gap-4 items-start justify-between">
-                      <div>
-                        <h3 className="text-sm font-black text-indigo-300 uppercase tracking-wide">📄 Invoice Data</h3>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          {hasActiveFilter
-                            ? <>{filtered.length} invoice(s) · Value: <span className="text-emerald-400 font-mono font-bold">${totalVal.toLocaleString(undefined,{minimumFractionDigits:2})}</span></>
-                            : 'Use search or filter to view invoices — or press Load All. Click a row to select, use the toolbar below to Add/Edit/Delete.'}
-                        </p>
-                      </div>
-                      <div className="flex gap-2 items-center flex-wrap">
-                        <input
-                          value={ivSearch}
-                          onChange={e => { setIvSearch(e.target.value); setIvPage(1); if (!ivLoaded) setIvLoaded(false); }}
-                          onKeyDown={e => { if (e.key === 'Enter') setIvLoaded(true); }}
-                          placeholder="Search invoice, lot, bill, supplier… (Enter)"
-                          className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white w-72"
-                          style={{colorScheme:'dark'}}
-                        />
-                        <button onClick={() => { setIvLoaded(true); setIvPage(1); }}
-                          className="bg-blue-700 hover:bg-blue-600 text-white font-bold px-4 py-2 rounded-lg text-xs">
-                          Load All
-                        </button>
-                      </div>
-                    </div>
-
-                    {/*Filter bar — only show when loaded*/}
-                    {hasActiveFilter && (
-                      <div className="flex flex-wrap gap-2 items-center">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase">Filter:</span>
-                        <select value={ivFilterYear} onChange={e => { setIvFilterYear(e.target.value); setIvPage(1); }}
-                          className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
-                          {ivYears.map(y => <option key={y} value={y}>{y === 'ALL' ? 'All Years' : y}</option>)}
-                        </select>
-                        <select value={ivFilterLoaiHinh} onChange={e => { setIvFilterLoaiHinh(e.target.value); setIvPage(1); }}
-                          className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
-                          {ivLoaiHinhs.map(l => <option key={l} value={l}>{l === 'ALL' ? 'All Dec. Types' : l}</option>)}
-                        </select>
-                        <select value={ivFilterSupplier} onChange={e => { setIvFilterSupplier(e.target.value); setIvPage(1); }}
-                          className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white max-w-[180px]">
-                          {ivSuppliers.map(s => <option key={s} value={s}>{s === 'ALL' ? 'All Suppliers' : s}</option>)}
-                        </select>
-                        <select value={ivFilterFactory} onChange={e => { setIvFilterFactory(e.target.value); setIvPage(1); }}
-                          className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
-                          {ivFactories.map(f => <option key={f} value={f}>{f === 'ALL' ? 'All Factories' : f}</option>)}
-                        </select>
-                        {hasManualFilter && (
-                          <button onClick={() => { setIvSearch(''); setIvFilterLoaiHinh('ALL'); setIvFilterSupplier('ALL'); setIvFilterFactory('ALL'); setIvFilterYear('ALL'); setIvPage(1); setIvLoaded(true); }}
-                            className="text-[10px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 rounded border border-rose-900/50">
-                            ✕ Clear filter
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {/*Empty state*/}
-                    {!hasActiveFilter && ivInlineOpen !== 'NEW' && (
-                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-14 text-center">
-                        <div className="text-5xl mb-4 opacity-20">📄</div>
-                        <p className="text-slate-400 font-bold text-sm">Search or Load All to view invoices</p>
-                        <p className="text-slate-600 text-xs mt-1">Type in the search box and press Enter, or click Load All. Use the toolbar (Add) to create a new invoice.</p>
-                      </div>
-                    )}
-
-                    {/*Table*/}
-                    {(hasActiveFilter || ivInlineOpen === 'NEW') && (
-                      <>
-                        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs border-collapse min-w-[900px]">
-                              <thead>
-                                <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                                  <th className="px-3 py-3">Invoice No.</th>
-                                  <th className="px-3 py-3">Lot No.</th>
-                                  <th className="px-3 py-3 text-center">Date</th>
-                                  <th className="px-3 py-3 text-center">Dec. Type</th>
-                                  <th className="px-3 py-3">Supplier</th>
-                                  <th className="px-3 py-3 text-center">Factory</th>
-                                  <th className="px-3 py-3 text-center">Incoterm</th>
-                                  <th className="px-3 py-3 text-center">Currency</th>
-                                  <th className="px-3 py-3 text-right">Invoice Value</th>
-                                  <th className="px-3 py-3 text-center">Selected</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-800/60">
-                                {ivInlineOpen === 'NEW' && <InvoiceInlineForm invoiceNoCtx={invoiceForm.invoice_no} />}
-                                {paged.map(inv => {
-                                  const val = getInvoiceValueSum(inv);
-                                  const isDraft = !inv.lot_no;
-                                  const isSelected = selectedIvInvoiceNo === inv.invoice_no;
-                                  return (
-                                    <React.Fragment key={inv.invoice_no}>
-                                      <tr onClick={() => setSelectedIvInvoiceNo(isSelected ? null : inv.invoice_no)}
-                                        className={`cursor-pointer transition-colors ${isSelected ? 'bg-indigo-950/40' : isDraft ? 'bg-amber-950/10 hover:bg-amber-950/20' : 'hover:bg-slate-800/40'}`}>
-                                        <td className="px-3 py-2.5 font-mono font-bold text-indigo-300">{inv.invoice_no}</td>
-                                        <td className="px-3 py-2.5">
-                                          {inv.lot_no
-                                            ? <span className="font-mono font-bold text-amber-400">{inv.lot_no}</span>
-                                            : <span className="text-amber-600 italic text-[10px] font-bold">⏳ Unassigned</span>}
-                                        </td>
-                                        <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(inv.invoice_date)}</td>
-                                        <td className="px-3 py-2.5 text-center">
-                                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${inv.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':inv.loai_hinh==='E21'?'bg-emerald-900/50 text-emerald-300':'bg-slate-800 text-slate-400'}`}>
-                                            {inv.loai_hinh||'—'}
-                                          </span>
-                                        </td>
-                                        <td className="px-3 py-2.5 text-slate-300 text-[11px] max-w-[160px] truncate" title={inv.supplier}>{inv.supplier||'—'}</td>
-                                        <td className="px-3 py-2.5 text-center text-sky-400 font-mono text-[11px]">{inv.factory_no||'—'}</td>
-                                        <td className="px-3 py-2.5 text-center text-slate-400">{inv.incoterm||'—'}</td>
-                                        <td className="px-3 py-2.5 text-center font-mono text-slate-300">{inv.currency||'USD'}</td>
-                                        <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-400">${val.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                                        <td className="px-3 py-2.5 text-center">
-                                          {isSelected && <span className="text-indigo-400 font-black">✓</span>}
-                                        </td>
-                                      </tr>
-                                      {ivInlineOpen === inv.invoice_no && <InvoiceInlineForm invoiceNoCtx={inv.invoice_no} />}
-                                    </React.Fragment>
-                                  );
-                                })}
-                                {paged.length === 0 && ivInlineOpen !== 'NEW' && (
-                                  <tr><td colSpan="10" className="p-10 text-center text-slate-500 italic">No invoices match.</td></tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                        {totalPages > 1 && (
-                          <div className="flex justify-center items-center gap-2 pt-1">
-                            <button onClick={() => setIvPage(1)} disabled={safePage===1} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">«</button>
-                            <button onClick={() => setIvPage(p=>Math.max(1,p-1))} disabled={safePage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">‹ Prev</button>
-                            {Array.from({length:totalPages},(_,i)=>i+1).filter(p=>p===1||p===totalPages||Math.abs(p-safePage)<=2).reduce((acc,p,idx,arr)=>{if(idx>0&&p-arr[idx-1]>1)acc.push('...');acc.push(p);return acc;},[]).map((p,i)=>p==='...'?<span key={`e${i}`} className="text-slate-500 text-xs px-1">…</span>:<button key={p} onClick={()=>setIvPage(p)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${p===safePage?'bg-indigo-600 text-white':'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{p}</button>)}
-                            <button onClick={() => setIvPage(p=>Math.min(totalPages,p+1))} disabled={safePage===totalPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">Next ›</button>
-                            <button onClick={() => setIvPage(totalPages)} disabled={safePage===totalPages} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">»</button>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
-
-
-              {/*--- LOT NO INFO VIEW ---*/}
-              {activeMenu === 'LOT_NO_INFO' && (() => {
-                const lnYears = ['ALL', ...Array.from(new Set(lots.map(l=>(l.lot_date||'').slice(0,4)).filter(Boolean))).sort((a,b)=>b-a)];
-                const lnLoaiHinhs = ['ALL', ...Array.from(new Set(lots.map(l=>l.loai_hinh).filter(Boolean))).sort()];
-
-                const hasActiveFilter = lnLoaded || lnSearch.trim() || lnFilterLoaiHinh !== 'ALL' || lnFilterYear !== 'ALL';
-                const hasManualFilter = lnSearch.trim() || lnFilterLoaiHinh !== 'ALL' || lnFilterYear !== 'ALL';
-
-                const allLotsFiltered = !hasActiveFilter ? [] : lots.filter(lot => {
-                  if (lnFilterLoaiHinh !== 'ALL' && lot.loai_hinh !== lnFilterLoaiHinh) return false;
-                  if (lnFilterYear !== 'ALL' && (lot.lot_date||'').slice(0,4) !== lnFilterYear) return false;
-                  if (lnSearch.trim()) {
-                    const q = lnSearch.toLowerCase();
-                    if (!(
-                      (lot.lot_no||'').toLowerCase().includes(q) ||
-                      (lot.bill_no||'').toLowerCase().includes(q) ||
-                      (lot.supplier||'').toLowerCase().includes(q) ||
-                      (lot.factory_no||'').toLowerCase().includes(q)
-                    )) return false;
-                  }
-                  return true;
-                }).sort((a,b) => (b.lot_date||'').localeCompare(a.lot_date||''));
-
-                // Tab "draft" hiển thị draftLots (STT/Bill info chưa có lot_no thật) — CRUD đầy đủ tại đây
-                const draftListFiltered = draftLots.filter(d => {
-                  if (!lnSearch.trim()) return true;
-                  const q = lnSearch.toLowerCase();
-                  return String(d.stt).includes(q) || (d.bill_no||'').toLowerCase().includes(q) || (d.supplier||'').toLowerCase().includes(q);
-                }).sort((a,b) => Number(a.stt) - Number(b.stt));
-
-                const displayList = lnTab === 'draft' ? draftListFiltered : allLotsFiltered;
-                const showTable = lnTab === 'draft' ? true : hasActiveFilter;
-
-                const totalPages = Math.max(1, Math.ceil(displayList.length / LN_PAGE_SIZE));
-                const safePage = Math.min(lnPage, totalPages);
-                const paged = displayList.slice((safePage-1)*LN_PAGE_SIZE, safePage*LN_PAGE_SIZE);
-
-                // ── Form inline (accordion) cho Add/Edit Draft Lot ──
-                const DraftLotInlineForm = () => (
-                  <tr>
-                    <td colSpan="8" className="bg-blue-950/20 border-y border-blue-800/40 p-0">
-                      <form onSubmit={handleSaveDraftLot} className="p-4 space-y-4">
-                        <p className="text-[11px] font-bold text-blue-300 uppercase tracking-wider">
-                          {draftLotModalMode === 'edit' ? `Edit Draft Lot — STT ${draftLotForm.stt}` : 'Add Draft Lot (STT + Bill Info)'}
-                        </p>
-
-                        {/*ROW 1: STT + Shared Bill toggle*/}
-                        <div className="grid grid-cols-2 gap-3 items-end">
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">STT (Lot Sequence No.) *</label>
-                            <input type="number" required value={draftLotForm.stt}
-                              onChange={e => setDraftLotForm({...draftLotForm, stt: Number(e.target.value)})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                            <p className="text-[9px] text-slate-600 mt-1">Lot code will be created in Import Declaration after invoices are linked</p>
-                          </div>
-                          <div>
-                            <div className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${draftLotForm.is_hang_chung_bill ? 'bg-amber-950/30 border-amber-700' : 'bg-slate-950/40 border-slate-800'}`}>
-                              <div>
-                                <p className="text-[11px] font-bold text-white">🔗 Shared Bill</p>
-                                <p className="text-[9px] text-slate-400 mt-0.5">1 bill with multiple invoices (different dec. type or multiple invoices)</p>
-                              </div>
-                              <button type="button"
-                                onClick={() => setDraftLotForm(prev => ({...prev, is_hang_chung_bill: !prev.is_hang_chung_bill}))}
-                                className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-all ml-2 ${draftLotForm.is_hang_chung_bill ? 'bg-amber-500' : 'bg-slate-700'}`}>
-                                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${draftLotForm.is_hang_chung_bill ? 'left-5' : 'left-0.5'}`}></span>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/*ROW 2: Open Date + ETA + Doc Received Date*/}
-                        <div className="grid grid-cols-3 gap-3">
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Open Date</label>
-                            <input type="date" value={draftLotForm.lot_date||''} onChange={e => setDraftLotForm({...draftLotForm, lot_date: e.target.value})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">ETA – Estimated Arrival Date</label>
-                            <input type="date" value={draftLotForm.eta||''} onChange={e => setDraftLotForm({...draftLotForm, eta: e.target.value})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Doc. Received Date</label>
-                            <input type="date" value={draftLotForm.get_docs_date||''} onChange={e => setDraftLotForm({...draftLotForm, get_docs_date: e.target.value})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                          </div>
-                        </div>
-
-                        {/*ROW 3: Bill No. + Bill Date + Condition + Carrier/FWD*/}
-                        <div className="grid grid-cols-4 gap-3">
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Bill No. (B/L No.)</label>
-                            <input type="text" value={draftLotForm.bill_no} onChange={e => setDraftLotForm({...draftLotForm, bill_no: e.target.value.toUpperCase()})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Date Bill</label>
-                            <input type="date" value={draftLotForm.bill_date||''} onChange={e => setDraftLotForm({...draftLotForm, bill_date: e.target.value})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Bill Condition</label>
-                            <select value={draftLotForm.bill_term || ''} onChange={e => setDraftLotForm({...draftLotForm, bill_term: e.target.value})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
-                              <option value="">— Select —</option>
-                              <option value="Freight Prepaid">Freight Prepaid (Shipper pays)</option>
-                              <option value="Freight Collect">Freight Collect (Consignee pays)</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Carrier / Forwarder</label>
-                            {carrierAddingNew ? (
-                              <input type="text" autoFocus list="carrier-history-list-draft" value={draftLotForm.carrier}
-                                onChange={e => setDraftLotForm({...draftLotForm, carrier: e.target.value})}
-                                onBlur={() => { if (!draftLotForm.carrier) setCarrierAddingNew(false); }}
-                                placeholder="VD: EVERGREEN, DHL, GEODIS..."
-                                className="w-full bg-slate-950 border border-blue-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                            ) : (
-                              <select value={draftLotForm.carrier || ''}
-                                onChange={e => { if (e.target.value === '__ADD_NEW__') { setCarrierAddingNew(true); setDraftLotForm({...draftLotForm, carrier: ''}); } else { setDraftLotForm({...draftLotForm, carrier: e.target.value}); } }}
-                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
-                                <option value="">— Select —</option>
-                                {carrierHistory.map((c, i) => <option key={i} value={c}>{c}</option>)}
-                                <option value="__ADD_NEW__">+ Add new...</option>
-                              </select>
-                            )}
-                            <datalist id="carrier-history-list-draft">
-                              {carrierHistory.map((c, i) => <option key={i} value={c} />)}
-                            </datalist>
-                          </div>
-                        </div>
-
-                        {/*ROW 4: POL + POD + Origin*/}
-                        <div className="grid grid-cols-3 gap-3">
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Port of Loading (POL)</label>
-                            {polAddingNew ? (
-                              <input type="text" autoFocus value={draftLotForm.pol} onChange={e => setDraftLotForm({...draftLotForm, pol: e.target.value.toUpperCase()})}
-                                onBlur={() => { if (!draftLotForm.pol) setPolAddingNew(false); }}
-                                placeholder="Type new port name..."
-                                className="w-full bg-slate-950 border border-blue-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                            ) : (
-                              <select value={draftLotForm.pol || ''}
-                                onChange={e => { if (e.target.value === '__ADD_NEW__') { setPolAddingNew(true); setDraftLotForm({...draftLotForm, pol: ''}); } else { setDraftLotForm({...draftLotForm, pol: e.target.value}); } }}
-                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
-                                <option value="">— Select POL —</option>
-                                {Array.from(new Set([...getUniquePols(), 'VN', 'TAICHUNG','KAOHSIUNG','SHEKOU','NINGBO','SHENZHEN','HONG KONG'])).map((p,i) => <option key={i} value={p}>{p}</option>)}
-                                <option value="__ADD_NEW__">+ Add new...</option>
-                              </select>
-                            )}
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Port of Discharge (POD)</label>
-                            {podAddingNew ? (
-                              <input type="text" autoFocus value={draftLotForm.pod} onChange={e => setDraftLotForm({...draftLotForm, pod: e.target.value.toUpperCase()})}
-                                onBlur={() => { if (!draftLotForm.pod) setPodAddingNew(false); }}
-                                placeholder="Type new port name..."
-                                className="w-full bg-slate-950 border border-blue-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                            ) : (
-                              <select value={draftLotForm.pod || ''}
-                                onChange={e => { if (e.target.value === '__ADD_NEW__') { setPodAddingNew(true); setDraftLotForm({...draftLotForm, pod: ''}); } else { setDraftLotForm({...draftLotForm, pod: e.target.value}); } }}
-                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
-                                <option value="">— Select POD —</option>
-                                {Array.from(new Set([...getUniquePods(), 'VN', 'CAT LAI','TCS','VNSGN'])).map((p,i) => <option key={i} value={p}>{p}</option>)}
-                                <option value="__ADD_NEW__">+ Add new...</option>
-                              </select>
-                            )}
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">Cargo Origin</label>
-                            {originAddingNew ? (
-                              <input type="text" autoFocus value={draftLotForm.origin_country} onChange={e => setDraftLotForm({...draftLotForm, origin_country: e.target.value.toUpperCase()})}
-                                onBlur={() => { if (!draftLotForm.origin_country) setOriginAddingNew(false); }}
-                                placeholder="Type new country name..."
-                                className="w-full bg-slate-950 border border-blue-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}} />
-                            ) : (
-                              <select value={draftLotForm.origin_country || ''}
-                                onChange={e => { if (e.target.value === '__ADD_NEW__') { setOriginAddingNew(true); setDraftLotForm({...draftLotForm, origin_country: ''}); } else { setDraftLotForm({...draftLotForm, origin_country: e.target.value}); } }}
-                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
-                                <option value="">— Select Origin —</option>
-                                {Array.from(new Set([...getUniqueOrigins(), 'VN', 'TAIWAN','CHINA','JAPAN','KOREA','VIETNAM','GERMANY','USA','ITALY'])).map((o,i) => <option key={i} value={o}>{o}</option>)}
-                                <option value="__ADD_NEW__">+ Add new...</option>
-                              </select>
-                            )}
-                          </div>
-                        </div>
-
-                        {/*ROW 5: Shipping method*/}
-                        <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-3 space-y-3">
-                          <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">🚢 Shipping method</label>
-                          {(() => {
-                            const SHIPPING_GROUPS = [
-                              { group: 'AIR', label: '✈ AIR', sub: [{ val: 'AIR', label: 'AIR' }] },
-                              { group: 'SEA', label: '🚢 SEA', sub: [
-                                  { val: 'SEA_CONT', label: '🚢 CONT (FCL)' },
-                                  { val: 'SEA_CFS', label: '⚓ CFS (LCL)' },
-                                ] },
-                              { group: 'EXPRESS', label: '📦 EXPRESS', sub: [
-                                  { val: 'EXPRESS', label: 'DHL', carrier: 'DHL' },
-                                  { val: 'EXPRESS', label: 'FedEx', carrier: 'FedEx' },
-                                ] },
-                              { group: 'NGOAI_QUAN', label: '🏭 Bonded Warehouse', sub: [{ val: 'NGOAI_QUAN', label: 'Bonded Warehouse' }] },
-                              { group: 'BY_TRUCK', label: '🚛 By Truck', sub: [{ val: 'BY_TRUCK', label: 'By Truck' }] },
-                            ];
-                            const activeGroup = SHIPPING_GROUPS.find(g => g.sub.some(s => s.val === draftLotForm.transport_type));
-                            const activeGroupKey = activeGroup ? activeGroup.group : null;
-                            const activeExpressSub = draftLotForm.transport_type === 'EXPRESS'
-                              ? (String(draftLotForm.carrier||'').toUpperCase().includes('FEDEX') ? 'FedEx' : 'DHL')
-                              : null;
-                            return (
-                              <>
-                                <div className="flex gap-2 flex-wrap">
-                                  {SHIPPING_GROUPS.map(g => {
-                                    const isMultiSub = g.sub.length > 1;
-                                    const isActive = activeGroupKey === g.group;
-                                    const NO_BILL_DEFAULTS = { NGOAI_QUAN: 'NGOẠI QUAN', BY_TRUCK: 'BY TRUCK' };
-                                    const NO_BILL_PLACEHOLDER_VALUES = Object.values(NO_BILL_DEFAULTS);
-                                    return (
-                                      <button type="button" key={g.group}
-                                        onClick={() => {
-                                          const currentBillNo = String(draftLotForm.bill_no || '').trim().toUpperCase();
-                                          const isCurrentBillPlaceholder = NO_BILL_PLACEHOLDER_VALUES.includes(currentBillNo);
-                                          const newDefaultBill = NO_BILL_DEFAULTS[g.group];
-                                          let billNoPatch = {};
-                                          if (newDefaultBill) {
-                                            if (!draftLotForm.bill_no || isCurrentBillPlaceholder) billNoPatch = { bill_no: newDefaultBill };
-                                          } else if (isCurrentBillPlaceholder) {
-                                            billNoPatch = { bill_no: '' };
-                                          }
-                                          const isDomesticVN = g.group === 'NGOAI_QUAN' || g.group === 'BY_TRUCK';
-                                          const isCurrentPolVN = String(draftLotForm.pol||'').trim().toUpperCase() === 'VN';
-                                          const isCurrentPodVN = String(draftLotForm.pod||'').trim().toUpperCase() === 'VN';
-                                          const isCurrentOriginVN = String(draftLotForm.origin_country||'').trim().toUpperCase() === 'VN';
-                                          let portPatch = {};
-                                          if (isDomesticVN) {
-                                            if (!draftLotForm.pol || isCurrentPolVN) portPatch.pol = 'VN';
-                                            if (!draftLotForm.pod || isCurrentPodVN) portPatch.pod = 'VN';
-                                            if (g.group === 'BY_TRUCK' && (!draftLotForm.origin_country || isCurrentOriginVN)) portPatch.origin_country = 'VN';
-                                          } else {
-                                            if (isCurrentPolVN) portPatch.pol = '';
-                                            if (isCurrentPodVN) portPatch.pod = '';
-                                            if (isCurrentOriginVN) portPatch.origin_country = '';
-                                          }
-                                          if (isMultiSub) {
-                                            if (isActive) return;
-                                            const first = g.sub[0];
-                                            setDraftLotForm(prev => ({
-                                              ...prev, transport_type: first.val, is_cont: first.val === 'SEA_CONT',
-                                              ...(first.carrier ? { carrier: first.carrier } : {}),
-                                              ...billNoPatch, ...portPatch,
-                                            }));
-                                          } else {
-                                            const only = g.sub[0];
-                                            setDraftLotForm(prev => ({...prev, transport_type: only.val, is_cont: only.val === 'SEA_CONT', ...billNoPatch, ...portPatch}));
-                                          }
-                                        }}
-                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all
-                                          ${isActive
-                                            ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/40'
-                                            : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
-                                        {g.label}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-
-                                {activeGroupKey === 'SEA' && (
-                                  <div className="flex gap-2 flex-wrap pl-2 border-l-2 border-blue-800/50">
-                                    {SHIPPING_GROUPS.find(g => g.group === 'SEA').sub.map(s => (
-                                      <button type="button" key={s.val}
-                                        onClick={() => setDraftLotForm(prev => ({...prev, transport_type: s.val, is_cont: s.val === 'SEA_CONT'}))}
-                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all
-                                          ${draftLotForm.transport_type === s.val
-                                            ? 'bg-indigo-600 border-indigo-500 text-white'
-                                            : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
-                                        {s.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {activeGroupKey === 'EXPRESS' && (
-                                  <div className="flex gap-2 flex-wrap pl-2 border-l-2 border-purple-800/50">
-                                    {SHIPPING_GROUPS.find(g => g.group === 'EXPRESS').sub.map(s => (
-                                      <button type="button" key={s.label}
-                                        onClick={() => setDraftLotForm(prev => ({...prev, transport_type: 'EXPRESS', carrier: s.carrier}))}
-                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all
-                                          ${activeExpressSub === s.label
-                                            ? 'bg-purple-600 border-purple-500 text-white'
-                                            : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
-                                        {s.label}
-                                      </button>
-                                    ))}
-                                    <span className="text-[9px] text-slate-600 self-center ml-1">Carrier name auto-fills — you can edit it manually if needed</span>
-                                  </div>
-                                )}
-                              </>
-                            );
-                          })()}
-
-                          {/*SEA CONT: Multi-container list*/}
-                          {draftLotForm.transport_type === 'SEA_CONT' && (
-                            <div className="pt-2 border-t border-slate-800 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                                  🚢 Container List
-                                  <span className="ml-2 text-slate-600 normal-case font-normal">({(draftLotForm.contList||[]).filter(c=>c.cont_no).length} cont{(draftLotForm.contList||[]).filter(c=>c.cont_no).length !== 1 ? 's' : ''})</span>
-                                </label>
-                                <button type="button"
-                                  onClick={() => setDraftLotForm(prev => ({
-                                    ...prev,
-                                    contList: [...(prev.contList||[]), {cont_no:'', seal_no:'', cont_type:'40FT'}]
-                                  }))}
-                                  className="text-[9px] px-2.5 py-1 rounded bg-blue-900/50 hover:bg-blue-800/60 text-blue-400 font-bold border border-blue-800/50 transition-all">
-                                  + Add Container
-                                </button>
-                              </div>
-                              <div className="grid grid-cols-12 gap-2 px-1">
-                                <div className="col-span-1 text-[8px] text-slate-600 uppercase">#</div>
-                                <div className="col-span-5 text-[8px] text-slate-600 uppercase">Container No. *</div>
-                                <div className="col-span-3 text-[8px] text-slate-600 uppercase">Seal No.</div>
-                                <div className="col-span-2 text-[8px] text-slate-600 uppercase">Type</div>
-                                <div className="col-span-1"></div>
-                              </div>
-                              {(draftLotForm.contList || [{cont_no:'',seal_no:'',cont_type:'40FT'}]).map((c, idx) => (
-                                <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                                  <div className="col-span-1 text-[9px] text-slate-600 text-center font-mono">{idx+1}</div>
-                                  <div className="col-span-5">
-                                    <input type="text" value={c.cont_no}
-                                      onChange={e => {
-                                        const list = [...(draftLotForm.contList||[])];
-                                        list[idx] = {...list[idx], cont_no: e.target.value.toUpperCase()};
-                                        setDraftLotForm(prev => ({...prev, contList: list}));
-                                      }}
-                                      placeholder="TGBU-9928172"
-                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[11px] text-cyan-300 font-mono focus:border-blue-500 outline-none" />
-                                  </div>
-                                  <div className="col-span-3">
-                                    <input type="text" value={c.seal_no}
-                                      onChange={e => {
-                                        const list = [...(draftLotForm.contList||[])];
-                                        list[idx] = {...list[idx], seal_no: e.target.value.toUpperCase()};
-                                        setDraftLotForm(prev => ({...prev, contList: list}));
-                                      }}
-                                      placeholder="SL-12345"
-                                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[11px] text-white font-mono focus:border-blue-500 outline-none" />
-                                  </div>
-                                  <div className="col-span-2">
-                                    <select value={c.cont_type || '40FT'}
-                                      onChange={e => {
-                                        const list = [...(draftLotForm.contList||[])];
-                                        list[idx] = {...list[idx], cont_type: e.target.value};
-                                        setDraftLotForm(prev => ({...prev, contList: list, cont_type: idx === 0 ? e.target.value : prev.cont_type}));
-                                      }}
-                                      className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-white focus:border-blue-500 outline-none">
-                                      <option value="20FT">20FT</option><option value="40FT">40FT</option>
-                                    </select>
-                                  </div>
-                                  <div className="col-span-1 flex justify-center">
-                                    {(draftLotForm.contList||[]).length > 1 ? (
-                                      <button type="button"
-                                        onClick={() => {
-                                          const list = (draftLotForm.contList||[]).filter((_,i) => i !== idx);
-                                          setDraftLotForm(prev => ({...prev, contList: list}));
-                                        }}
-                                        className="text-rose-500 hover:text-rose-400 text-sm leading-none font-bold transition-colors" title="Remove">×</button>
-                                    ) : (
-                                      <span className="text-slate-800 text-sm">×</span>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                              {(draftLotForm.contList||[]).filter(c=>c.cont_no).length > 1 && (
-                                <div className="text-[9px] text-slate-500 italic pl-1 pt-1">
-                                  💡 {(draftLotForm.contList||[]).filter(c=>c.cont_no).length} containers — primary cont: <span className="text-cyan-400 font-mono">{(draftLotForm.contList||[]).find(c=>c.cont_no)?.cont_no}</span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/*Pkg Qty + GW + CBM*/}
-                          <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-800">
-                            <div>
-                              <label className="block text-[10px] text-slate-400 mb-1">Pkg Qty</label>
-                              <input type="number" step="0.001" min="0" value={draftLotForm.pkg_qty || ''}
-                                onChange={e => setDraftLotForm({...draftLotForm, pkg_qty: parseFloat(e.target.value)||0})}
-                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 mb-1">Gross Weight (KG)</label>
-                              <input type="number" step="0.001" min="0" value={draftLotForm.gw || ''}
-                                onChange={e => setDraftLotForm({...draftLotForm, gw: parseFloat(e.target.value)||0})}
-                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 mb-1">
-                                CBM (m³){(draftLotForm.transport_type === 'AIR' || draftLotForm.transport_type === 'EXPRESS') ? ' — N/A' : ''}
-                              </label>
-                              <input type="text" inputMode="decimal"
-                                disabled={draftLotForm.transport_type === 'AIR' || draftLotForm.transport_type === 'EXPRESS'}
-                                value={draftLotForm.cbm_str !== undefined ? draftLotForm.cbm_str : (draftLotForm.cbm || '')}
-                                onChange={e => {
-                                  const raw = e.target.value;
-                                  if (!/^[0-9]*\.?[0-9]*$/.test(raw) && raw !== '') return;
-                                  setDraftLotForm(prev => ({...prev, cbm_str: raw, cbm: raw === '' || raw === '.' ? 0 : parseFloat(raw)||0}));
-                                }}
-                                placeholder="0.000"
-                                className={`w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono ${(draftLotForm.transport_type === 'AIR' || draftLotForm.transport_type === 'EXPRESS') ? 'opacity-30 cursor-not-allowed' : ''}`} />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                          <button type="button" onClick={() => { setLnInlineOpen(null); setSelectedDraftLotId(null); setCarrierAddingNew(false); setPolAddingNew(false); setPodAddingNew(false); setOriginAddingNew(false); }}
-                            className="bg-slate-800 px-4 py-1.5 text-xs rounded text-slate-300 hover:bg-slate-700 font-bold">Cancel</button>
-                          <button type="submit" className="bg-blue-600 hover:bg-blue-700 px-5 py-1.5 text-xs rounded text-white font-bold">
-                            {draftLotModalMode === 'edit' ? '✔ Update' : '+ Save Draft Lot'}
-                          </button>
-                        </div>
-                      </form>
-                    </td>
-                  </tr>
-                );
-
-                return (
-                  <div className="space-y-4">
-                    {/*Header*/}
-                    <div className="bg-slate-900 border border-blue-800/40 rounded-xl px-5 py-4 flex flex-wrap gap-4 items-start justify-between">
-                      <div>
-                        <h3 className="text-sm font-black text-blue-300 uppercase tracking-wide">🔢 Lot No. Information</h3>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          {lnTab === 'draft'
-                            ? <>{draftListFiltered.length} draft lot(s) — STT &amp; Bill info, not yet assigned a lot code. Click a row to select, use the toolbar below to Add/Edit/Delete.</>
-                            : hasActiveFilter
-                              ? <>{displayList.length} lots shown · {lots.length} total</>
-                              : 'Use search, filter, or Load to view data'}
-                        </p>
-                      </div>
-                      <div className="flex gap-2 items-center flex-wrap">
-                        <input
-                          value={lnSearch}
-                          onChange={e => { setLnSearch(e.target.value); setLnPage(1); }}
-                          onKeyDown={e => { if (e.key === 'Enter') setLnLoaded(true); }}
-                          placeholder="Search STT, bill, supplier… (Enter)"
-                          className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white w-60"
-                          style={{colorScheme:'dark'}}
-                        />
-                        {lnTab === 'all' && (
-                          <button onClick={() => { setLnLoaded(true); setLnPage(1); }}
-                            className="bg-blue-700 hover:bg-blue-600 text-white font-bold px-4 py-2 rounded-lg text-xs">
-                            Load
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/*Tab bar + filters*/}
-                    <div className="flex flex-wrap gap-3 items-center justify-between">
-                      <div className="flex gap-1 bg-slate-950 border border-slate-800 rounded-xl p-1">
-                        <button onClick={() => { setLnTab('draft'); setLnPage(1); setSelectedDraftLotId(null); setLnInlineOpen(null); }}
-                          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${lnTab==='draft'?'bg-amber-600 text-white shadow':'text-slate-400 hover:text-white'}`}>
-                          ⏳ Draft Lots (STT/Bill)
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${lnTab==='draft'?'bg-white/20 text-white':'bg-slate-800 text-slate-400'}`}>{draftLots.length}</span>
-                        </button>
-                        <button onClick={() => { setLnTab('all'); setLnPage(1); setSelectedDraftLotId(null); setLnInlineOpen(null); }}
-                          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${lnTab==='all'?'bg-blue-600 text-white shadow':'text-slate-400 hover:text-white'}`}>
-                          📋 Finalized Lots
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${lnTab==='all'?'bg-white/20 text-white':'bg-slate-800 text-slate-400'}`}>{lots.length}</span>
-                        </button>
-                      </div>
-                      {lnTab === 'all' && hasActiveFilter && (
-                        <div className="flex gap-2 flex-wrap items-center">
-                          <select value={lnFilterYear} onChange={e=>{setLnFilterYear(e.target.value);setLnPage(1);}}
-                            className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
-                            {lnYears.map(y=><option key={y} value={y}>{y==='ALL'?'All Years':y}</option>)}
-                          </select>
-                          <select value={lnFilterLoaiHinh} onChange={e=>{setLnFilterLoaiHinh(e.target.value);setLnPage(1);}}
-                            className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
-                            {lnLoaiHinhs.map(l=><option key={l} value={l}>{l==='ALL'?'All Types':l}</option>)}
-                          </select>
-                          {hasManualFilter && (
-                            <button onClick={()=>{setLnSearch('');setLnFilterLoaiHinh('ALL');setLnFilterYear('ALL');setLnPage(1);setLnLoaded(true);}}
-                              className="text-[10px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 rounded border border-rose-900/50">✕ Clear</button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/*Empty state (chỉ áp dụng cho tab 'all')*/}
-                    {lnTab === 'all' && !hasActiveFilter && (
-                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-14 text-center">
-                        <div className="text-5xl mb-4 opacity-20">🔢</div>
-                        <p className="text-slate-400 font-bold text-sm">Search or press Load to view data</p>
-                        <p className="text-slate-600 text-xs mt-1">These are finalized lots with a real lot_no — view only here, edit/delete via Shipment Profiles</p>
-                      </div>
-                    )}
-
-                    {/*Table: Draft Lots (STT/Bill) — chọn dòng + toolbar nổi để Add/Edit/Delete*/}
-                    {lnTab === 'draft' && (
-                      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                        {draftListFiltered.length === 0 && lnInlineOpen !== 'NEW' ? (
-                          <div className="p-12 text-center">
-                            <div className="text-4xl mb-3 opacity-20">⏳</div>
-                            <p className="text-slate-400 font-bold text-sm">No draft lots yet</p>
-                            <p className="text-slate-600 text-xs mt-1">Use the toolbar below (Add) to enter a new STT + Bill info</p>
-                          </div>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs border-collapse min-w-[900px]">
-                              <thead>
-                                <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                                  <th className="px-3 py-3 text-center">STT</th>
-                                  <th className="px-3 py-3">Bill No.</th>
-                                  <th className="px-3 py-3 text-center">Bill Date</th>
-                                  <th className="px-3 py-3">Carrier</th>
-                                  <th className="px-3 py-3">POL → POD</th>
-                                  <th className="px-3 py-3 text-center">ETA</th>
-                                  <th className="px-3 py-3 text-center">Linked Invoices</th>
-                                  <th className="px-3 py-3 text-center">Selected</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-800/60">
-                                {lnInlineOpen === 'NEW' && <DraftLotInlineForm />}
-                                {paged.map(d => {
-                                  const linkedCount = invoices.filter(i => Number(i.bill_stt) === Number(d.stt) && i.lot_no).length;
-                                  const isSelected = selectedDraftLotId === d.id;
-                                  return (
-                                    <React.Fragment key={d.id}>
-                                      <tr onClick={() => setSelectedDraftLotId(isSelected ? null : d.id)}
-                                        className={`cursor-pointer transition-colors ${isSelected ? 'bg-blue-950/40' : 'hover:bg-slate-800/40'}`}>
-                                        <td className="px-3 py-2.5 text-center font-mono font-bold text-amber-300">{d.stt}</td>
-                                        <td className="px-3 py-2.5 font-mono text-slate-300">{d.bill_no||'—'}</td>
-                                        <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(d.bill_date)}</td>
-                                        <td className="px-3 py-2.5 text-slate-300">{d.carrier||'—'}</td>
-                                        <td className="px-3 py-2.5 text-slate-400 text-[11px]">{d.pol||'—'} → {d.pod||'—'}</td>
-                                        <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(d.eta)}</td>
-                                        <td className="px-3 py-2.5 text-center text-slate-300">{linkedCount}</td>
-                                        <td className="px-3 py-2.5 text-center">
-                                          {isSelected && <span className="text-blue-400 font-black">✓</span>}
-                                        </td>
-                                      </tr>
-                                      {lnInlineOpen === d.id && <DraftLotInlineForm />}
-                                    </React.Fragment>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/*Table: All Lots (Finalized) — view only, Edit/Delete via Shipment Profiles*/}
-                    {lnTab === 'all' && hasActiveFilter && (
-                      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs border-collapse min-w-[800px]">
-                            <thead>
-                              <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                                <th className="px-3 py-3">Lot No.</th>
-                                <th className="px-3 py-3 text-center">STT</th>
-                                <th className="px-3 py-3 text-center">Lot Date</th>
-                                <th className="px-3 py-3 text-center">Dec. Type</th>
-                                <th className="px-3 py-3">Bill No.</th>
-                                <th className="px-3 py-3">Supplier</th>
-                                <th className="px-3 py-3 text-center">Factory</th>
-                                <th className="px-3 py-3 text-center">Status</th>
-                                <th className="px-3 py-3 text-right">Invoices</th>
-                                <th className="px-3 py-3 text-center">→</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-800/60">
-                              {paged.map(lot => {
-                                const lotInvCount = invoices.filter(i=>i.lot_no===lot.lot_no).length;
-                                return (
-                                  <tr key={lot.lot_no} className="hover:bg-slate-800/40 transition-colors">
-                                    <td className="px-3 py-2.5 font-mono font-bold text-amber-400">{lot.lot_no}</td>
-                                    <td className="px-3 py-2.5 text-center font-mono text-slate-400">{lot.stt||'—'}</td>
-                                    <td className="px-3 py-2.5 text-center text-slate-400 font-mono">{fmtDisplayDate(lot.lot_date)}</td>
-                                    <td className="px-3 py-2.5 text-center">
-                                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${lot.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':lot.loai_hinh==='E21'?'bg-emerald-900/50 text-emerald-300':'bg-slate-800 text-slate-400'}`}>
-                                        {lot.loai_hinh||'—'}
-                                      </span>
-                                    </td>
-                                    <td className="px-3 py-2.5 font-mono text-slate-300 text-[11px]">{lot.bill_no||'—'}</td>
-                                    <td className="px-3 py-2.5 text-slate-300 text-[11px] max-w-[140px] truncate" title={lot.supplier}>{lot.supplier||'—'}</td>
-                                    <td className="px-3 py-2.5 text-center text-sky-400 font-mono text-[11px]">{lot.factory_no||'—'}</td>
-                                    <td className="px-3 py-2.5 text-center">
-                                      {lot.atc_date
-                                        ? <span className="text-[10px] bg-emerald-900/50 text-emerald-400 px-2 py-0.5 rounded font-bold">✓ Received</span>
-                                        : <span className="text-[10px] bg-rose-900/50 text-rose-400 px-2 py-0.5 rounded font-bold">⏳ Pending</span>}
-                                    </td>
-                                    <td className="px-3 py-2.5 text-right font-mono text-slate-300">{lotInvCount}</td>
-                                    <td className="px-3 py-2.5 text-center">
-                                      <button onClick={() => { setActiveMenu('E010'); setSelectedLotNo(lot.lot_no); setSelectedInvoiceNo(null); }}
-                                        className="text-[10px] px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">
-                                        View
-                                      </button>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                              {paged.length === 0 && (
-                                <tr><td colSpan="10" className="p-10 text-center text-slate-500 italic">No lots match.</td></tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-
-                    {/*Pagination*/}
-                    {showTable && totalPages > 1 && (
-                      <div className="flex justify-center items-center gap-2 pt-1">
-                        <button onClick={() => setLnPage(1)} disabled={safePage===1} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">«</button>
-                        <button onClick={() => setLnPage(p=>Math.max(1,p-1))} disabled={safePage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">‹ Prev</button>
-                        {Array.from({length:totalPages},(_,i)=>i+1).filter(p=>p===1||p===totalPages||Math.abs(p-safePage)<=2).reduce((acc,p,idx,arr)=>{if(idx>0&&p-arr[idx-1]>1)acc.push('...');acc.push(p);return acc;},[]).map((p,i)=>p==='...'?<span key={`e${i}`} className="text-slate-500 text-xs px-1">…</span>:<button key={p} onClick={()=>setLnPage(p)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${p===safePage?'bg-blue-600 text-white':'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{p}</button>)}
-                        <button onClick={() => setLnPage(p=>Math.min(totalPages,p+1))} disabled={safePage===totalPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">Next ›</button>
-                        <button onClick={() => setLnPage(totalPages)} disabled={safePage===totalPages} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">»</button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-
-              {/*--- IMPORT DECLARATION VIEW ---*/}
-              {activeMenu === 'IMPORT_DECLARATION' && (() => {
-                const unassigned = invoices.filter(inv => !inv.lot_no || !lots.some(l=>l.lot_no===inv.lot_no));
-                const idLoaiHinhs = ['ALL', ...Array.from(new Set(unassigned.map(i=>i.loai_hinh).filter(Boolean))).sort()];
-                const idFactories = ['ALL', ...Array.from(new Set(unassigned.map(i=>i.factory_no).filter(Boolean))).sort()];
-
-                const hasActiveFilter = idLoaded || idSearch.trim() || idFilterLoaiHinh !== 'ALL' || idFilterFactory !== 'ALL';
-                const hasManualFilter = idSearch.trim() || idFilterLoaiHinh !== 'ALL' || idFilterFactory !== 'ALL';
-
-                const filteredUnassigned = !hasActiveFilter ? [] : unassigned.filter(inv => {
-                  if (idFilterLoaiHinh !== 'ALL' && inv.loai_hinh !== idFilterLoaiHinh) return false;
-                  if (idFilterFactory !== 'ALL' && inv.factory_no !== idFilterFactory) return false;
-                  if (idSearch.trim()) {
-                    const q = idSearch.toLowerCase();
-                    if (!(
-                      (inv.invoice_no||'').toLowerCase().includes(q) ||
-                      (inv.bill_no||'').toLowerCase().includes(q) ||
-                      (inv.supplier||'').toLowerCase().includes(q)
-                    )) return false;
-                  }
-                  return true;
-                });
-
-                const totalUnassignedVal = filteredUnassigned.reduce((s,i)=>s+getInvoiceValueSum(i),0);
-                const totalUnassignedPages = Math.max(1, Math.ceil(filteredUnassigned.length / ID_PAGE_SIZE));
-                const safeIdPage = Math.min(idPage, totalUnassignedPages);
-                const pagedUnassigned = filteredUnassigned.slice((safeIdPage-1)*ID_PAGE_SIZE, safeIdPage*ID_PAGE_SIZE);
-
-                // Các lot_no đã finalize (= 1 Import Declaration đã tạo)
-                const declaredLots = lots.filter(l => l.lot_no && invoices.some(i => i.lot_no === l.lot_no))
-                  .sort((a,b) => Number(b.stt||0) - Number(a.stt||0));
-
-                // ── Form inline Add (chọn draft lot + invoice) ──
-                const DeclInlineForm = ({ lotNo }) => {
-                  const isEdit = !!lotNo;
-                  const selectedDraft = draftLots.find(d => d.id === declForm.draftLotId);
-                  const previewLotNo = !isEdit && selectedDraft
-                    ? generateLotNoString(declForm.loai_hinh, declForm.loai_hinh_con, Number(selectedDraft.stt))
-                    : lotNo;
-                  const alreadyExists = !isEdit && previewLotNo && lots.some(l => String(l.lot_no||'').toLowerCase() === String(previewLotNo).toLowerCase());
-                  const toggleInv = (invNo) => setDeclForm(prev => ({
-                    ...prev,
-                    selectedInvoiceNos: prev.selectedInvoiceNos.includes(invNo)
-                      ? prev.selectedInvoiceNos.filter(n => n !== invNo)
-                      : [...prev.selectedInvoiceNos, invNo]
-                  }));
-                  const handleSubmit = () => {
-                    if (isEdit) {
-                      handleAssignInvoicesToExistingLot(lotNo, declForm.selectedInvoiceNos);
-                      setIdInlineOpen(null); setSelectedDeclLotNo(null);
-                    } else {
-                      const newLotNo = handleCreateDeclarationFromDraft(selectedDraft, declForm.loai_hinh, declForm.loai_hinh_con, declForm.selectedInvoiceNos);
-                      if (newLotNo) { setIdInlineOpen(null); setSelectedDeclLotNo(null); }
-                    }
-                  };
-                  return (
-                    <div className="bg-amber-950/10 border-y border-amber-800/40 p-4 space-y-4">
-                      <p className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">
-                        {isEdit ? `Add Invoice → Lot ${lotNo}` : '✦ Create New Import Declaration'}
-                      </p>
-                      {!isEdit && (
-                        <div className="grid grid-cols-3 gap-4">
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1 font-bold uppercase">1. Select Draft Lot (STT)</label>
-                            {draftLots.length === 0 ? (
-                              <p className="text-[11px] text-amber-500 italic bg-amber-950/20 border border-amber-800/40 rounded-lg p-2">
-                                No draft lots — go to Lot No Inf to add one first.
-                              </p>
-                            ) : (
-                              <select value={declForm.draftLotId} onChange={e => setDeclForm({...declForm, draftLotId: e.target.value})}
-                                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
-                                <option value="">— Select STT / Bill —</option>
-                                {draftLots.map(d => <option key={d.id} value={d.id}>STT {d.stt}{d.bill_no ? ` — ${d.bill_no}` : ''}</option>)}
-                              </select>
-                            )}
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1 font-bold uppercase">2. Dec. Type</label>
-                            <select value={declForm.loai_hinh} onChange={e => setDeclForm({...declForm, loai_hinh: e.target.value, loai_hinh_con: 'DEFAULT'})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
-                              <option value="A12">A12 (Kinh doanh)</option>
-                              <option value="E21">E21 (Processing)</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 mb-1 font-bold uppercase">Sub-type</label>
-                            <select value={declForm.loai_hinh_con} onChange={e => setDeclForm({...declForm, loai_hinh_con: e.target.value})}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" style={{colorScheme:'dark'}}>
-                              {declForm.loai_hinh === 'A12'
-                                ? <><option value="DEFAULT">Standard</option><option value="H11">H11 (Bonded/PMD)</option><option value="DT">DT</option></>
-                                : <><option value="DEFAULT">Standard</option><option value="CHUYEN_TIEP">Chuyển tiếp (CT)</option></>}
-                            </select>
-                          </div>
-                        </div>
-                      )}
-                      {selectedDraft && !isEdit && (
-                        <div className={`text-[11px] px-3 py-2 rounded-lg border ${alreadyExists ? 'bg-rose-950/20 border-rose-700 text-rose-400' : 'bg-amber-950/20 border-amber-800/40 text-amber-300'}`}>
-                          Lot code preview: <span className="font-mono font-bold">{previewLotNo}</span>
-                          {alreadyExists && <span className="font-bold ml-2">⚠ Already exists! Change STT or dec. type.</span>}
-                        </div>
-                      )}
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <label className="text-[10px] text-slate-400 font-bold uppercase">
-                            {isEdit ? '3. Select Invoice(s) to Add' : '3. Select Invoice(s)'}
-                          </label>
-                          {unassigned.length > 0 && (
-                            <button type="button"
-                              onClick={() => setDeclForm(prev => ({
-                                ...prev,
-                                selectedInvoiceNos: prev.selectedInvoiceNos.length === unassigned.length ? [] : unassigned.map(i => i.invoice_no)
-                              }))}
-                              className="text-[10px] text-blue-400 hover:text-blue-300 font-bold">
-                              {declForm.selectedInvoiceNos.length === unassigned.length ? 'Deselect all' : 'Select all'}
-                            </button>
-                          )}
-                        </div>
-                        {unassigned.length === 0 ? (
-                          <p className="text-[11px] text-emerald-400 italic">All invoices have been assigned!</p>
-                        ) : (
-                          <div className="grid grid-cols-3 gap-1.5 max-h-52 overflow-y-auto">
-                            {unassigned.map(inv => {
-                              const checked = declForm.selectedInvoiceNos.includes(inv.invoice_no);
-                              return (
-                                <div key={inv.invoice_no} onClick={() => toggleInv(inv.invoice_no)}
-                                  className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-[11px] transition-all ${checked ? 'bg-amber-950/40 border-amber-600' : 'bg-slate-950/40 border-slate-800 hover:border-slate-600'}`}>
-                                  <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center flex-shrink-0 ${checked ? 'bg-amber-500 border-amber-500' : 'border-slate-600'}`}>
-                                    {checked && <span className="text-white text-[9px] font-black">✓</span>}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className="font-mono font-bold text-amber-300 truncate">{inv.invoice_no}</div>
-                                    <div className="text-[10px] text-slate-500">STT {inv.bill_stt||'—'} · {inv.currency||'USD'} {Number(getInvoiceValueSum(inv)).toLocaleString(undefined,{minimumFractionDigits:2})}</div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                        <button type="button" onClick={() => { setIdInlineOpen(null); setSelectedDeclLotNo(null); }}
-                          className="bg-slate-800 px-4 py-1.5 text-xs rounded text-slate-300 hover:bg-slate-700 font-bold">Cancel</button>
-                        <button type="button" onClick={handleSubmit}
-                          disabled={!isEdit && alreadyExists}
-                          className="bg-amber-600 hover:bg-amber-500 disabled:opacity-40 px-5 py-1.5 text-xs rounded text-white font-bold">
-                          {isEdit ? '✔ Add to Lot' : '✦ Create Declaration'}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                };
-
-                return (
-                  <div className="space-y-4">
-                    {/*Header*/}
-                    <div className="bg-slate-900 border border-amber-800/40 rounded-xl px-5 py-4 flex flex-wrap gap-4 items-start justify-between">
-                      <div>
-                        <h3 className="text-sm font-black text-amber-300 uppercase tracking-wide">✦ Import Declaration — Link Invoice to Lot</h3>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          {hasActiveFilter
-                            ? <>{filteredUnassigned.length} unassigned invoice(s) · Value: <span className="text-emerald-400 font-mono font-bold">${totalUnassignedVal.toLocaleString(undefined,{minimumFractionDigits:2})}</span></>
-                            : `${unassigned.length} invoice(s) pending — click a declared lot to select, use toolbar below to Add/Edit/Delete`}
-                        </p>
-                      </div>
-                      <div className="flex gap-2 items-center flex-wrap">
-                        <input value={idSearch} onChange={e => { setIdSearch(e.target.value); setIdPage(1); }}
-                          onKeyDown={e => { if (e.key === 'Enter') setIdLoaded(true); }}
-                          placeholder="Search unassigned invoice, bill… (Enter)"
-                          className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white w-64" style={{colorScheme:'dark'}}/>
-                        <button onClick={() => { setIdLoaded(true); setIdPage(1); }}
-                          className="bg-amber-700 hover:bg-amber-600 text-white font-bold px-4 py-2 rounded-lg text-xs">Load</button>
-                      </div>
-                    </div>
-
-                    {/*Filter bar*/}
-                    {hasActiveFilter && (
-                      <div className="flex flex-wrap gap-2 items-center">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase">Filter:</span>
-                        <select value={idFilterLoaiHinh} onChange={e=>{setIdFilterLoaiHinh(e.target.value);setIdPage(1);}}
-                          className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
-                          {idLoaiHinhs.map(l=><option key={l} value={l}>{l==='ALL'?'All Dec. Types':l}</option>)}
-                        </select>
-                        <select value={idFilterFactory} onChange={e=>{setIdFilterFactory(e.target.value);setIdPage(1);}}
-                          className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
-                          {idFactories.map(f=><option key={f} value={f}>{f==='ALL'?'All Factories':f}</option>)}
-                        </select>
-                        {hasManualFilter && (
-                          <button onClick={()=>{setIdSearch('');setIdFilterLoaiHinh('ALL');setIdFilterFactory('ALL');setIdPage(1);setIdLoaded(true);}}
-                            className="text-[10px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 rounded border border-rose-900/50">✕ Clear</button>
-                        )}
-                      </div>
-                    )}
-
-                    {/*inline form Add (top — before declared lots table) */}
-                    {idInlineOpen === 'NEW' && <DeclInlineForm lotNo={null} />}
-
-                    {/*Existing declarations — click row to select → toolbar Edit/Delete*/}
-                    {declaredLots.length > 0 && (
-                      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                        <div className="bg-slate-950 px-4 py-2.5 border-b border-slate-800 flex justify-between items-center">
-                          <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">📑 Declarations ({declaredLots.length})</p>
-                          <p className="text-[10px] text-slate-500">Click a row to select · Use toolbar to Edit (add more invoices) or Delete (unlink all invoices)</p>
-                        </div>
-                        <div className="divide-y divide-slate-800/60">
-                          {declaredLots.map(lot => {
-                            const lotInvoices = invoices.filter(i => i.lot_no === lot.lot_no);
-                            const isSelected = selectedDeclLotNo === lot.lot_no;
-                            return (
-                              <React.Fragment key={lot.lot_no}>
-                                <div onClick={() => setSelectedDeclLotNo(isSelected ? null : lot.lot_no)}
-                                  className={`px-4 py-3 cursor-pointer transition-colors ${isSelected ? 'bg-amber-950/30' : 'hover:bg-slate-800/30'}`}>
-                                  <div className="flex items-center justify-between flex-wrap gap-2">
-                                    <div className="flex items-center gap-2">
-                                      {isSelected && <span className="text-amber-400 font-black text-sm">✓</span>}
-                                      <span className="font-mono font-bold text-amber-400 text-xs">{lot.lot_no}</span>
-                                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${lot.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':'bg-emerald-900/50 text-emerald-300'}`}>{lot.loai_hinh}</span>
-                                      <span className="text-[10px] text-slate-500">STT {lot.stt} · {lotInvoices.length} invoice(s)</span>
-                                    </div>
-                                  </div>
-                                  <div className="mt-2 flex flex-wrap gap-1.5">
-                                    {lotInvoices.map(inv => (
-                                      <span key={inv.invoice_no} className="flex items-center gap-1.5 bg-slate-950/60 border border-slate-800 rounded-lg px-2.5 py-1 text-[10px]">
-                                        <span className="font-mono text-indigo-300 font-bold">{inv.invoice_no}</span>
-                                        <button onClick={e => { e.stopPropagation(); triggerUnlinkInvoiceConfirm(inv.invoice_no, lot.lot_no); }}
-                                          className="text-rose-400 hover:text-rose-300 font-bold" title="Unlink this invoice">✕</button>
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                                {idInlineOpen === lot.lot_no && <DeclInlineForm lotNo={lot.lot_no} />}
-                              </React.Fragment>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {declaredLots.length === 0 && idInlineOpen !== 'NEW' && (
-                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-14 text-center">
-                        <div className="text-5xl mb-4 opacity-20">✦</div>
-                        <p className="text-slate-400 font-bold text-sm">No Import Declarations yet</p>
-                        <p className="text-slate-600 text-xs mt-1">Use the toolbar below (Add) to link invoices to a draft lot</p>
-                      </div>
-                    )}
-
-                    {/*Unassigned invoices — info panel*/}
-                    {hasActiveFilter && filteredUnassigned.length > 0 && (
-                      <>
-                        <div className="bg-slate-900 border border-amber-800/30 rounded-xl overflow-hidden">
-                          <div className="bg-amber-950/20 px-4 py-2.5 border-b border-amber-800/30">
-                            <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">⏳ Invoices Pending Assignment ({filteredUnassigned.length})</p>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs border-collapse min-w-[700px]">
-                              <thead>
-                                <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                                  <th className="px-3 py-2.5">Invoice No.</th>
-                                  <th className="px-3 py-2.5 text-center">STT</th>
-                                  <th className="px-3 py-2.5 text-center">Dec. Type</th>
-                                  <th className="px-3 py-2.5">Bill No.</th>
-                                  <th className="px-3 py-2.5 text-center">Factory</th>
-                                  <th className="px-3 py-2.5 text-right">Value</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-800/60">
-                                {pagedUnassigned.map(inv => (
-                                  <tr key={inv.invoice_no} className="bg-amber-950/5 hover:bg-amber-950/15 transition-colors">
-                                    <td className="px-3 py-2 font-mono font-bold text-amber-300">{inv.invoice_no}</td>
-                                    <td className="px-3 py-2 text-center font-mono text-slate-400">{inv.bill_stt||'—'}</td>
-                                    <td className="px-3 py-2 text-center">
-                                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${inv.loai_hinh==='A12'?'bg-blue-900/50 text-blue-300':inv.loai_hinh==='E21'?'bg-emerald-900/50 text-emerald-300':'bg-slate-800 text-slate-400'}`}>
-                                        {inv.loai_hinh||'—'}
-                                      </span>
-                                    </td>
-                                    <td className="px-3 py-2 font-mono text-slate-300">{inv.bill_no||'—'}</td>
-                                    <td className="px-3 py-2 text-center text-sky-400 font-mono">{inv.factory_no||'—'}</td>
-                                    <td className="px-3 py-2 text-right font-mono font-bold text-emerald-400">${getInvoiceValueSum(inv).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                        {totalUnassignedPages > 1 && (
-                          <div className="flex justify-center items-center gap-2 pt-1">
-                            <button onClick={() => setIdPage(1)} disabled={safeIdPage===1} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">«</button>
-                            <button onClick={() => setIdPage(p=>Math.max(1,p-1))} disabled={safeIdPage===1} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">‹</button>
-                            <span className="text-xs text-slate-400">{safeIdPage} / {totalUnassignedPages}</span>
-                            <button onClick={() => setIdPage(p=>Math.min(totalUnassignedPages,p+1))} disabled={safeIdPage===totalUnassignedPages} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30">›</button>
-                            <button onClick={() => setIdPage(totalUnassignedPages)} disabled={safeIdPage===totalUnassignedPages} className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs disabled:opacity-40">»</button>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
-
-
-
 
               {/*--- DAILY ATC REPORT VIEW ---*/}
               {activeMenu === 'LIST_HANG' && (() => {
@@ -6852,7 +5065,6 @@
               </div>
             </div>
           )}
-
 
           {/*--- ADD/EDIT PRODUCT MODAL (Source Dict) ---*/}
           {showDictModal && (
@@ -8894,9 +7106,9 @@
                           📄 Sale Contract
                         </button>
                       )}
-                      <button onClick={() => { setViewDetailLot(null); setE010QuickEditForm({ ...lot }); setE010QuickEditOpen(true); }}
+                      <button onClick={() => { setViewDetailLot(null); startEditLot(lot); }}
                         className="text-[11px] px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-bold transition-all">
-                        ✏ Quick Edit
+                        Edit
                       </button>
                       <button onClick={(e) => { setViewDetailLot(null); triggerDeleteLotConfirm(lot.lot_no, e); }}
                         className="text-[11px] px-3 py-1.5 rounded-lg bg-rose-900 hover:bg-rose-800 text-rose-300 font-bold transition-all">
